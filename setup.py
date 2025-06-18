@@ -3,8 +3,8 @@ import re
 from setuptools import find_namespace_packages, setup
 
 
-# Ensure we match the version set in optimum/onnx/version.py
-filepath = "optimum/onnx/version.py"
+# Ensure we match the version set in optimum/onnxruntime/version.py
+filepath = "optimum/onnxruntime/version.py"
 try:
     with open(filepath) as version_file:
         (__version__,) = re.findall('__version__ = "(.*)"', version_file.read())
@@ -12,7 +12,7 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 INSTALL_REQUIRE = [
-    "optimum~=1.25",
+    "optimum~=1.26",
 ]
 
 TESTS_REQUIRE = [
