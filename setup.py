@@ -61,7 +61,8 @@ setup(
     packages=find_namespace_packages(include=["optimum*"]),
     install_requires=INSTALL_REQUIRE,
     extras_require=EXTRAS_REQUIRE,
-    python_requires=">=3.10.0",
+    python_requires=">=3.9.0",
     include_package_data=True,
     zip_safe=False,
 )
+
