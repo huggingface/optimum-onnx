@@ -1,4 +1,4 @@
-name: Code Quality
+name: Quality Checks
 on:
   push:
     branches:
@@ -28,7 +28,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install "black~=23.1" "ruff==0.4.4"
+          # .[quality] installs too many dependencies
+          pip install "black~=23.1" "ruff==0.1.5"
 
       - name: Check style with black
         run: |
