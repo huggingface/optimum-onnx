@@ -21,6 +21,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict
 from unittest import TestCase, mock
 
+import onnx
 import onnxruntime
 import pytest
 import torch
@@ -34,7 +35,6 @@ from transformers import (
 from transformers.modeling_utils import PreTrainedModel
 from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
 
-import onnx
 from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
 from optimum.exporters.onnx import (

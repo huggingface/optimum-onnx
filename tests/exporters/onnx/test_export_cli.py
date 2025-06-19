@@ -19,12 +19,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Optional
 
+import onnx
 import pytest
 from parameterized import parameterized
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
 
-import onnx
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
 from optimum.exporters.tasks import TasksManager
