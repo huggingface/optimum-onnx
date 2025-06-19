@@ -29,6 +29,7 @@ TESTS_REQUIRE = [
     "safetensors",
     "Pillow",
     "einops",
+    "timm",
 ]
 
 
