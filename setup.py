@@ -28,6 +28,7 @@ TESTS_REQUIRE = [
     "datasets",
     "safetensors",
     "Pillow",
+    "einops",
 ]
 
 
