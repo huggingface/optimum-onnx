@@ -29,7 +29,7 @@ TESTS_REQUIRE = [
 ]
 
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff==0.4.4"]
+QUALITY_REQUIRE = ["black~=23.1", "ruff==0.5.1"]
 
 
 EXTRAS_REQUIRE = {
