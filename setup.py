@@ -26,6 +26,7 @@ TESTS_REQUIRE = [
     "sentencepiece",
     "datasets",
     "safetensors",
+    "Pillow",
 ]
 
 
