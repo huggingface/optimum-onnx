@@ -24,6 +24,7 @@ from ...exporters import TasksManager
 from ...utils import DEFAULT_DUMMY_SHAPES
 from ..base import BaseOptimumCLICommand, CommandInfo
 
+
 if TYPE_CHECKING:
     from argparse import ArgumentParser
 
