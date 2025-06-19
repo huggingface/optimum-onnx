@@ -13,6 +13,9 @@ except Exception as error:
 
 INSTALL_REQUIRE = [
     "optimum~=1.26",
+    "transformers>=4.36,<4.53.0",
+    "onnx",
+    "onnxruntime",
 ]
 
 TESTS_REQUIRE = [
@@ -65,4 +68,3 @@ setup(
     include_package_data=True,
     zip_safe=False,
 )
-
