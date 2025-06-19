@@ -25,10 +25,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import onnx
 from transformers.generation import GenerationMixin
 from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_tf_available, is_torch_available
+
+import onnx
 
 from ...onnx.graph_transformations import check_and_save_model
 from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
@@ -645,9 +646,10 @@ def export_tensorflow(
     # This is needed to import onnx and tf2onnx because onnx is also the name of the current directory.
     import sys
 
-    import onnx
     import tensorflow as tf
     import tf2onnx
+
+    import onnx
 
     sys_path_backup = sys.path
     sys.path.pop(0)
