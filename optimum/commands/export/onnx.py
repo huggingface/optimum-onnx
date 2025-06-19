@@ -22,8 +22,7 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
 from ...exporters import TasksManager
 from ...utils import DEFAULT_DUMMY_SHAPES
-from ..base import BaseOptimumCLICommand
-
+from ..base import BaseOptimumCLICommand, CommandInfo
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
@@ -254,6 +253,8 @@ def parse_args_onnx(parser):
 
 
 class ONNXExportCommand(BaseOptimumCLICommand):
+    COMMAND = CommandInfo(name="onnx", help="Export PyTorch and TensorFlow to ONNX")
+
     @staticmethod
     def parse_args(parser: "ArgumentParser"):
         return parse_args_onnx(parser)
