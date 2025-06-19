@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import onnx
-from onnx import ModelProto
 
 from ..utils import logging
 from .transformations_utils import (
@@ -43,7 +42,7 @@ if TYPE_CHECKING:
 logger = logging.get_logger()
 
 
-def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelProto:
+def remove_duplicate_weights(model: onnx.ModelProto, inplace: bool = False) -> onnx.ModelProto:
     """
     Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
     to them.
@@ -69,7 +68,7 @@ def remove_duplicate_weights(model: ModelProto, inplace: bool = False) -> ModelP
 
 
 def remove_duplicate_weights_from_tied_info(
-    onnx_model: ModelProto, torch_model: "nn.Module", tied_params: List[List[str]], save_path: str
+    onnx_model: onnx.ModelProto, torch_model: "nn.Module", tied_params: List[List[str]], save_path: str
 ):
     """
     Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
@@ -102,7 +101,7 @@ def remove_duplicate_weights_from_tied_info(
     return onnx_model
 
 
-def replace_atenops_to_gather(model: ModelProto) -> ModelProto:
+def replace_atenops_to_gather(model: onnx.ModelProto) -> onnx.ModelProto:
     """
     Replaces broken ATenOp nodes back to Gather nodes.
 
@@ -181,13 +180,13 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
 
 
 def merge_decoders(
-    decoder: Union[ModelProto, Path, str],
-    decoder_with_past: Union[ModelProto, Path, str],
+    decoder: Union[onnx.ModelProto, Path, str],
+    decoder_with_past: Union[onnx.ModelProto, Path, str],
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
     save_path: Optional[Union[str, Path]] = None,
     strict: bool = True,
-) -> ModelProto:
+) -> onnx.ModelProto:
     """
     Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
@@ -309,7 +308,7 @@ def merge_decoders(
     return merged_model
 
 
-def cast_slice_nodes_inputs_to_int32(model: ModelProto) -> ModelProto:
+def cast_slice_nodes_inputs_to_int32(model: onnx.ModelProto) -> onnx.ModelProto:
     """
     Convert node inputs of `Slice` nodes from int64 to int32, casting the out of range values.
 

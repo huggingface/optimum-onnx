@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Set, Tuple
 import numpy as np
 
 import onnx
-from onnx import ModelProto, ValueInfoProto, numpy_helper
 
 
 if TYPE_CHECKING:
@@ -32,7 +31,7 @@ logger = logging.get_logger()
 
 
 def _find_duplicate_initializers(
-    models: List[ModelProto],
+    models: List[onnx.ModelProto],
 ) -> DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]]:
     """
     Creates a map (unique data) --> set of (initializer name, model id)
@@ -45,7 +44,7 @@ def _find_duplicate_initializers(
             tensor_dims = tuple(getattr(initializer, "dims"))
             if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
                 # Extract tensor data as numpy array
-                tensor_data = numpy_helper.to_array(initializer)
+                tensor_data = onnx.numpy_helper.to_array(initializer)
 
                 # Hash tensor data to avoid storing large amounts of data in memory
                 hashed = hashlib.sha512()
@@ -100,7 +99,7 @@ def _create_name_sharing_dict(
     return name_sharing_dict
 
 
-def _replace_input_names(models: List[ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
+def _replace_input_names(models: List[onnx.ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
     """
     Replaces the names of node inputs from the models by the names in the name_sharing_dict.
     """
@@ -111,7 +110,7 @@ def _replace_input_names(models: List[ModelProto], name_sharing_dict: Dict[Tuple
                     node.input[j] = name_sharing_dict[(node.input[j], i)]
 
 
-def _remove_redundant_initializers(models: List[ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
+def _remove_redundant_initializers(models: List[onnx.ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
     """
     TODO: short documentation.
     """
@@ -125,7 +124,7 @@ def _remove_redundant_initializers(models: List[ModelProto], name_sharing_dict: 
             models[i].graph.initializer.pop(idx)
 
 
-def _infer_output_shape(output: ValueInfoProto):
+def _infer_output_shape(output: onnx.ValueInfoProto):
     """
     TODO: short documentation.
     """
@@ -141,7 +140,7 @@ def _infer_output_shape(output: ValueInfoProto):
     return output_shape
 
 
-def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
+def _unify_onnx_outputs(model1: onnx.ModelProto, model2: onnx.ModelProto, strict: bool):
     """
     Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     According to the rules of "If" op, two subgraphs must have the same number of outputs.
@@ -247,7 +246,7 @@ def _unify_onnx_outputs(model1: ModelProto, model2: ModelProto, strict: bool):
         raise RuntimeError("Failed to unify outputs of given ONNX model protos.")
 
 
-def _get_all_inputs(model_list: List[ModelProto]) -> List[onnx.onnx_ml_pb2.ValueInfoProto]:
+def _get_all_inputs(model_list: List[onnx.ModelProto]) -> List[onnx.ValueInfoProto]:
     """
     Returns all the inputs to all the models in `model_list`, in a single list.
     """
@@ -261,7 +260,7 @@ def _get_all_inputs(model_list: List[ModelProto]) -> List[onnx.onnx_ml_pb2.Value
     return inputs
 
 
-def _get_onnx_opset(model: ModelProto):
+def _get_onnx_opset(model: onnx.ModelProto):
     """
     Returns the ONNX opset version used to generate `model`.
     """
@@ -269,7 +268,7 @@ def _get_onnx_opset(model: ModelProto):
     return getattr(opset_import, "version")
 
 
-def _deduplicated_cross_model_initializers(models: List[ModelProto], suffix: str = None):
+def _deduplicated_cross_model_initializers(models: List[onnx.ModelProto], suffix: str = None):
     """
     TODO: short documentation.
     """
@@ -300,7 +299,7 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
     value in int32.
     """
     original_name = initializer.name
-    array = np.copy(numpy_helper.to_array(initializer))
+    array = np.copy(onnx.numpy_helper.to_array(initializer))
 
     if not array.dtype == np.int64:
         raise TypeError(
@@ -315,7 +314,7 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
         array = array.astype(np.int32)
     array.setflags(write=0)
 
-    tensor = numpy_helper.from_array(array)
+    tensor = onnx.numpy_helper.from_array(array)
 
     initializer.CopyFrom(tensor)
     initializer.name = original_name
@@ -352,7 +351,7 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
 
 
 def _find_matching_initializers(
-    tied_params_with_op: List[Dict[str, str]], model: ModelProto, initializer_name_to_idx: Dict[str, int]
+    tied_params_with_op: List[Dict[str, str]], model: onnx.ModelProto, initializer_name_to_idx: Dict[str, int]
 ):
     """
     From the torch parameter names in `tied_params`, find the matching initializers
@@ -362,7 +361,7 @@ def _find_matching_initializers(
         tied_params_with_op (`List[Dict[str, str]]`):
             A list of groups of parameters that are tied, i.e. shared. For them,
             the torch module share the same pointer. The dictionary points to what type of nn.Module the parameter belongs to (e.g. `Linear`).
-        model (`ModelProto`):
+        model (`onnx.ModelProto`):
             The model in which the initializers should be looked for.
         initializer_name_to_idx (`Dict[str, int]`):
             A mapping from the model initializer name to their indices in model.graph.initializer, to ease the search.
@@ -464,7 +463,7 @@ def _find_matching_initializers(
 
 
 def _deduplicate_gather_matmul(
-    model: ModelProto,
+    model: onnx.ModelProto,
     tied_groups_to_tie: List[List[str]],
     tied_groups_map: Dict[Tuple[str], List[Dict[str, Any]]],
     initializer_name_to_idx: Dict[str, int],
@@ -500,7 +499,7 @@ def _deduplicate_gather_matmul(
         ref_initializer_idx = initializer_name_to_idx[ref_initializer_name]
         ref_initializer = model.graph.initializer[ref_initializer_idx]
         ref_type = ref_initializer.data_type
-        ref_data = numpy_helper.to_array(ref_initializer)
+        ref_data = onnx.numpy_helper.to_array(ref_initializer)
 
         for i in range(len(torch_to_initializer)):
             if i == ref_idx:
@@ -510,7 +509,7 @@ def _deduplicate_gather_matmul(
             initializer_idx = initializer_name_to_idx[initializer_name]
             initializer = model.graph.initializer[initializer_idx]
             initializer_type = initializer.data_type
-            initializer_data = numpy_helper.to_array(initializer)
+            initializer_data = onnx.numpy_helper.to_array(initializer)
 
             # Several torch parameters may correspond to the same initializer.
             if initializer_name == ref_initializer_name:
