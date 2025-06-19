@@ -58,7 +58,7 @@ from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, 
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
-from ..utils import (
+from ..utils_tests import (
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,

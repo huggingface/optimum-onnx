@@ -36,7 +36,7 @@ from optimum.onnxruntime import (
 )
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
-from ..utils import (
+from .utils_tests import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
