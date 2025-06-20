@@ -231,6 +231,9 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     # if is_transformers_version(">=", "4.45"):
     # CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
 
+    SUPPORTED_ARCHITECTURES = ["flux"]
+    CALLBACK_SUPPORTED_ARCHITECTURES = ["flux"]
+
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
 
