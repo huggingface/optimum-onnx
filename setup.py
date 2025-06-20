@@ -30,6 +30,10 @@ TESTS_REQUIRE = [
     "Pillow",
     "einops",
     "timm",
+    "sacremoses",
+    "rjieba",
+    "hf_xet",
+    "onnxslim>=0.1.53",
 ]
 
 
