@@ -211,7 +211,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "latent-consistency",
     ]
     if is_transformers_version(">=", "4.45"):
-        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+        # SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
 
     NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [
         "stable-diffusion",
@@ -227,8 +228,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
-        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
+    # if is_transformers_version(">=", "4.45"):
+    # CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image

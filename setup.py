@@ -34,6 +34,7 @@ TESTS_REQUIRE = [
     "rjieba",
     "hf_xet",
     "onnxslim>=0.1.53",
+    "scipy",
 ]
 
 

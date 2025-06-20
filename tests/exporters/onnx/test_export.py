@@ -58,7 +58,7 @@ from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, 
 from optimum.utils.normalized_config import NormalizedConfigManager
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
-from ..utils_tests import (
+from .utils_tests import (
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
@@ -536,7 +536,7 @@ class OnnxCustomExport(TestCase):
                 )
 
     def test_custom_export_trust_remote_error(self):
-        model_id = "mohitsha/tiny-ernie-random-remote-code"
+        model_id = "optimum-internal-testing/tiny-random-arctic"
 
         with self.assertRaises(ValueError) as context:
             with TemporaryDirectory() as tmpdirname:
