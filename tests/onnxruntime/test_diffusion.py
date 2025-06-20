@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
+import pytest
 import torch
 import torch.version
 from diffusers import (
@@ -263,6 +264,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
     @require_diffusers
+    @pytest.mark.run_in_series
     def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
