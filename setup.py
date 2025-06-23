@@ -13,7 +13,7 @@ except Exception as error:
 
 INSTALL_REQUIRE = [
     # "optimum~=1.26",
-    "optimum @ git+https://github.com/huggingface/optimum.git@mv-onnx",
+    "optimum @ git+https://github.com/huggingface/optimum.git",
     "transformers>=4.36,<4.53.0",
     "onnx",
     "onnxruntime",
