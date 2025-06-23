@@ -16,7 +16,7 @@
 Before you begin, make sure you have all the necessary libraries installed :
 
 ```bash
-pip install optimum[onnx]
+pip install git+https://github.com/huggingface/optimum-onnx.git
 ```
 
 ### ONNX export
