@@ -166,7 +166,7 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 
 
-@register_tasks_manager_onnx("visualbert", *["feature-extraction"])
+@register_tasks_manager_onnx("visual_bert", *["feature-extraction"])
 class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DEFAULT_ONNX_OPSET = 11

@@ -1927,7 +1927,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["vit", "dinov2", "visualbert"]
+    SUPPORTED_ARCHITECTURES = ["vit", "dinov2", "visual_bert"]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
@@ -1942,7 +1942,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         processor = get_preprocessor(model_id)
         text = "This is a sample output"
 
-        if model_arch == "visualbert":
+        if model_arch == "visual_bert":
             tokens = processor(text, return_tensors=return_tensors)
 
             np.random.seed(SEED)

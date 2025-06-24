@@ -310,7 +310,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "vit": "google/vit-base-patch16-224",
     "vit_mae": "facebook/vit-mae-base",
     "vit_msn": "facebook/vit-msn-small",
-    "visualbert": "hf-internal-testing/tiny-random-VisualBertModel",
+    "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vitpose": "usyd-community/vitpose-plus-small",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
