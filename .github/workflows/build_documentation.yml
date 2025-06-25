@@ -32,7 +32,7 @@ jobs:
       - name: Set environment variables
         run: |
           cd optimum
-          version=`echo "$(grep '^__version__ =' onnx/version.py | cut -d '=' -f 2- | xargs)"`
+          version=`echo "$(grep '^__version__ =' onnx/version.py | cut -d '=' -f 2 | xargs)"`
 
           if [[ $version == *.dev0 ]]
           then
@@ -46,10 +46,8 @@ jobs:
       - name: Setup environment
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
           python -m pip install git+https://github.com/huggingface/doc-builder
           python -m pip install .[quality]
-          python -m pip install openvino nncf neural-compressor[pt] diffusers accelerate
 
       - name: Make documentation
         shell: bash
@@ -60,10 +58,7 @@ jobs:
             --version ${{ env.VERSION }} \
             --version_tag_suffix "" \
             --html \
-            --clean \
-      - name: Push documentation
-        run: |
-          sudo chmod -R ugo+rwx onnx-doc-build
+            --clean
           cd onnx-doc-build
-          sudo mv optimum.onnx optimum-onnx
+          mv optimum.onnx optimum-onnx
           doc-builder push optimum-onnx --doc_build_repo_id "hf-doc-build/doc-build" --token "${{ secrets.HF_DOC_BUILD_PUSH }}" --commit_msg "Updated with commit $COMMIT_SHA See: https://github.com/huggingface/optimum-onnx/commit/$COMMIT_SHA" --n_retries 5
