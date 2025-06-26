@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - doc-builder*
+      - documentation
       - v*-release
 
 jobs:
