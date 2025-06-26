@@ -34,24 +34,20 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/huggingface/doc-builder
-          pip install .[quality]
+          pip install .[quality] accelerate
 
       - name: Make documentation
         shell: bash
         run: |
-          doc-builder build optimum.onnx docs/source/ \
+          doc-builder build optimum docs/source/ \
             --repo_name optimum-onnx \
             --build_dir onnx-doc-build/ \
             --version pr_${{ env.PR_NUMBER }} \
             --version_tag_suffix "" \
             --html \
-            --clean \
-
-      - name: Save commit_sha & pr_number
-        run: |
-          sudo chmod -R ugo+rwx onnx-doc-build
+            --clean
           cd onnx-doc-build
-          sudo mv optimum.onnx optimum-onnx
+          mv optimum optimum-onnx
           echo ${{ env.COMMIT_SHA }} > ./commit_sha
           echo ${{ env.PR_NUMBER }} > ./pr_number
 
