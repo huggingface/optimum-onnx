@@ -1927,18 +1927,46 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["vit", "dinov2"]
+    SUPPORTED_ARCHITECTURES = ["vit", "dinov2", "visual_bert"]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
-    def get_raw_input(self, model_arch):
+    def get_raw_image(self, model_arch):
         image_url = "https://picsum.photos/id/237/200/300"
         return Image.open(requests.get(image_url, stream=True).raw)
 
-    def get_input(self, model_arch, processor, return_tensors="pt"):
-        raw_input = self.get_raw_input(model_arch)
+    def get_input(self, model_arch, return_tensors="pt"):
+        model_id = MODEL_NAMES[model_arch]
+        processor = get_preprocessor(model_id)
+        text = "This is a sample output"
+
+        if model_arch == "visual_bert":
+            tokens = processor(text, return_tensors=return_tensors)
+
+            np.random.seed(SEED)
+            shared_visual_embeds = np.random.randn(1, 10, 20).astype(np.float32)
+
+            if return_tensors == "pt":
+                visual_embeds = torch.from_numpy(shared_visual_embeds)
+                visual_token_type_ids = torch.ones(visual_embeds.shape[:-1], dtype=torch.long)
+                visual_attention_mask = torch.ones(visual_embeds.shape[:-1], dtype=torch.float)
+            elif return_tensors == "np":
+                visual_embeds = shared_visual_embeds
+                visual_token_type_ids = np.ones(visual_embeds.shape[:-1], dtype=np.int64)
+                visual_attention_mask = np.ones(visual_embeds.shape[:-1], dtype=np.float32)
+
+            tokens.update(
+                {
+                    "visual_embeds": visual_embeds,
+                    "visual_token_type_ids": visual_token_type_ids,
+                    "visual_attention_mask": visual_attention_mask,
+                }
+            )
+            return tokens
+
+        raw_input = self.get_raw_image(model_arch)
         return processor(images=raw_input, return_tensors=return_tensors)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -1954,13 +1982,12 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
 
         set_seed(SEED)
         transformers_model = AutoModel.from_pretrained(model_id)
-        processor = get_preprocessor(model_id)
-        inputs = self.get_input(model_arch, processor, return_tensors="pt")
+        inputs = self.get_input(model_arch, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**inputs)
 
         for input_type in ["pt", "np"]:
-            inputs = self.get_input(model_arch, processor, return_tensors=input_type)
+            inputs = self.get_input(model_arch, return_tensors=input_type)
             onnx_outputs = onnx_model(**inputs)
 
             self.assertIn("last_hidden_state", onnx_outputs)
@@ -1981,11 +2008,8 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch])
-        processor = get_preprocessor(model_id)
-        raw_input = self.get_raw_input(model_arch)
-        processed_inputs = processor(images=raw_input, return_tensors="pt")
+        processed_inputs = self.get_input(model_arch, return_tensors="pt")
         outputs = onnx_model(**processed_inputs)
 
         # Check device and output format
@@ -2010,11 +2034,10 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForFeatureExtraction.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
-        processor = get_preprocessor(model_id)
-        raw_input = self.get_raw_input(model_arch)
-        processed_inputs = processor(images=raw_input, return_tensors="pt").to("cuda")
+        onnx_model = ORTModelForFeatureExtraction.from_pretrained(
+            self.onnx_model_dirs[model_arch], provider=provider
+        ).to("cuda")
+        processed_inputs = self.get_input(model_arch, return_tensors="pt").to("cuda")
         outputs = onnx_model(**processed_inputs)
 
         # Check device and output format
@@ -2032,7 +2055,6 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForFeatureExtraction.from_pretrained(
             self.onnx_model_dirs[model_arch], use_io_binding=False, provider="CUDAExecutionProvider"
         )
@@ -2043,9 +2065,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
-        processor = get_preprocessor(model_id)
-        raw_input = self.get_raw_input(model_arch)
-        tokens = processor(images=[raw_input, raw_input], return_tensors="pt").to("cuda")
+        tokens = self.get_input(model_arch, return_tensors="pt").to("cuda")
 
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)

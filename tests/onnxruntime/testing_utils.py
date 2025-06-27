@@ -130,6 +130,7 @@ MODEL_NAMES = {
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
+    "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vit": "hf-internal-testing/tiny-random-vit",
     "whisper": "optimum-internal-testing/tiny-random-whisper",
     "wav2vec2": "hf-internal-testing/tiny-random-Wav2Vec2Model",

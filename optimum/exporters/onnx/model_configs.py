@@ -166,6 +166,32 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
         }
 
 
+@register_tasks_manager_onnx("visual_bert", *["feature-extraction"])
+class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    DEFAULT_ONNX_OPSET = 11
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        DummyVisionInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "visual_embeds": {0: "batch_size", 1: "visual_seq_length", 2: "visual_embedding_dim"},
+            "visual_attention_mask": {0: "batch_size", 1: "visual_seq_length"},
+            "visual_token_type_ids": {0: "batch_size", 1: "visual_seq_length"},
+        }
+
+    @property
+    def outputs(self) -> Dict[str, Dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length + visual_seq_length"},
+        }
+
+
 @register_tasks_manager_onnx("albert", *COMMON_TEXT_TASKS)
 class AlbertOnnxConfig(BertOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.

@@ -21,6 +21,7 @@ VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "audio_sequence_length": [1000, 2000],
     "point_batch_size": [1, 5],
     "nb_points_per_image": [1, 3],
+    "visual_seq_length": [24, 64, 128],
 }
 
 VALIDATE_EXPORT_ON_SHAPES_FAST = {
@@ -310,6 +311,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "vit": "google/vit-base-patch16-224",
     "vit_mae": "facebook/vit-mae-base",
     "vit_msn": "facebook/vit-msn-small",
+    "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vitpose": "usyd-community/vitpose-plus-small",
     "yolos": "hustvl/yolos-tiny",
     "whisper": "openai/whisper-tiny.en",
