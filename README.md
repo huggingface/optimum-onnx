@@ -19,6 +19,8 @@ cd optimum-onnx
 pip install .
 ```
 
+⚠️   Optimum ONNX cannot be installed in editable mode for now.
+
 ### ONNX export
 
 It is possible to export 🤗 Transformers, Diffusers, Timm and Sentence Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
