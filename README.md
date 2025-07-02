@@ -19,7 +19,7 @@ cd optimum-onnx
 pip install .
 ```
 
-⚠️   Optimum ONNX cannot be installed in editable mode for now.
+⚠️ `optimum-onnx` cannot be installed in editable mode when `optimum` is installed editable mode.
 
 ### ONNX export
 
