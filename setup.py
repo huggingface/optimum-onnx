@@ -51,6 +51,8 @@ EXTRAS_REQUIRE = {
         "protobuf>=3.20.1",
         "onnxruntime-training>=1.11.0",
     ],
+    "exporters": "onnxruntime>=1.11.0",
+    "exporters-gpu": "onnxruntime-gpu>=1.11.0",
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
 }
