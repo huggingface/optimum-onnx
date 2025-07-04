@@ -17,6 +17,14 @@ Before you begin, make sure you have all the necessary libraries installed :
 pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
 ```
 
+If you want to use the GPU version of ONNX Runtime, make sure the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, and install the additional dependencies by running :
+
+```bash
+pip install "optimum-onnx[onnxruntime-gpu]"@git+https://github.com/huggingface/optimum-onnx.git
+```
+
+To avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime` prior to installing Optimum.
+
 ### ONNX export
 
 It is possible to export 🤗 Transformers, Diffusers, Timm and Sentence Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
