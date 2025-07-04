@@ -39,8 +39,6 @@
         title: Optimization
       - local: onnxruntime/package_reference/quantization
         title: Quantization
-      - local: onnxruntime/package_reference/trainer
-        title: Trainer
       title: Reference
       isExpanded: false
     title: ONNX Runtime
