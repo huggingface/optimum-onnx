@@ -11,13 +11,13 @@
 
 ### Installation
 
-Before you begin, make sure you have all the necessary libraries installed :
+Before you begin, make sure you install all necessary libraries by running:
 
 ```bash
 pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
 ```
 
-If you want to use the GPU version of ONNX Runtime, make sure the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, and install the additional dependencies by running :
+If you want to use the [GPU version of ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#cuda-execution-provider), make sure the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, and install the additional dependencies by running :
 
 ```bash
 pip install "optimum-onnx[onnxruntime-gpu]"@git+https://github.com/huggingface/optimum-onnx.git
