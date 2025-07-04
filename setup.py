@@ -43,14 +43,6 @@ QUALITY_REQUIRE = ["black~=23.1", "ruff==0.5.1"]
 EXTRAS_REQUIRE = {
     "onnxruntime": "onnxruntime>=1.11.0",
     "onnxruntime-gpu": "onnxruntime-gpu>=1.11.0",
-    "onnxruntime-training": [
-        "evaluate",
-        "torch-ort",
-        "accelerate",
-        "datasets>=1.2.1",
-        "protobuf>=3.20.1",
-        "onnxruntime-training>=1.11.0",
-    ],
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
 }

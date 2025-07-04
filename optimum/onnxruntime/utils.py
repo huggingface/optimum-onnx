@@ -51,17 +51,6 @@ ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
 ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
 
-def is_onnxruntime_training_available():
-    """
-    Checks if onnxruntime-training is available.
-    """
-    path_training_dependecy = os.path.join(ort.__path__[0], "training")
-    if os.path.exists(path_training_dependecy):
-        return True
-    else:
-        return False
-
-
 def is_cupy_available():
     """
     Checks if CuPy is available.

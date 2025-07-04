@@ -19,8 +19,6 @@
         title: How to apply graph optimization
       - local: onnxruntime/usage_guides/quantization
         title: How to apply dynamic and static quantization
-      - local: onnxruntime/usage_guides/trainer
-        title: How to accelerate training
       - local: onnxruntime/usage_guides/gpu
         title: Accelerated inference on NVIDIA GPUs
       - local: onnxruntime/usage_guides/amdgpu

@@ -55,10 +55,6 @@ _import_structure = {
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
     "quantization": ["ORTQuantizer"],
-    "trainer": ["ORTTrainer"],
-    "trainer_seq2seq": ["ORTSeq2SeqTrainer"],
-    "training_args": ["ORTTrainingArguments"],
-    "training_args_seq2seq": ["ORTSeq2SeqTrainingArguments"],
     "utils": [
         "ONNX_DECODER_NAME",
         "ONNX_DECODER_MERGED_NAME",
@@ -151,10 +147,6 @@ if TYPE_CHECKING:
     )
     from .optimization import ORTOptimizer
     from .quantization import ORTQuantizer
-    from .trainer import ORTTrainer
-    from .trainer_seq2seq import ORTSeq2SeqTrainer
-    from .training_args import ORTTrainingArguments
-    from .training_args_seq2seq import ORTSeq2SeqTrainingArguments
     from .utils import (
         ONNX_DECODER_MERGED_NAME,
         ONNX_DECODER_NAME,
