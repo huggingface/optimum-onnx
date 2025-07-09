@@ -110,7 +110,7 @@ def parse_args_onnx(parser):
     optional_group.add_argument(
         "--framework",
         type=str,
-        choices=["pt", "tf"],
+        choices=["pt"],
         default=None,
         help=(
             "The framework to use for the ONNX export."
@@ -260,7 +260,7 @@ def parse_args_onnx(parser):
 
 
 class ONNXExportCommand(BaseOptimumCLICommand):
-    COMMAND = CommandInfo(name="onnx", help="Export PyTorch and TensorFlow to ONNX")
+    COMMAND = CommandInfo(name="onnx", help="Export PyTorch to ONNX")
 
     @staticmethod
     def parse_args(parser: "ArgumentParser"):

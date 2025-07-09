@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from packaging import version
-from transformers.utils import is_tf_available
 
 from ...utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -111,9 +110,6 @@ from .model_patcher import (
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
     from transformers.modeling_utils import PreTrainedModel
-
-    if is_tf_available():
-        from transformers.modeling_tf_utils import TFPreTrainedModel
 
     if is_diffusers_available():
         from diffusers import ModelMixin
@@ -2209,9 +2205,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: Dict[
-            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
-        ],
+        models_and_onnx_configs: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
         onnx_files_subpaths: List[str],
     ):
         # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task

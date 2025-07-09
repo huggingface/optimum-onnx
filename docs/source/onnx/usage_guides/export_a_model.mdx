@@ -71,7 +71,7 @@ The Optimum ONNX export can be used through Optimum command-line:
 optimum-cli export onnx --help
 
 usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--monolith] [--device DEVICE] [--opset OPSET] [--atol ATOL]
-                                                  [--framework {pt,tf}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
+                                                  [--framework {pt}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
                                                   [--no-post-process] [--optimize {O1,O2,O3,O4}] [--batch_size BATCH_SIZE]
                                                   [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
                                                   [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
@@ -92,7 +92,7 @@ Optional arguments:
   --device DEVICE       The device to use to do the export. Defaults to "cpu".
   --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
   --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
-  --framework {pt,tf}   The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
+  --framework {pt}      The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
   --pad_token_id PAD_TOKEN_ID
                         This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
@@ -114,7 +114,7 @@ Exporting a checkpoint can be done as follows:
 optimum-cli export onnx --model distilbert-base-uncased-distilled-squad distilbert_base_uncased_squad_onnx/
 ```
 
-You should see the following logs (along with potential logs from PyTorch / TensorFlow that were hidden here for clarity):
+You should see the following logs (along with potential logs from PyTorch that were hidden here for clarity):
 
 ```bash
 Automatic task detection to question-answering.
@@ -183,13 +183,6 @@ For more information, check the `optimum.onnxruntime` documentation [page on thi
 
 </Tip>
 
-The process is identical for TensorFlow checkpoints on the Hub. For example, we can export a pure TensorFlow checkpoint from the [Keras
-organization](https://huggingface.co/keras-io) as follows:
-
-```bash
-optimum-cli export onnx --model keras-io/transformers-qa distilbert_base_cased_squad_onnx/
-```
-
 ### Exporting a model to be used with Optimum's ORTModel
 
 Models exported through `optimum-cli export onnx` can be used directly in [`~onnxruntime.ORTModel`]. This is especially useful for encoder-decoder models, where in this case the export will split the encoder and decoder into two `.onnx` files, as the encoder is usually only run once while the decoder may be run several times in autogenerative tasks.
@@ -226,7 +219,7 @@ and
 
 Specifying a `--task` should not be necessary in most cases when exporting from a model on the Hugging Face Hub.
 
-However, in case you need to check for a given a model architecture what tasks the ONNX export supports, we got you covered. First, you can check the list of supported tasks for both PyTorch and TensorFlow [here](/exporters/task_manager).
+However, in case you need to check for a given a model architecture what tasks the ONNX export supports, we got you covered. First, you can check the list of supported tasks for both PyTorch [here](/exporters/task_manager).
 
 For each model architecture, you can find the list of supported tasks via the [`~exporters.tasks.TasksManager`]. For example, for DistilBERT, for the ONNX export, we have:
 

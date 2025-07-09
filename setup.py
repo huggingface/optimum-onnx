@@ -12,28 +12,28 @@ except Exception as error:
     assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
 
 INSTALL_REQUIRE = [
-    # "optimum~=1.26",
-    "optimum @ git+https://github.com/huggingface/optimum.git",
+    "optimum@git+https://github.com/huggingface/optimum.git@mv-onnx",  # "optimum~=1.26",
     "transformers>=4.36,<4.53.0",
     "onnx",
 ]
 
 TESTS_REQUIRE = [
-    "accelerate>=0.26.0",
     "pytest",
+    "accelerate",
     "pytest-xdist",
     "parameterized",
     "sentencepiece",
-    "datasets",
     "safetensors",
+    "datasets",
     "Pillow",
     "einops",
     "timm",
-    "sacremoses",
-    "rjieba",
     "hf_xet",
-    "onnxslim>=0.1.53",
     "scipy",
+    # not sure they are necessary
+    "rjieba",
+    "sacremoses",
+    "onnxslim>=0.1.53",
 ]
 
 
