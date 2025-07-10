@@ -580,7 +580,7 @@ def export_pytorch(
             # try free model memory to avoid OOM
             del model
             del onnx_model
-            if device.type == "cuda" and torch.cuda.is_available():
+            if device.type == "cuda":
                 torch.cuda.empty_cache()
             gc.collect()
 
@@ -593,7 +593,7 @@ def export_pytorch(
                 all_tensors_to_one_file=True,
                 location=output.name + "_data",
                 convert_attribute=True,
-                size_threshold=0,
+                size_threshold=100,  # for some reason, some operations fail when a model is saved with a size threshold of 0
             )
 
             # delete previous external data

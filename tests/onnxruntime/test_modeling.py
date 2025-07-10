@@ -902,9 +902,9 @@ class ORTModelIntegrationTest(unittest.TestCase):
             )
 
     @require_hf_token
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_push_ort_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForSequenceClassification.from_pretrained(MODEL_NAMES["bert"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
@@ -920,12 +920,11 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 export=False,
                 token=os.environ.get("HF_AUTH_TOKEN", None),
             )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @require_hf_token
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_push_seq2seq_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
             model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], export=True)
             model.save_pretrained(
                 tmpdirname + "/onnx",
@@ -941,7 +940,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 export=False,
                 token=os.environ.get("HF_AUTH_TOKEN", None),
             )
-            os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     @parameterized.expand(("", "onnx"))
     def test_loading_with_config_not_from_subfolder(self, subfolder):
