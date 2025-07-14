@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +21,7 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 from transformers.generation import GenerationMixin
@@ -82,20 +81,19 @@ class DynamicAxisNameError(ValueError):
 
 
 def validate_models_outputs(
-    models_and_onnx_configs: Dict[
-        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+    models_and_onnx_configs: dict[
+        str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
-    onnx_named_outputs: List[List[str]],
+    onnx_named_outputs: list[list[str]],
     output_dir: Path,
     atol: Optional[float] = None,
-    onnx_files_subpaths: Optional[List[str]] = None,
-    input_shapes: Optional[Dict] = None,
+    onnx_files_subpaths: Optional[list[str]] = None,
+    input_shapes: Optional[dict] = None,
     device: str = "cpu",
     use_subprocess: Optional[bool] = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
 ):
-    """
-    Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
+    """Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
     The following method validates the ONNX models exported using the `export_models` method.
 
     Args:
@@ -119,6 +117,7 @@ def validate_models_outputs(
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export and validation.
+
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -170,15 +169,15 @@ def validate_model_outputs(
     config: OnnxConfig,
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
-    onnx_named_outputs: List[str],
+    onnx_named_outputs: list[str],
     atol: Optional[float] = None,
-    input_shapes: Optional[Dict] = None,
+    input_shapes: Optional[dict] = None,
     device: str = "cpu",
     use_subprocess: Optional[bool] = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
 ):
-    """
-    Validates the export by checking that the outputs from both the reference and the exported model match.
+    """Validates the export by checking that the outputs from both the reference and the exported model match.
+
     Args:
         config ([`~OnnxConfig`]:
             The configuration used to export the model.
@@ -199,6 +198,7 @@ def validate_model_outputs(
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export and validation.
+
     Raises:
         ValueError: If the outputs shapes or values do not match between the reference and the exported model.
     """
@@ -232,11 +232,11 @@ def _run_validation(
     config: OnnxConfig,
     reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
     onnx_model: Path,
-    onnx_named_outputs: List[str],
+    onnx_named_outputs: list[str],
     atol: Optional[float] = None,
-    input_shapes: Optional[Dict] = None,
+    input_shapes: Optional[dict] = None,
     device: str = "cpu",
-    model_kwargs: Optional[Dict[str, Any]] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
 ):
     from onnxruntime import GraphOptimizationLevel, SessionOptions
 
@@ -385,7 +385,7 @@ def _run_validation(
         logger.info(f'\t- Validating ONNX Model output "{name}":')
 
         # Shape
-        if not ort_value.shape == ref_value.shape:
+        if ort_value.shape != ref_value.shape:
             logger.error(f"\t\t-[x] shape {ort_value.shape} doesn't match {ref_value.shape}")
             shape_failures.append((name, ref_value.shape, ort_value.shape))
         else:
@@ -423,11 +423,11 @@ class ValidationProcess(mp.Process):
         config: OnnxConfig,
         reference_model: Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"],
         onnx_model: Path,
-        onnx_named_outputs: List[str],
+        onnx_named_outputs: list[str],
         atol: Optional[float] = None,
-        input_shapes: Optional[Dict] = None,
+        input_shapes: Optional[dict] = None,
         device: str = "cpu",
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__()
         self._pconn, self._cconn = mp.Pipe()
@@ -471,13 +471,12 @@ def export_pytorch(
     opset: int,
     output: Path,
     device: str = "cpu",
-    input_shapes: Optional[Dict] = None,
+    input_shapes: Optional[dict] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[str], List[str]]:
-    """
-    Exports a PyTorch model to an ONNX Intermediate Representation.
+    model_kwargs: Optional[dict[str, Any]] = None,
+) -> tuple[list[str], list[str]]:
+    """Exports a PyTorch model to an ONNX Intermediate Representation.
 
     Args:
         model ([`PreTrainedModel`]):
@@ -517,7 +516,7 @@ def export_pytorch(
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
     if is_transformers_version(">=", "4.45"):
         logits_to_keep_name = "logits_to_keep" if is_transformers_version(">=", "4.49") else "num_logits_to_keep"
-        if logits_to_keep_name in signature(model.forward).parameters.keys():
+        if logits_to_keep_name in signature(model.forward).parameters:
             model_kwargs[logits_to_keep_name] = 0
 
     with torch.no_grad():
@@ -622,9 +621,8 @@ def export_tensorflow(
     config: OnnxConfig,
     opset: int,
     output: Path,
-) -> Tuple[List[str], List[str]]:
-    """
-    Exports a TensorFlow model to an ONNX Intermediate Representation.
+) -> tuple[list[str], list[str]]:
+    """Exports a TensorFlow model to an ONNX Intermediate Representation.
 
     Args:
         model ([`TFPreTrainedModel`]):
@@ -678,7 +676,7 @@ def export_tensorflow(
     input_signature = []
     for key, tensor in dummy_inputs.items():
         shape = [tensor.shape[i] for i in range(tensor.ndim)]
-        for idx, _ in config.inputs[key].items():
+        for idx in config.inputs[key]:
             shape[idx] = None
 
         input_signature.append(tf.TensorSpec(shape, dtype=tensor.dtype, name=key))
@@ -695,22 +693,21 @@ def export_tensorflow(
 
 
 def export_models(
-    models_and_onnx_configs: Dict[
-        str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+    models_and_onnx_configs: dict[
+        str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
     ],
     output_dir: Path,
     opset: Optional[int] = None,
-    output_names: Optional[List[str]] = None,
+    output_names: Optional[list[str]] = None,
     device: str = "cpu",
-    input_shapes: Optional[Dict] = None,
+    input_shapes: Optional[dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[List[str]], List[List[str]]]:
-    """
-    Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
+    model_kwargs: Optional[dict[str, Any]] = None,
+) -> tuple[list[list[str]], list[list[str]]]:
+    """Exports a Pytorch or TensorFlow encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
     ONNX files.
 
@@ -742,6 +739,7 @@ def export_models(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
         outputs from the ONNX configuration.
@@ -789,15 +787,14 @@ def export(
     output: Path,
     opset: Optional[int] = None,
     device: str = "cpu",
-    input_shapes: Optional[Dict] = None,
+    input_shapes: Optional[dict] = None,
     disable_dynamic_axes_fix: Optional[bool] = False,
     dtype: Optional[str] = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[str], List[str]]:
-    """
-    Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
+    model_kwargs: Optional[dict[str, Any]] = None,
+) -> tuple[list[str], list[str]]:
+    """Exports a Pytorch or TensorFlow model to an ONNX Intermediate Representation.
 
     Args:
         model ([`PreTrainedModel`] or [`TFPreTrainedModel`]):
@@ -910,12 +907,12 @@ def onnx_export_from_model(
     no_post_process: bool = False,
     atol: Optional[float] = None,
     do_validation: bool = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
-    custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
+    custom_onnx_configs: Optional[dict[str, "OnnxConfig"]] = None,
     fn_get_submodels: Optional[Callable] = None,
     _variant: str = "default",
     legacy: bool = False,
-    preprocessors: List = None,
+    preprocessors: Optional[list] = None,
     device: str = "cpu",
     no_dynamic_axes: bool = False,
     task: Optional[str] = None,
@@ -924,8 +921,7 @@ def onnx_export_from_model(
     slim: bool = False,
     **kwargs_shapes,
 ):
-    """
-    Full-suite ONNX export function, exporting **from a pre-loaded PyTorch or Tensorflow model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
+    """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch or Tensorflow model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
 
     Args:
         > Required parameters
@@ -1068,7 +1064,7 @@ def onnx_export_from_model(
     # controlflows will trace incorrectly the mask generation, resulting in incorrect attention masks for other sequence lengthss.
     # Reference: https://github.com/huggingface/transformers/blob/af3de8d87c717c4bb090f037d0d89413c195a42f/src/transformers/modeling_attn_mask_utils.py#L94
     input_shapes = {}
-    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+    for input_name in DEFAULT_DUMMY_SHAPES:
         input_shapes[input_name] = (
             kwargs_shapes[input_name] if input_name in kwargs_shapes else DEFAULT_DUMMY_SHAPES[input_name]
         )
@@ -1142,7 +1138,7 @@ def onnx_export_from_model(
         model_name_or_path = model.config._name_or_path
         maybe_save_preprocessors(model_name_or_path, output)
 
-        onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs.keys()]
+        onnx_files_subpaths = [key + ".onnx" for key in models_and_onnx_configs]
     else:
         # save the subcomponent configuration
         for model_name in models_and_onnx_configs:
@@ -1253,8 +1249,8 @@ def onnx_export_from_model(
                 model_kwargs=model_kwargs,
             )
             logger.info(f"The ONNX export succeeded and the exported model was saved at: {output.as_posix()}")
-        except ShapeError as e:
-            raise e
+        except ShapeError:
+            raise
         except AtolError as e:
             logger.warning(
                 f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"

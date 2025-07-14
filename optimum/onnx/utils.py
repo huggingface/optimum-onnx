@@ -13,13 +13,13 @@
 #  limitations under the License.
 
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import Union
 
 import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
 
 
-def _get_onnx_external_constants(model: onnx.ModelProto) -> List[str]:
+def _get_onnx_external_constants(model: onnx.ModelProto) -> list[str]:
     external_constants = []
 
     for node in model.graph.node:
@@ -32,9 +32,8 @@ def _get_onnx_external_constants(model: onnx.ModelProto) -> List[str]:
     return external_constants
 
 
-def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
-    """
-    Gets the paths of the external data tensors in the model.
+def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> list[str]:
+    """Gets the paths of the external data tensors in the model.
     Note: make sure you load the model with load_external_data=False.
     """
     model_tensors = _get_initializer_tensors(model)
@@ -46,10 +45,8 @@ def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> List[str]:
     return model_tensors_ext
 
 
-def _get_external_data_paths(src_paths: List[Path], dst_paths: List[Path]) -> Tuple[List[Path], List[str]]:
-    """
-    Gets external data paths from the model and add them to the list of files to copy.
-    """
+def _get_external_data_paths(src_paths: list[Path], dst_paths: list[Path]) -> tuple[list[Path], list[str]]:
+    """Gets external data paths from the model and add them to the list of files to copy."""
     model_paths = src_paths.copy()
     for idx, model_path in enumerate(model_paths):
         model = onnx.load(str(model_path), load_external_data=False)
@@ -71,11 +68,8 @@ def _get_external_data_paths(src_paths: List[Path], dst_paths: List[Path]) -> Tu
     return src_paths, dst_paths
 
 
-def _get_model_external_data_paths(model_path: Path) -> List[Path]:
-    """
-    Gets external data paths from the model.
-    """
-
+def _get_model_external_data_paths(model_path: Path) -> list[Path]:
+    """Gets external data paths from the model."""
     onnx_model = onnx.load(str(model_path), load_external_data=False)
     model_tensors = _get_initializer_tensors(onnx_model)
     # filter out tensors that are not external data
@@ -88,9 +82,7 @@ def _get_model_external_data_paths(model_path: Path) -> List[Path]:
 
 
 def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
-    """
-    Checks if the model uses external data.
-    """
+    """Checks if the model uses external data."""
     model_tensors = _get_initializer_tensors(model)
     return any(
         tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
@@ -99,14 +91,9 @@ def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
 
 
 def has_onnx_input(model: Union[onnx.ModelProto, Path, str], input_name: str) -> bool:
-    """
-    Checks if the model has a specific input.
-    """
+    """Checks if the model has a specific input."""
     if isinstance(model, (str, Path)):
         model = Path(model).as_posix()
         model = onnx.load(model, load_external_data=False)
 
-    for input in model.graph.input:
-        if input.name == input_name:
-            return True
-    return False
+    return any(input.name == input_name for input in model.graph.input)

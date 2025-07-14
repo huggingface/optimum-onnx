@@ -16,7 +16,7 @@
 import gc
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import onnx
 from onnx import load_model
@@ -44,19 +44,16 @@ logger = logging.get_logger()
 
 
 class ORTOptimizer:
-    """
-    Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
-    """
+    """Handles the ONNX Runtime optimization process for models shared on huggingface.co/models."""
 
-    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
-        """
-        Args:
-            onnx_model_path (`List[os.PathLike]`):
-                The paths of the onnx models to optimize.
-            config ([`~transformers.PretrainedConfig`]):
-                An instance of the configuration associated to the model to optimize.
-            from_ortmodel (`bool`, defaults to `False`):
-                Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
+    def __init__(self, onnx_model_path: list[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
+        """Args:
+        onnx_model_path (`List[os.PathLike]`):
+            The paths of the onnx models to optimize.
+        config ([`~transformers.PretrainedConfig`]):
+            An instance of the configuration associated to the model to optimize.
+        from_ortmodel (`bool`, defaults to `False`):
+            Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
@@ -74,17 +71,16 @@ class ORTOptimizer:
 
     @classmethod
     def from_pretrained(
-        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None
+        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[list[str]] = None
     ) -> "ORTOptimizer":
-        """
-        Args:
-            model_or_path (`Union[str, os.PathLike, ORTModel]`):
-                The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
-                Can be either:
-                    - A path to a local *directory* containing the model to optimize.
-                    - An instance of [`~optimum.onnxruntime.ORTModel`].
-            file_names(`Optional[List[str]]`, defaults to `None`):
-                The list of file names of the models to optimize.
+        """Args:
+        model_or_path (`Union[str, os.PathLike, ORTModel]`):
+            The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
+            Can be either:
+                - A path to a local *directory* containing the model to optimize.
+                - An instance of [`~optimum.onnxruntime.ORTModel`].
+        file_names(`Optional[List[str]]`, defaults to `None`):
+            The list of file names of the models to optimize.
         """
         onnx_model_path = []
         config = None
@@ -127,8 +123,7 @@ class ORTOptimizer:
         use_external_data_format: Optional[bool] = None,
         one_external_file: bool = True,
     ):
-        """
-        Optimizes a model given the optimization specifications defined in `optimization_config`.
+        """Optimizes a model given the optimization specifications defined in `optimization_config`.
 
         Args:
             optimization_config ([`~optimum.onnxruntime.OptimizationConfig`]):
@@ -214,7 +209,7 @@ class ORTOptimizer:
             except Exception as e:
                 if "Incomplete symbolic shape inference" in str(e):
                     err = RuntimeError(
-                        f"{str(e)}. Try to set `disable_shape_inference=True` in your optimization configuration."
+                        f"{e!s}. Try to set `disable_shape_inference=True` in your optimization configuration."
                     )
                     raise err from e
                 raise
@@ -250,9 +245,8 @@ class ORTOptimizer:
         return Path(save_dir)
 
     @staticmethod
-    def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:
-        """
-        Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
+    def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> dict[str, int]:
+        """Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
 
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
@@ -272,8 +266,7 @@ class ORTOptimizer:
     def get_nodes_number_difference(
         onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
     ) -> int:
-        """
-        Compute the difference in the number of nodes between the original and the optimized model.
+        """Compute the difference in the number of nodes between the original and the optimized model.
 
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
@@ -300,9 +293,8 @@ class ORTOptimizer:
     @staticmethod
     def get_operators_difference(
         onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
-    ) -> Dict[str, int]:
-        """
-        Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
+    ) -> dict[str, int]:
+        """Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
         the original and the optimized model.
 
         Args:

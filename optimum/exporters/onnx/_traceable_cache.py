@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import torch
 
@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Simply removing the nn.Module, same as in https://github.com/huggingface/transformers/pull/35873
 class TraceableCache:
-    """
-    Base, abstract class for all caches. The actual data structure is specific to each subclass.
-    """
+    """Base, abstract class for all caches. The actual data structure is specific to each subclass."""
 
     def __init__(self):
         super().__init__()
@@ -21,10 +19,9 @@ class TraceableCache:
         key_states: torch.Tensor,
         value_states: torch.Tensor,
         layer_idx: int,
-        cache_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Updates the cache with the new `key_states` and `value_states` for the layer `layer_idx`.
+        cache_kwargs: Optional[dict[str, Any]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Updates the cache with the new `key_states` and `value_states` for the layer `layer_idx`.
 
         Parameters:
             key_states (`torch.Tensor`):
@@ -59,7 +56,7 @@ class TraceableCache:
         return self.get_max_cache_shape()
 
     def get_max_cache_shape(self) -> Optional[int]:
-        """Returns the maximum sequence length (i.e. max capacity) of the cache object"""
+        """Returns the maximum sequence length (i.e. max capacity) of the cache object."""
         raise NotImplementedError("Make sure to implement `get_max_cache_shape` in a subclass.")
 
     def get_usable_length(self, new_seq_length: int, layer_idx: Optional[int] = 0) -> int:

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +39,7 @@ from .convert import onnx_export_from_model
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 
 if TYPE_CHECKING:
@@ -74,8 +73,8 @@ def main_export(
     ########################################
     for_ort: bool = False,
     do_validation: bool = True,
-    model_kwargs: Optional[Dict[str, Any]] = None,
-    custom_onnx_configs: Optional[Dict[str, "OnnxConfig"]] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
+    custom_onnx_configs: Optional[dict[str, "OnnxConfig"]] = None,
     fn_get_submodels: Optional[Callable] = None,
     use_subprocess: bool = False,
     _variant: str = "default",
@@ -86,8 +85,7 @@ def main_export(
     slim: bool = False,
     **kwargs_shapes,
 ):
-    """
-    Full-suite ONNX export function, exporting **from a model ID on Hugging Face Hub or a local model repository**.
+    """Full-suite ONNX export function, exporting **from a model ID on Hugging Face Hub or a local model repository**.
 
     Args:
         > Required parameters
@@ -184,7 +182,6 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
-
     if fp16:
         if dtype is not None:
             raise ValueError(
@@ -446,7 +443,7 @@ def main():
 
     # get the shapes to be used to generate dummy inputs
     input_shapes = {}
-    for input_name in DEFAULT_DUMMY_SHAPES.keys():
+    for input_name in DEFAULT_DUMMY_SHAPES:
         input_shapes[input_name] = getattr(args, input_name)
 
     main_export(

@@ -11,7 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Set, Tuple
 
 from onnx import ModelProto
 
@@ -24,7 +23,7 @@ class IncludeFullyConnectedNodes(PreprocessorPass):
     def __init__(self):
         super().__init__()
 
-    def __call__(self, graph: ModelProto, model: OnnxModel) -> Tuple[Set[str], Set[str]]:
+    def __call__(self, graph: ModelProto, model: OnnxModel) -> tuple[set[str], set[str]]:
         fc_subgraphs = []
         for add_node in model.get_nodes_by_op_type("Add"):
             fc_components = model.match_parent_path(add_node, ["MatMul"], [1])

@@ -17,9 +17,10 @@ import inspect
 import logging
 import os
 from collections import OrderedDict
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -192,7 +193,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
             "add_watermarker": add_watermarker,
         }
         diffusers_pipeline_args = {}
-        for key in inspect.signature(self.auto_model_class).parameters.keys():
+        for key in inspect.signature(self.auto_model_class).parameters:
             if key in all_pipeline_init_args:
                 diffusers_pipeline_args[key] = all_pipeline_init_args[key]
         self.auto_model_class.__init__(self, **diffusers_pipeline_args)
@@ -202,7 +203,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         self.model_save_dir = model_save_dir
 
     @property
-    def components(self) -> Dict[str, Optional[Union[ORTSessionMixin, torch.nn.Module]]]:
+    def components(self) -> dict[str, Optional[Union[ORTSessionMixin, torch.nn.Module]]]:
         # TODO: all components should be ORTSessionMixin's at some point
         components = {
             "vae": self.vae,
@@ -218,8 +219,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         return components
 
     def to(self, device: Union[torch.device, str, int]):
-        """
-        Changes the device of the pipeline components to the specified device.
+        """Changes the device of the pipeline components to the specified device.
 
         Args:
             device (`torch.device` or `str` or `int`):
@@ -229,7 +229,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         Returns:
             `ORTDiffusionPipeline`: The pipeline with the updated device.
         """
-
         for component in self.components.values():
             if isinstance(component, (ORTSessionMixin, ORTParentMixin)):
                 component.to(device)
@@ -245,15 +244,14 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
         # inference options
         use_io_binding: Optional[bool] = None,
         # hub options and preloaded models
         **kwargs,
     ):
-        """
-        Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained model.
+        """Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained model.
         This method can be used to load a model from the Hugging Face Hub or from a local directory.
 
         Args:
@@ -292,12 +290,12 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
-            "resume_download": kwargs.get("resume_download", None),
+            "resume_download": kwargs.get("resume_download"),
             "local_files_only": kwargs.get("local_files_only", False),
-            "cache_dir": kwargs.get("cache_dir", None),
-            "revision": kwargs.get("revision", None),
-            "proxies": kwargs.get("proxies", None),
-            "token": kwargs.get("token", None),
+            "cache_dir": kwargs.get("cache_dir"),
+            "revision": kwargs.get("revision"),
+            "proxies": kwargs.get("proxies"),
+            "token": kwargs.get("token"),
         }
 
         # get the pipeline config
@@ -333,7 +331,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # download the model if needed
         if not model_save_path.is_dir():
             # everything in components subfolders
-            all_components = {key for key in config.keys() if not key.startswith("_")} | {"vae_encoder", "vae_decoder"}
+            all_components = {key for key in config if not key.startswith("_")} | {"vae_encoder", "vae_decoder"}
             allow_patterns = {os.path.join(component, "*") for component in all_components}
             # plus custom file names
             allow_patterns.update(
@@ -365,7 +363,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         models = {}
         sessions = {}
         for model, path in model_paths.items():
-            if kwargs.get(model, None) is not None:
+            if kwargs.get(model) is not None:
                 # this allows passing a model directly to from_pretrained
                 models[model] = kwargs.pop(model)
             elif kwargs.get(f"{model}_session", None) is not None:
@@ -381,13 +379,13 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         submodels = {}
         for submodel in {"scheduler", "tokenizer", "tokenizer_2", "tokenizer_3", "feature_extractor"}:
-            if kwargs.get(submodel, None) is not None:
+            if kwargs.get(submodel) is not None:
                 submodels[submodel] = kwargs.pop(submodel)
             elif config.get(submodel, (None, None))[0] is not None:
                 library_name, library_classes = config.get(submodel)
                 library = importlib.import_module(library_name)
                 class_obj = getattr(library, library_classes)
-                load_method = getattr(class_obj, "from_pretrained")
+                load_method = class_obj.from_pretrained
                 # Check if the module is in a subdirectory
                 if (model_save_path / submodel).is_dir():
                     submodels[submodel] = load_method(model_save_path / submodel)
@@ -421,8 +419,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         push_to_hub: Optional[bool] = False,
         **kwargs,
     ):
-        """
-        Saves a model and its configuration file to a directory, so that it can be re-loaded using the
+        """Saves a model and its configuration file to a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
 
         Args:
@@ -434,7 +431,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 Additional keyword arguments passed along to [`~huggingface_hub.create_repo`] and
                 [`~huggingface_hub.HfApi.upload_folder`] if `push_to_hub` is set to `True`.
         """
-
         model_save_path = Path(save_directory)
         model_save_path.mkdir(parents=True, exist_ok=True)
 
@@ -535,8 +531,7 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
         self.register_to_config(**config_dict)
 
     def save_pretrained(self, save_directory: Union[str, Path]):
-        """
-        Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
+        """Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
 
         Args:
@@ -574,8 +569,8 @@ class ORTUnet(ORTModelMixin):
         timestep: Union[np.ndarray, torch.Tensor],
         encoder_hidden_states: Union[np.ndarray, torch.Tensor],
         timestep_cond: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        cross_attention_kwargs: Optional[Dict[str, Any]] = None,
-        added_cond_kwargs: Optional[Dict[str, Any]] = None,
+        cross_attention_kwargs: Optional[dict[str, Any]] = None,
+        added_cond_kwargs: Optional[dict[str, Any]] = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(sample, torch.Tensor)
@@ -636,7 +631,7 @@ class ORTTransformer(ORTModelMixin):
         guidance: Optional[Union[np.ndarray, torch.Tensor]] = None,
         txt_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
         img_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        joint_attention_kwargs: Optional[Dict[str, Any]] = None,
+        joint_attention_kwargs: Optional[dict[str, Any]] = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
@@ -862,9 +857,7 @@ ORT_PIPELINE_DOCSTRING = r"""
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline)."""
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -873,9 +866,7 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline)."""
 
     task = "image-to-image"
     main_input_name = "image"
@@ -884,9 +875,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline)."""
 
     task = "inpainting"
     main_input_name = "prompt"
@@ -895,9 +884,7 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline)."""
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -919,9 +906,7 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionXLImg2ImgPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline)."""
 
     task = "image-to-image"
     main_input_name = "prompt"
@@ -957,9 +942,7 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline)."""
 
     main_input_name = "image"
     task = "inpainting"
@@ -995,9 +978,7 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline)."""
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -1006,9 +987,7 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
-    """
-    ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline).
-    """
+    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline)."""
 
     task = "image-to-image"
     main_input_name = "image"
@@ -1030,9 +1009,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-        """
-        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline).
-        """
+        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1040,9 +1017,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-        """
-        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline).
-        """
+        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline)."""
 
         task = "image-to-image"
         main_input_name = "image"
@@ -1062,9 +1037,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-        """
-        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline).
-        """
+        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline)."""
 
         task = "inpainting"
         main_input_name = "prompt"
@@ -1072,9 +1045,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-        """
-        ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline).
-        """
+        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1179,12 +1150,12 @@ class ORTPipelineForTask(ConfigMixin):
     def from_pretrained(cls, pretrained_model_or_path, **kwargs) -> ORTDiffusionPipeline:
         load_config_kwargs = {
             "force_download": kwargs.get("force_download", False),
-            "resume_download": kwargs.get("resume_download", None),
+            "resume_download": kwargs.get("resume_download"),
             "local_files_only": kwargs.get("local_files_only", False),
-            "cache_dir": kwargs.get("cache_dir", None),
-            "revision": kwargs.get("revision", None),
-            "proxies": kwargs.get("proxies", None),
-            "token": kwargs.get("token", None),
+            "cache_dir": kwargs.get("cache_dir"),
+            "revision": kwargs.get("revision"),
+            "proxies": kwargs.get("proxies"),
+            "token": kwargs.get("token"),
         }
         config = cls.load_config(pretrained_model_or_path, **load_config_kwargs)
         config = config[0] if isinstance(config, tuple) else config

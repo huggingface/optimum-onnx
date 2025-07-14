@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -39,8 +39,8 @@ DECODER_WITH_LM_HEAD_INPUTS_DOCSTRING = r"""
 
 # Currently inherits from PreTrainedModel for export constraint coming from transformers.onnx.export
 class _DecoderWithLMhead(PreTrainedModel):
-    """
-    Decoder model with a language modeling head on top.
+    """Decoder model with a language modeling head on top.
+
     Arguments:
         model (`transformers.PreTrainedModel`):
             The model from which to extract the decoder and the language modeling head.
@@ -60,7 +60,7 @@ class _DecoderWithLMhead(PreTrainedModel):
         encoder_hidden_states: torch.FloatTensor,
         attention_mask: Optional[torch.LongTensor] = None,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.FloatTensor]]] = None,
         labels: Optional[torch.LongTensor] = None,
     ):
         decoder_outputs = self.decoder(

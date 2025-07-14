@@ -44,7 +44,7 @@ def parse_args_onnx(parser):
         default="auto",
         help=(
             "The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among:"
-            f" {str(TasksManager.get_all_tasks())}. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
+            f" {TasksManager.get_all_tasks()}. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
         ),
     )
     optional_group.add_argument(
@@ -146,7 +146,7 @@ def parse_args_onnx(parser):
         type=str,
         choices=["transformers", "diffusers", "timm", "sentence_transformers"],
         default=None,
-        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
+        help=("The library on the model. If not provided, will attempt to infer the local checkpoint's library"),
     )
     optional_group.add_argument(
         "--model-kwargs",
@@ -271,7 +271,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
-        for input_name in DEFAULT_DUMMY_SHAPES.keys():
+        for input_name in DEFAULT_DUMMY_SHAPES:
             if hasattr(self.args, input_name):
                 input_shapes[input_name] = getattr(self.args, input_name)
 

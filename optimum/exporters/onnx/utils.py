@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +13,7 @@
 # limitations under the License.
 """Utility functions."""
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import torch
 from packaging import version
@@ -97,8 +96,7 @@ if is_transformers_version(">=", "4.46.0"):
 
 
 def check_onnxruntime_requirements(minimum_version: version.Version):
-    """
-    Checks that ONNX Runtime is installed and if version is recent enough.
+    """Checks that ONNX Runtime is installed and if version is recent enough.
 
     Args:
         minimum_version (`packaging.version.Version`):
@@ -125,7 +123,7 @@ def check_onnxruntime_requirements(minimum_version: version.Version):
         )
 
 
-def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
+def recursive_to_device(value: Union[tuple, list, "torch.Tensor"], device: str):
     if isinstance(value, tuple):
         value = list(value)
         for i, val in enumerate(value):
@@ -141,7 +139,7 @@ def recursive_to_device(value: Union[Tuple, List, "torch.Tensor"], device: str):
 
 
 def recursive_to_dtype(
-    value: Union[Tuple, List, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
+    value: Union[tuple, list, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
 ):
     if dtype is None:
         return value
@@ -194,16 +192,16 @@ def _get_submodels_and_onnx_configs(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     task: str,
     monolith: bool,
-    custom_onnx_configs: Dict,
+    custom_onnx_configs: dict,
     custom_architecture: bool,
     _variant: str,
     library_name: str,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
     fn_get_submodels: Optional[Callable] = None,
-    preprocessors: Optional[List[Any]] = None,
+    preprocessors: Optional[list[Any]] = None,
     legacy: bool = False,
-    model_kwargs: Optional[Dict] = None,
+    model_kwargs: Optional[dict] = None,
 ):
     return _get_submodels_and_export_configs(
         model,
@@ -230,7 +228,7 @@ def get_diffusion_models_for_export(
     pipeline: "DiffusionPipeline",
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
-) -> Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
+) -> dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "ExportConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
     return _get_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
 
@@ -241,7 +239,7 @@ def get_sam_models_for_export(model: Union["PreTrainedModel", "TFPreTrainedModel
 
 
 def get_speecht5_models_for_export(
-    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig", model_kwargs: Optional[Dict]
+    model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig", model_kwargs: Optional[dict]
 ):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
     return _get_speecht5_models_for_export(model, config)
@@ -249,7 +247,7 @@ def get_speecht5_models_for_export(
 
 def get_encoder_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"], config: "ExportConfig"
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+) -> dict[str, tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder-decoder"))
     return _get_encoder_decoder_models_for_export(model, config)
 
@@ -258,6 +256,6 @@ def get_decoder_models_for_export(
     model: Union["PreTrainedModel", "TFPreTrainedModel"],
     config: "ExportConfig",
     legacy: bool = False,
-) -> Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
+) -> dict[str, tuple[Union["PreTrainedModel", "TFPreTrainedModel"], "ExportConfig"]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="decoder"))
     return _get_decoder_models_for_export(model, config, legacy)
