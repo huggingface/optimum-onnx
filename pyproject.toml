@@ -8,6 +8,7 @@ ignore = [
     "B9",  # Opinionated bugbear rules
     "C901",
     "D1",
+    "D401",
     "E501",
     "E741",
     "NPY002", # We may not always need a generator
@@ -53,6 +54,9 @@ line-length = 119
 [tool.ruff.isort]
 lines-after-imports = 2
 known-first-party = ["optimum"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 markers = [
