@@ -456,7 +456,8 @@ class ORTQuantizer(OptimumQuantizer):
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning, stacklevel=2,
+                FutureWarning,
+                stacklevel=2,
             )
             if token is not None:
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")

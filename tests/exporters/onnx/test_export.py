@@ -422,7 +422,10 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
 
 
 class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (MPTDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MPTDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
     DUMMY_PKV_GENERATOR_CLASS = MPTDummyPastKeyValuesGenerator
 
     DEFAULT_ONNX_OPSET = 14  # aten::tril operator requires opset>=14

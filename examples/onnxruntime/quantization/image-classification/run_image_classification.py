@@ -14,6 +14,7 @@
 #  limitations under the License.
 
 """Finetuning the library models for image classification on beans."""
+
 # You can also adapt this script on your own image classification task. Pointers for this are left as comments.
 import json
 import logging

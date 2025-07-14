@@ -137,7 +137,11 @@ COMMON_TEXT_GENERATION_TASKS = [
     "text-generation-with-past",
 ]
 
-COMMON_TEXT2TEXT_GENERATION_TASKS = [*COMMON_TEXT_GENERATION_TASKS, "text2text-generation", "text2text-generation-with-past"]
+COMMON_TEXT2TEXT_GENERATION_TASKS = [
+    *COMMON_TEXT_GENERATION_TASKS,
+    "text2text-generation",
+    "text2text-generation-with-past",
+]
 
 
 register_tasks_manager_onnx = TasksManager.create_register("onnx")
@@ -505,7 +509,10 @@ class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
 @register_tasks_manager_onnx("phi3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class Phi3OnnxConfig(PhiOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (MistralDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.50.0")
@@ -523,7 +530,10 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
-    DUMMY_INPUT_GENERATOR_CLASSES = (MistralDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        MistralDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
     _MODEL_PATCHER = MistralModelPatcher
@@ -543,7 +553,10 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 @register_tasks_manager_onnx("bloom", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     # Bloom does not require position_ids input.
-    DUMMY_INPUT_GENERATOR_CLASSES = (BloomDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        BloomDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
 
     DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
     MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
@@ -555,7 +568,10 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
     "gpt_bigcode", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"]
 )
 class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (GPTBigCodeDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        GPTBigCodeDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
     DEFAULT_ONNX_OPSET = 14  # GPT BigCode now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
@@ -587,7 +603,10 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     # This is due to the cache refactoring for Falcon in 4.36
     MIN_TRANSFORMERS_VERSION = version.parse("4.35.99")
 
-    DUMMY_INPUT_GENERATOR_CLASSES = (FalconDummyPastKeyValuesGenerator, *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        FalconDummyPastKeyValuesGenerator,
+        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
     DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
@@ -643,7 +662,10 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
 )
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
-    DUMMY_INPUT_GENERATOR_CLASSES = (*TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1], T5DummySeq2SeqPastKeyValuesGenerator)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        *TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1],
+        T5DummySeq2SeqPastKeyValuesGenerator,
+    )
     DUMMY_PKV_GENERATOR_CLASS = T5DummySeq2SeqPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         hidden_size="d_model",
@@ -1707,7 +1729,10 @@ class Data2VecAudioOnnxConfig(AudioOnnxConfig):
 @register_tasks_manager_onnx("perceiver", *["fill-mask", "text-classification", "image-classification"])
 class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DUMMY_INPUT_GENERATOR_CLASSES = (PerceiverDummyInputGenerator, *TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES)
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        PerceiverDummyInputGenerator,
+        *TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+    )
 
     def __init__(
         self,
@@ -2445,7 +2470,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         allow_new=True,
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        (Speech2TextDummyAudioInputGenerator, *AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:], DummyTextInputGenerator)
+        Speech2TextDummyAudioInputGenerator,
+        *AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:],
+        DummyTextInputGenerator,
     )
     ATOL_FOR_VALIDATION = 1e-4
 
@@ -2481,9 +2508,9 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
             # for Speech2text, we need to name the second axis as
             # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
             # used for dummy input generation
-            common_outputs["last_hidden_state"][
-                1
-            ] = f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            common_outputs["last_hidden_state"][1] = (
+                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
+            )
         return common_outputs
 
 
@@ -2858,13 +2885,15 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
         if kwargs["height"] < min_image_size:
             warnings.warn(
                 f"Exporting model with image `height={kwargs['height']}` which is less than "
-                f"minimal {min_image_size}, setting `height` to {min_image_size}.", stacklevel=2
+                f"minimal {min_image_size}, setting `height` to {min_image_size}.",
+                stacklevel=2,
             )
             kwargs["height"] = min_image_size
         if kwargs["width"] < min_image_size:
             warnings.warn(
                 f"Exporting model with image `width={kwargs['width']}` which is less than "
-                f"minimal {min_image_size}, setting `width` to {min_image_size}.", stacklevel=2
+                f"minimal {min_image_size}, setting `width` to {min_image_size}.",
+                stacklevel=2,
             )
             kwargs["width"] = min_image_size
         return super()._create_dummy_input_generator_classes(**kwargs)

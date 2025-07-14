@@ -772,7 +772,8 @@ class OptimizationConfig:
                 warnings.warn(
                     f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
                     f"{getattr(self, new_name)}.",
-                    FutureWarning, stacklevel=2,
+                    FutureWarning,
+                    stacklevel=2,
                 )
 
         deprecate_renamed_attribute(
