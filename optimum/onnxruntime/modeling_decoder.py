@@ -416,7 +416,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # GPT BigCode style
             return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
         else:
-            raise ValueError(
+            raise TypeError(
                 f"Unexpected past_key_values: {past_key_values}. "
                 "Expected tuple of tuples (GPT2 style) or tuple of tensors (GPT BigCode style)."
             )

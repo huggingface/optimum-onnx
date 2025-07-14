@@ -145,6 +145,11 @@ def main_export(
         token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
+        for_ort (`bool`, defaults to `False`):
+            Deprecated. The ONNX export is now always compatible with ONNX Runtime, so this argument
+            is not needed anymore. It will be removed in a future release of Optimum.
+        do_validation (`bool`, defaults to `True`):
+            Whether or not to validate the exported ONNX model by running inference on it.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
             Experimental usage: keyword arguments to pass to the model during
             the export. This argument should be used along the `custom_onnx_configs` argument

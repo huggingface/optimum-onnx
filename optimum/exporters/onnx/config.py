@@ -136,7 +136,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                     save_path=decoder_merged_path,
                 )
             except Exception as e:
-                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+                raise RuntimeError("Unable to merge decoders") from e
 
             # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]

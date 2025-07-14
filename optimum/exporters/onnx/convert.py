@@ -161,7 +161,7 @@ def validate_models_outputs(
 
     if len(exceptions) != 0:
         for i, exception in enumerate(exceptions[:-1]):
-            logger.error(f"Validation for the model {exception[0].as_posix()} raised: {exception[1]}")
+            logger.error(f"Validation for the model {exception[0].as_posix()} raised: {exception[i]}")
         raise exceptions[-1][1]
 
 
@@ -179,7 +179,7 @@ def validate_model_outputs(
     """Validates the export by checking that the outputs from both the reference and the exported model match.
 
     Args:
-        config ([`~OnnxConfig`]:
+        config ([`~OnnxConfig`]):
             The configuration used to export the model.
         reference_model ([`~PreTrainedModel`] or [`~TFPreTrainedModel`]):
             The model used for the export.
@@ -510,7 +510,7 @@ def export_pytorch(
     from torch.utils._pytree import tree_map
 
     logger.info(f"Using framework PyTorch: {torch.__version__}")
-    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"  # noqa: N806
 
     model_kwargs = model_kwargs or {}
     # num_logits_to_keep was added in transformers 4.45 and isn't added as inputs when exporting the model
@@ -1219,9 +1219,9 @@ def onnx_export_from_model(
                 output, models_and_onnx_configs, onnx_files_subpaths
             )
         except Exception as e:
-            raise Exception(
-                f"The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process. Detailed error: {e}"
-            )
+            raise RuntimeError(
+                "The post-processing of the ONNX export failed. The export can still be performed by passing the option --no-post-process"
+            ) from e
 
     if library_name == "diffusers":
         # TODO: fix Can't pickle local object 'get_stable_diffusion_models_for_export.<locals>.<lambda>'
@@ -1260,6 +1260,6 @@ def onnx_export_from_model(
                 f"The ONNX export succeeded with the warning: {e}.\n The exported model was saved at: {output.as_posix()}"
             )
         except Exception as e:
-            raise Exception(
-                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}. Detailed error: {e}."
-            )
+            raise RuntimeError(
+                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}"
+            ) from e

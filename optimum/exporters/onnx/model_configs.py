@@ -1976,7 +1976,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     # opset>=14 needed for torch.tril export.
     DEFAULT_ONNX_OPSET = 14
 
-    VARIANTS = {
+    VARIANTS = {  # noqa: RUF012
         "text-conditional-with-past": """Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation).
         This uses the decoder KV cache. The following subcomponents are exported:
         * text_encoder.onnx: corresponds to the text encoder part in https://github.com/huggingface/transformers/blob/v4.39.1/src/transformers/models/musicgen/modeling_musicgen.py#L1457.
@@ -2213,7 +2213,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     strict=False,
                 )
             except Exception as e:
-                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+                raise RuntimeError("Unable to merge decoders") from e
 
             # In order to do the validation of the two branches on the same file
             text_encoder_path = onnx_files_subpaths[0]
@@ -2285,7 +2285,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
     DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
 
-    VARIANTS = {
+    VARIANTS = {  # noqa: RUF012
         "with-past": "The export follows the Transformers implementation using the KV cache, with the following components exported:\n\t - encoder_model.onnx: corresponds to the encoding part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2544-L2556.\n\t - decoder_model.onnx: corresponds to the decoder part in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2572-L2602.\n\t - decoder_with_past_model.onnx: same as the above, with past_key_values input (KV cache filled).\n\t - decoder_postnet_and_vocoder.onnx: Decoder speech postnet and vocoder (e.g. a SpeechT5HifiGan) to generate speech from the spectrogram, as in https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L2605-L2614.",
         "without-past": "The same as `with-past`, just without KV cache support. This is not a recommended export as slower than `with-past`.",
     }
@@ -2568,7 +2568,7 @@ class SamOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator, DummyVisionEmbeddingsGenerator)
     DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.
-    VARIANTS = {
+    VARIANTS = {  # noqa: RUF012
         "monolith": "All the SAM model components are exported as a single model.onnx.",
         "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
     }

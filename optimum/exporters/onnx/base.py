@@ -877,7 +877,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
     decoders.
     """
 
-    _tasks_to_extra_inputs = {
+    _tasks_to_extra_inputs = {  # noqa: RUF012
         "feature-extraction": {"labels": {0: "batch_size"}},
         "fill-mask": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
@@ -893,7 +893,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         },
         "image-classification": {"labels": {0: "batch_size"}},
     }
-    _tasks_to_extra_outputs = {
+    _tasks_to_extra_outputs = {  # noqa: RUF012
         "feature-extraction": OrderedDict({"loss": {}}),
     }
 
@@ -941,7 +941,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         ):
             kwargs["sequence_length"] = 1
         else:
-            for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():
+            for dynamic_axes in self._tasks_to_extra_inputs[self.task].values():
                 if "sequence_length" in dynamic_axes.values():
                     kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
 
