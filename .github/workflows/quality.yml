@@ -28,12 +28,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          # .[quality] installs too many dependencies
-          pip install "black~=23.1" "ruff==0.1.5"
+          pip install .[quality]
 
-      - name: Check style with black
+      - name: Check format with ruff
         run: |
-          black --check .
+          ruff format --check .
 
       - name: Check style with ruff
         run: |
