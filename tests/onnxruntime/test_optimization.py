@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import onnx
@@ -51,9 +51,8 @@ class ORTOptimizerTestMixin(unittest.TestCase):
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
 
-    def _setup(self, model_args: Dict):
-        """
-        Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
+    def _setup(self, model_args: dict):
+        """Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
         We don't use unittest setUpClass, in order to still be able to run individual tests.
         """
         model_arch = model_args["model_arch"]
@@ -83,7 +82,7 @@ class ORTOptimizerTestMixin(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        for _, dir_path in cls.onnx_model_dirs.items():
+        for dir_path in cls.onnx_model_dirs.values():
             shutil.rmtree(dir_path)
 
 

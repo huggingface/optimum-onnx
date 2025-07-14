@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +13,7 @@
 # limitations under the License.
 import importlib
 import inspect
-from typing import Optional, Set
+from typing import Optional
 from unittest import TestCase
 
 from transformers import BertConfig
@@ -25,7 +24,7 @@ from optimum.exporters.onnx.model_configs import BertOnnxConfig
 
 class TasksManagerTestCase(TestCase):
     def _check_all_models_are_registered(
-        self, backend: str, class_prefix: str, classes_to_ignore: Optional[Set[str]] = None
+        self, backend: str, class_prefix: str, classes_to_ignore: Optional[set[str]] = None
     ):
         registered_classes = set()
         for mappings in TasksManager._SUPPORTED_MODEL_TYPE.values():

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 #  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-""" Finetuning the library models for sequence classification on GLUE."""
+"""Finetuning the library models for sequence classification on GLUE."""
 # You can also adapt this script on your own text classification task. Pointers for this are left as comments.
 
 import json
@@ -69,8 +68,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DataTrainingArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
+    """Arguments pertaining to what data we are going to input our model for training and eval.
 
     Using `HfArgumentParser` we can turn this class
     into argparse arguments to be able to specify them on
@@ -119,15 +117,13 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
-            if self.task_name not in task_to_keys.keys():
+            if self.task_name not in task_to_keys:
                 raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
 
 
 @dataclass
 class ModelArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
+    """Arguments pertaining to which model/config/tokenizer we are going to fine-tune from."""
 
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
@@ -140,9 +136,7 @@ class ModelArguments:
 
 @dataclass
 class OptimizationArguments:
-    """
-    Arguments pertaining to what type of optimization we are going to apply on the model.
-    """
+    """Arguments pertaining to what type of optimization we are going to apply on the model."""
 
     optimization_level: Optional[int] = field(
         default=1,
@@ -177,9 +171,7 @@ class OptimizationArguments:
 
 @dataclass
 class OnnxExportArguments:
-    """
-    Arguments to decide how the ModelProto will be saved.
-    """
+    """Arguments to decide how the ModelProto will be saved."""
 
     use_external_data_format: bool = field(
         default=False,
@@ -311,7 +303,7 @@ def main():
                 else:
                     raise ValueError("Need either a GLUE task or a test file for `do_predict`.")
 
-            for key in data_files.keys():
+            for key in data_files:
                 logger.info(f"load a local file for {key}: {data_files[key]}")
 
             if data_args.validation_file.endswith(".csv"):

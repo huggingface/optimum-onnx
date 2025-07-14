@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Fine-tuning the library models for token classification.
-"""
+"""Fine-tuning the library models for token classification."""
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
 
@@ -54,9 +51,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
+    """Arguments pertaining to which model/config/tokenizer we are going to fine-tune from."""
 
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
@@ -86,9 +81,7 @@ class ModelArguments:
 
 @dataclass
 class DataTrainingArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
-    """
+    """Arguments pertaining to what data we are going to input our model for training and eval."""
 
     task_name: Optional[str] = field(default="ner", metadata={"help": "The name of the task (ner, pos...)."})
     dataset_name: Optional[str] = field(
@@ -166,9 +159,7 @@ class DataTrainingArguments:
 
 @dataclass
 class OptimizationArguments:
-    """
-    Arguments pertaining to what type of optimization we are going to apply on the model.
-    """
+    """Arguments pertaining to what type of optimization we are going to apply on the model."""
 
     optimization_level: Optional[int] = field(
         default=1,
@@ -203,9 +194,7 @@ class OptimizationArguments:
 
 @dataclass
 class OnnxExportArguments:
-    """
-    Arguments to decide how the ModelProto will be saved.
-    """
+    """Arguments to decide how the ModelProto will be saved."""
 
     use_external_data_format: bool = field(
         default=False,

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +16,7 @@ import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Optional
+from typing import Optional
 
 import onnx
 import pytest
@@ -48,7 +47,7 @@ from .utils_tests import (
 )
 
 
-def _get_models_to_test(export_models_dict: Dict, library_name: str):
+def _get_models_to_test(export_models_dict: dict, library_name: str):
     models_to_test = []
     if is_torch_available():
         for model_type, model_names_tasks in export_models_dict.items():
@@ -84,7 +83,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str):
                     else:
                         variants = onnx_config_class.func.VARIANTS
 
-                    for variant in variants.keys():
+                    for variant in variants:
                         models_to_test.append(
                             (
                                 f"{model_type}_{task}_{variant}_{model_name}",
@@ -166,9 +165,7 @@ def _get_models_to_test(export_models_dict: Dict, library_name: str):
 
 
 class OnnxCLIExportTestCase(unittest.TestCase):
-    """
-    Integration tests ensuring supported models are correctly exported.
-    """
+    """Integration tests ensuring supported models are correctly exported."""
 
     MODEL_TRUST_REMOTE_CODE = {"internlm2"}
 
@@ -183,7 +180,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         fp16: bool = False,
         variant: str = "default",
         no_dynamic_axes: bool = False,
-        model_kwargs: Optional[Dict] = None,
+        model_kwargs: Optional[dict] = None,
         slim: bool = False,
         trust_remote_code: bool = False,
     ):
@@ -226,7 +223,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         device: str = "cpu",
         fp16: bool = False,
         variant: str = "default",
-        model_kwargs: Optional[Dict] = None,
+        model_kwargs: Optional[dict] = None,
         trust_remote_code: bool = False,
     ):
         with TemporaryDirectory() as tmpdir:
@@ -516,7 +513,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 ) or "doesn't support the graph optimization" in str(e):
                     self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
                 else:
-                    raise e
+                    raise
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch_gpu
@@ -566,7 +563,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             ) or "doesn't support the graph optimization" in str(e):
                 self.skipTest(f"unsupported model type in ORTOptimizer: {model_type}")
             else:
-                raise e
+                raise
 
     @parameterized.expand([(False,), (True,)])
     def test_external_data(self, use_cache: bool):
@@ -727,7 +724,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
 
         if isinstance(model_name, dict):
-            for _model_name in model_name.keys():
+            for _model_name in model_name:
                 with TemporaryDirectory() as tmpdir:
                     main_export(
                         model_name_or_path=_model_name, output=tmpdir, task=task, trust_remote_code=trust_remote_code
