@@ -55,7 +55,7 @@ def _find_duplicate_initializers(
     return duplicates
 
 
-def _create_name_sharing_dict(
+def _create_name_sharing_dict(  # noqa: D417
     duplicate_weights: defaultdict[tuple[int, str, tuple], set[tuple[str, int]]], suffix: str = ""
 ) -> dict[tuple[str, int], str]:
     """Creates a map mapping old initializer names to new initializer names. As different ONNX models
@@ -306,7 +306,7 @@ def _get_weights_to_tie(tied_params: list[list[str]], torch_model: "nn.Module") 
 
     Currently, only Embedding and Linear weight sharing the same data can be tied.
     """
-    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")  # noqa: N806
     tied_params_with_op = []
     tied_groups_to_tie = []
     tied_groups_ignored = []

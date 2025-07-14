@@ -862,7 +862,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     _ort_encoder_class = ORTEncoder
     _ort_decoder_class = ORTDecoderForSeq2Seq
 
-    def __init__(
+    def __init__(  # noqa: D417
         self,
         *args,
         config: "PretrainedConfig" = None,

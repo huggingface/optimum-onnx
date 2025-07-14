@@ -66,7 +66,7 @@ def remove_duplicate_weights(model: onnx.ModelProto, inplace: bool = False) -> o
     return model
 
 
-def remove_duplicate_weights_from_tied_info(
+def remove_duplicate_weights_from_tied_info(  # noqa: D417
     onnx_model: onnx.ModelProto, torch_model: "nn.Module", tied_params: list[list[str]], save_path: str
 ):
     """Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
@@ -155,7 +155,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
         model_uses_external_data = True
         os.remove(external_file_path)
 
-    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"  # noqa: N806
 
     onnx.save(
         model,

@@ -824,7 +824,7 @@ class OptimizationConfig:
 class AutoOptimizationConfig:
     """Factory to create common `OptimizationConfig`."""
 
-    _LEVELS = {
+    _LEVELS = {  # noqa: RUF012
         "O1": {
             "optimization_level": 1,
             "enable_transformers_specific_optimizations": False,
@@ -879,7 +879,7 @@ class AutoOptimizationConfig:
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
     @classmethod
-    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
         """Creates an O1 [`~OptimizationConfig`].
 
         Args:
@@ -895,7 +895,7 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O1", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
         """Creates an O2 [`~OptimizationConfig`].
 
         Args:
@@ -911,7 +911,7 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O2", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
+    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
         """Creates an O3 [`~OptimizationConfig`].
 
         Args:
@@ -927,7 +927,7 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O3", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O4(cls, for_gpu: bool = True, **kwargs) -> OptimizationConfig:
+    def O4(cls, for_gpu: bool = True, **kwargs) -> OptimizationConfig:  # noqa: N802
         """Creates an O4 [`~OptimizationConfig`].
 
         Args:

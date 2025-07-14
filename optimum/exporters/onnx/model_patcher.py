@@ -154,7 +154,7 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
 # Without this, we get the following error: https://github.com/pytorch/pytorch/issues/145100
 # NOTE: This implementation is only necessary for export with dynamo=False (dynamo=True works correctly).
 # and can be removed once Optimum switches to dynamo-based exports
-def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):
+def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):  # noqa: D417
     """Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
 
     Args:

@@ -530,7 +530,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if model_save_dir is None:
             model_save_dir = Path(model_cache_path).parent
 
-        try:
+        try:  # noqa: SIM105
             cached_file(
                 model_id,
                 filename=file_name + "_data",

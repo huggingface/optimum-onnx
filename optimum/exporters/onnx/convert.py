@@ -898,7 +898,7 @@ def export(
     return export_output
 
 
-def onnx_export_from_model(
+def onnx_export_from_model(  # noqa: D417
     model: Union["PreTrainedModel", "TFPreTrainedModel", "DiffusionPipeline"],
     output: Union[str, Path],
     opset: Optional[int] = None,

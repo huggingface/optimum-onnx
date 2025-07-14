@@ -69,7 +69,7 @@ class ORTConfigManager:
 
     # Contribution note: Please add new models in alphabetical order
     # TODO: for encoder-decoder models, validate if bert or gpt2 optimization is better
-    _conf = {
+    _conf = {  # noqa: RUF012
         "albert": "bert",
         "bart": "bart",
         "bert": "bert",

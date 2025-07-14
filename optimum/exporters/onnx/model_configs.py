@@ -2886,7 +2886,7 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
     )
     ATOL_FOR_VALIDATION = 1e-4
 
-    VARIANTS = {
+    VARIANTS = {  # noqa: RUF012
         "vision": "Embedding extraction for image.",
         "text": "Embedding extraction for text.",
     }

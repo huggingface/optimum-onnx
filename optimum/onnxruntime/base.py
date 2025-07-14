@@ -151,11 +151,11 @@ class ORTSessionMixin:
     def use_io_binding(self, value: bool):
         """Sets the IO Binding usage."""
         if not isinstance(value, bool):
-            raise ValueError("`use_io_binding` should be a boolean value.")
+            raise TypeError("`use_io_binding` should be a boolean value.")
 
         self._use_io_binding = value
 
-    def to(self, *args, **kwargs):
+    def to(self, *args, **kwargs):  # noqa: D417
         """Moves the session to the specified device by updating the execution provider and its options.
 
         Args:
@@ -231,7 +231,7 @@ class ORTSessionMixin:
                 " with `model.use_io_binding=False`, or pass `torch.Tensor` inputs instead."
             )
 
-    def _prepare_onnx_inputs(
+    def _prepare_onnx_inputs(  # noqa: D417
         self, use_torch: bool, model_inputs: dict[str, Union[torch.Tensor, np.ndarray]]
     ) -> dict[str, np.ndarray]:
         """Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
@@ -583,7 +583,7 @@ class ORTParentMixin:
         for model in self.parts:
             model.use_io_binding = value
 
-    def to(self, *args, **kwargs):
+    def to(self, *args, **kwargs):  # noqa: D417
         """Moves all parts to the specified device by updating the execution provider and its options.
 
         Args:
