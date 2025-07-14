@@ -11,6 +11,7 @@ ignore = [
     "B9",  # Opinionated bugbear rules
     "C901",
     "D1",
+    "D205",
     "D401",
     "D403",
     "E501",  # Never enforce line length violations

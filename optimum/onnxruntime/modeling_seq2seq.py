@@ -874,24 +874,26 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        """Args:
-        config ([`PretrainedConfig`]):
-            `config` is an instance of the configuration associated to the model. Initializing with a config file
-            does not load the weights associated with the model, only the configuration.
-        encoder_session (`InferenceSession`):
-            The ONNX Runtime inference session associated to the encoder.
-        decoder_session (`InferenceSession`):
-            The ONNX Runtime inference session associated to the decoder.
-        decoder_with_past_session (`Optional[InferenceSession]`, *optional*, defaults to `None`):
-            The ONNX Runtime inference session associated to the decoder with past key values.
-        use_io_binding (``Optional[bool]`, *optional*, defaults to `None`):
-            Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
-            `True` if the device is CUDA, otherwise defaults to `False`.
-        generation_config (`Optional[GenerationConfig]`, *optional*, defaults to `None`):
-            The generation configuration used by default when calling `generate()`.
-            Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
-        model_save_dir (``Optional[Union[str, Path, TemporaryDirectory]]`, *optional*, defaults to `None`):
-            The directory under which the model exported to ONNX was saved.
+        """Initialize an `ORTModelForConditionalGeneration` instance.
+
+        Args:
+            config ([`PretrainedConfig`]):
+                `config` is an instance of the configuration associated to the model. Initializing with a config file
+                does not load the weights associated with the model, only the configuration.
+            encoder_session (`InferenceSession`):
+                The ONNX Runtime inference session associated to the encoder.
+            decoder_session (`InferenceSession`):
+                The ONNX Runtime inference session associated to the decoder.
+            decoder_with_past_session (`Optional[InferenceSession]`, *optional*, defaults to `None`):
+                The ONNX Runtime inference session associated to the decoder with past key values.
+            use_io_binding (``Optional[bool]`, *optional*, defaults to `None`):
+                Whether use IOBinding during inference to avoid memory copy between the host and devices. Defaults to
+                `True` if the device is CUDA, otherwise defaults to `False`.
+            generation_config (`Optional[GenerationConfig]`, *optional*, defaults to `None`):
+                The generation configuration used by default when calling `generate()`.
+                Refer to https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.
+            model_save_dir (``Optional[Union[str, Path, TemporaryDirectory]]`, *optional*, defaults to `None`):
+                The directory under which the model exported to ONNX was saved.
         """
         # DEPRECATED BEHAVIOR
         if args:
@@ -1131,7 +1133,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                     local_files_only=local_files_only,
                 )
                 # try download external data
-                try:
+                try:  # noqa: SIM105
                     cached_file(
                         model_id,
                         subfolder=subfolder,

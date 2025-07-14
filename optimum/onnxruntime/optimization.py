@@ -47,13 +47,15 @@ class ORTOptimizer:
     """Handles the ONNX Runtime optimization process for models shared on huggingface.co/models."""
 
     def __init__(self, onnx_model_path: list[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
-        """Args:
-        onnx_model_path (`List[os.PathLike]`):
-            The paths of the onnx models to optimize.
-        config ([`~transformers.PretrainedConfig`]):
-            An instance of the configuration associated to the model to optimize.
-        from_ortmodel (`bool`, defaults to `False`):
-            Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
+        """Initializes the `ORTOptimizer`.
+
+        Args:
+            onnx_model_path (`List[os.PathLike]`):
+                The paths of the onnx models to optimize.
+            config ([`~transformers.PretrainedConfig`]):
+                An instance of the configuration associated to the model to optimize.
+            from_ortmodel (`bool`, defaults to `False`):
+                Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path
@@ -73,14 +75,16 @@ class ORTOptimizer:
     def from_pretrained(
         cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[list[str]] = None
     ) -> "ORTOptimizer":
-        """Args:
-        model_or_path (`Union[str, os.PathLike, ORTModel]`):
-            The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
-            Can be either:
-                - A path to a local *directory* containing the model to optimize.
-                - An instance of [`~optimum.onnxruntime.ORTModel`].
-        file_names(`Optional[List[str]]`, defaults to `None`):
-            The list of file names of the models to optimize.
+        """Initializes the `ORTOptimizer` from a local directory or an `ORTModel`.
+
+        Args:
+            model_or_path (`Union[str, os.PathLike, ORTModel]`):
+                The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
+                Can be either:
+                    - A path to a local *directory* containing the model to optimize.
+                    - An instance of [`~optimum.onnxruntime.ORTModel`].
+            file_names(`Optional[List[str]]`, defaults to `None`):
+                The list of file names of the models to optimize.
         """
         onnx_model_path = []
         config = None

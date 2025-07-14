@@ -288,7 +288,9 @@ def check_io_binding(providers: list[str], use_io_binding: Optional[bool] = None
 
 
 def get_ordered_input_names(input_names: list[str], func: Callable) -> list[str]:
-    """Returns the input names from input_names keys ordered according to the signature of func. This is especially useful with the
+    """Returns the input names from input_names keys ordered according to the signature of func.
+
+    This is especially useful with the
     forward function when using IO Binding, as the input order of the ONNX and forward may be different.
 
     Method inspired from OnnxConfig.ordered_inputs.
@@ -416,6 +418,7 @@ class DummyWhisperModel:
 
 def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
     """Returns the `torch.dtype` associated with the ONNX Runtime session.
+
     This dtype is inferred from the input/output dtypes of the session.
     If no floating point type is found, it defaults to `torch.float32`.
     """

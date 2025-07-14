@@ -86,11 +86,13 @@ class ORTQuantizer(OptimumQuantizer):
     """Handles the ONNX Runtime quantization process for models shared on huggingface.co/models."""
 
     def __init__(self, onnx_model_path: Path, config: Optional["PretrainedConfig"] = None):
-        """Args:
-        onnx_model_path (`Path`):
-            Path to the onnx model files you want to quantize.
-        config (`Optional[PretrainedConfig]`, defaults to `None`):
-            The configuration of the model.
+        """Initializes the `ORTQuantizer`.
+
+        Args:
+            onnx_model_path (`Path`):
+                Path to the onnx model files you want to quantize.
+            config (`Optional[PretrainedConfig]`, defaults to `None`):
+                The configuration of the model.
         """
         super().__init__()
         self.onnx_model_path = onnx_model_path

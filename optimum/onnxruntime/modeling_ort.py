@@ -460,7 +460,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         use_io_binding: Optional[bool] = None,
         **kwargs,
     ) -> Self:
-        """Provider (`str`, defaults to `"CPUExecutionProvider"`):
+        """provider (`str`, defaults to `"CPUExecutionProvider"`):
             ONNX Runtime provider to use for loading the model.
             See https://onnxruntime.ai/docs/execution-providers/ for possible providers.
         providers (`Optional[Sequence[str]]`, defaults to `None`):
