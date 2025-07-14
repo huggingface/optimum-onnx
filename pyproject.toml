@@ -12,8 +12,10 @@ ignore = [
     "C901",
     "D1",
     "D401",
+    "D403",
     "E501",  # Never enforce line length violations
     "E741",
+    "G004",  # FIXME: Re-enable when autofix is available
     "NPY002", # We may not always need a generator
     "PERF203", # try-except in loops sometimes necessary
     "PERF401", # List comprehension is not always readable

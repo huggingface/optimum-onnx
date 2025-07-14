@@ -24,7 +24,7 @@ from abc import ABC
 from collections import OrderedDict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
 
 import numpy as np
 from transformers.utils import is_accelerate_available, is_torch_available
@@ -102,7 +102,7 @@ GENERATE_DUMMY_DOCSTRING = r"""
 
 class OnnxConfig(ExporterConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
-    VARIANTS = {"default": "The default ONNX variant."}
+    VARIANTS: ClassVar[dict[str, str]] = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
     PATCHING_SPECS: Optional[list["PatchingSpec"]] = None
     _MODEL_PATCHER = ModelPatcher
@@ -210,6 +210,12 @@ class OnnxConfig(ExporterConfig, ABC):
         Args:
             model_path (`Path`):
                 The path of the freshly exported ONNX model.
+            device (`str`, defaults to `"cpu"`):
+                The device on which the model will be run. This is used to determine the ONNX Runtime provider.
+            dtype (`Optional[str]`, defaults to `None`):
+                The data type of the model inputs. If `None`, it will be inferred from the model inputs.
+            input_shapes (`Optional[Dict[str, Any]]`, defaults to `None`):
+                The shapes of the model inputs. If `None`, it will be inferred from the model inputs.
         """
         if not (is_onnx_available() and is_onnxruntime_available()):
             raise RuntimeError(
@@ -541,7 +547,9 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
     ):
-        """The shape passed to the dummy input generator may not always be correct for all of the inputs it manages. This method allows
+        """The shape passed to the dummy input generator may not always be correct for all of the inputs it manages.
+
+        This method allows
         to overwrite some shapes, and generate the dummy input. This should probably be refactored more elegantly.
         """
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
@@ -630,7 +638,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
 
 class ConfigBehavior(str, enum.Enum):
-    """Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
+    """Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`].
+
     - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
     - ENCODER: the config can be used to export the encoder part of the seq2seq model.
     - DECODER: the config can be used to export the decoder part of the seq2seq model.
@@ -806,7 +815,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     strict=False,
                 )
             except Exception as e:
-                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+                raise RuntimeError("Unable to merge decoders") from e
 
             # In order to do the validation of the two branches on the same file
             encoder_path = onnx_files_subpaths[0]
