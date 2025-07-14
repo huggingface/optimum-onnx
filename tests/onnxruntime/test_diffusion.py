@@ -120,7 +120,7 @@ class ORTDiffusionPipelineTest(TestCase):
         dirpath = os.path.join(HF_HUB_CACHE, "models--" + self.TINY_ONNX_STABLE_DIFFUSION.replace("/", "--"))
         if os.path.exists(dirpath):
             remove_directory(dirpath)
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017
             _ = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
 
         snapshot_download(repo_id=self.TINY_ONNX_STABLE_DIFFUSION, allow_patterns=["*.onnx", "*.json", "*.txt"])
@@ -205,7 +205,7 @@ class ORTDiffusionPipelineTest(TestCase):
 
 
 class ORTPipelineForText2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
@@ -213,7 +213,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
 
-    NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [
+    NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
@@ -222,7 +222,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     if is_transformers_version(">=", "4.45"):
         NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
-    CALLBACK_SUPPORTED_ARCHITECTURES = [
+    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
@@ -489,7 +489,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
@@ -497,7 +497,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
     if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
-    CALLBACK_SUPPORTED_ARCHITECTURES = [
+    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
@@ -748,14 +748,14 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
 
 class ORTPipelineForInpaintingTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
     ]
     if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
-    CALLBACK_SUPPORTED_ARCHITECTURES = [
+    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
     ]

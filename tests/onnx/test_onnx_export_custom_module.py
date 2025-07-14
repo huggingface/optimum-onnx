@@ -23,7 +23,7 @@ class StableDropoutTestCase(TestCase):
 
     def test_training(self):
         """Tests export of StableDropout in training mode."""
-        devnull = open(os.devnull, "wb")
+        devnull = open(os.devnull, "wb")  # noqa: SIM115
         # drop_prob must be > 0 for the test to be meaningful
         sd = modeling_sew_d.StableDropout(0.1)
         # Avoid warnings in training mode
@@ -46,7 +46,7 @@ class StableDropoutTestCase(TestCase):
 
     def test_inference(self):
         """Tests export of StableDropout in inference mode."""
-        devnull = open(os.devnull, "wb")
+        devnull = open(os.devnull, "wb")  # noqa: SIM115
         # drop_prob must be > 0 for the test to be meaningful
         sd = modeling_sew_d.StableDropout(0.1)
         # Dropout is a no-op in inference mode

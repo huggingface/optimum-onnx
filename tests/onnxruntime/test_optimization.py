@@ -248,7 +248,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
     TASK = "text2text-generation"
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
 
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "bart",
         "blenderbot",
         "blenderbot-small",
@@ -261,7 +261,7 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
         "t5",
     ]
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
     }
 
@@ -361,9 +361,9 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
     TASK = "automatic-speech-recognition"
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
 
-    SUPPORTED_ARCHITECTURES = ["whisper"]
+    SUPPORTED_ARCHITECTURES = ["whisper"]  # noqa: RUF012
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
     }
 
@@ -475,7 +475,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
 
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "bloom",
         "codegen",
         "gpt2",
@@ -484,7 +484,7 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         "gptj",
     ]
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_merged": [True, False],
     }

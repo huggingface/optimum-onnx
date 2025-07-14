@@ -167,7 +167,7 @@ def _get_models_to_test(export_models_dict: dict, library_name: str):
 class OnnxCLIExportTestCase(unittest.TestCase):
     """Integration tests ensuring supported models are correctly exported."""
 
-    MODEL_TRUST_REMOTE_CODE = {"internlm2"}
+    MODEL_TRUST_REMOTE_CODE = {"internlm2"}  # noqa: RUF012
 
     def _onnx_export(
         self,
@@ -521,7 +521,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @slow
     @pytest.mark.gpu_test
     @pytest.mark.run_slow
-    def test_exporters_cli_pytorch_with_O4_optimization(
+    def test_exporters_cli_pytorch_with_O4_optimization(  # noqa: N802
         self,
         test_name: str,
         model_type: str,

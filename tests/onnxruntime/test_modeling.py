@@ -260,7 +260,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_MODEL_ID.replace("/", "--"))
         remove_directory(dirpath)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017
             _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
 
     def test_load_seq2seq_model_from_cache(self):
@@ -277,7 +277,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
         dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
         remove_directory(dirpath)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017
             _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
     @require_torch_gpu
@@ -956,7 +956,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bart",
         "bert",
@@ -987,7 +987,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         "rembert",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForQuestionAnswering
     TASK = "question-answering"
 
@@ -1165,7 +1165,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bert",
         "big_bird",
@@ -1189,7 +1189,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         "rembert",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForMaskedLM
     TASK = "fill-mask"
 
@@ -1242,7 +1242,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
-        MASK_TOKEN = tokenizer.mask_token
+        MASK_TOKEN = tokenizer.mask_token  # noqa: N806
         text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
 
@@ -1272,7 +1272,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
+        MASK_TOKEN = tokenizer.mask_token  # noqa: N806
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
         text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
@@ -1295,7 +1295,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_id = MODEL_NAMES[model_arch]
         onnx_model = ORTModelForMaskedLM.from_pretrained(self.onnx_model_dirs[model_arch])
         tokenizer = get_preprocessor(model_id)
-        MASK_TOKEN = tokenizer.mask_token
+        MASK_TOKEN = tokenizer.mask_token  # noqa: N806
         pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
         text = f"The capital of France is {MASK_TOKEN}."
         outputs = pipe(text)
@@ -1341,7 +1341,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bart",
         "bert",
@@ -1375,7 +1375,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         "rembert",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForSequenceClassification
     TASK = "text-classification"
 
@@ -1555,7 +1555,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bert",
         "big_bird",
@@ -1582,7 +1582,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         "rembert",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForTokenClassification
     TASK = "token-classification"
 
@@ -1741,7 +1741,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bert",
         "camembert",
@@ -1752,7 +1752,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         "xlm-roberta",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
@@ -1926,9 +1926,9 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["vit", "dinov2", "visual_bert"]
+    SUPPORTED_ARCHITECTURES = ["vit", "dinov2", "visual_bert"]  # noqa: RUF012
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
@@ -2082,7 +2082,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
 
 class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
     # Multiple Choice tests are conducted on different models due to mismatch size in model's classifier
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "albert",
         "bert",
         "big_bird",
@@ -2104,7 +2104,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         "rembert",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForMultipleChoice
     TASK = "multiple-choice"
 
@@ -2192,7 +2192,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "beit",
         "convnext",
         "convnextv2",
@@ -2213,7 +2213,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         "vit",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForImageClassification
     TASK = "image-classification"
 
@@ -2404,7 +2404,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ("segformer", "dpt")
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForSemanticSegmentation
     TASK = "semantic-segmentation"
 
@@ -2570,7 +2570,7 @@ class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "audio-spectrogram-transformer",
         "data2vec-audio",
         "hubert",
@@ -2584,7 +2584,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         "whisper",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForAudioClassification
     TASK = "audio-classification"
 
@@ -2756,7 +2756,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "data2vec-audio",
         "hubert",
         "sew",
@@ -2768,7 +2768,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         "wav2vec2-conformer",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForCTC
     TASK = "ctc"
 
@@ -2862,7 +2862,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "data2vec-audio",
         "unispeech-sat",
         "wavlm",
@@ -2870,7 +2870,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         "wav2vec2-conformer",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForAudioXVector
     TASK = "audio-xvector"
 
@@ -2959,7 +2959,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "data2vec-audio",
         "unispeech-sat",
         "wavlm",
@@ -2967,7 +2967,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         "wav2vec2-conformer",
     ]
 
-    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForAudioFrameClassification
     TASK = "audio-frame-classification"
 
@@ -3019,7 +3019,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "bart",
         "bigbird_pegasus",
         "blenderbot",
@@ -3034,7 +3034,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         "t5",
     ]
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
         "use_merged": [False, True],
@@ -3713,9 +3713,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["whisper", "speech_to_text"]
+    SUPPORTED_ARCHITECTURES = ["whisper", "speech_to_text"]  # noqa: RUF012
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
         "use_merged": [False, True],
@@ -4175,7 +4175,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["swin2sr"]
+    SUPPORTED_ARCHITECTURES = ["swin2sr"]  # noqa: RUF012
 
     ORTMODEL_CLASS = ORTModelForImageToImage
 
@@ -4306,9 +4306,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]
+    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]  # noqa: RUF012
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
         "use_merged": [False, True],
@@ -4661,7 +4661,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {  # noqa: RUF012
         "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
     }
 
@@ -4763,9 +4763,9 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
 
 class ORTModelForPix2StructTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["pix2struct"]
+    SUPPORTED_ARCHITECTURES = ["pix2struct"]  # noqa: RUF012
 
-    FULL_GRID = {
+    FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
         "use_cache": [False, True],
         "use_merged": [False, True],

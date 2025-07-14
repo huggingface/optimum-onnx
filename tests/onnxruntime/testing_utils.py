@@ -142,7 +142,7 @@ MODEL_NAMES = {
 
 
 class ORTModelTestMixin(unittest.TestCase):
-    TENSOR_ALIAS_TO_TYPE = {
+    TENSOR_ALIAS_TO_TYPE = {  # noqa: RUF012
         "pt": torch.Tensor,
         "np": np.ndarray,
     }

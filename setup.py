@@ -53,7 +53,7 @@ setup(
     name="optimum-onnx",
     version=__version__,
     description="Optimum ONNX is an interface between the Hugging Face libraries and ONNX / ONNX Runtime",
-    long_description=open("README.md", encoding="utf-8").read(),
+    long_description=open("README.md", encoding="utf-8").read(),  # noqa: SIM115
     long_description_content_type="text/markdown",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
