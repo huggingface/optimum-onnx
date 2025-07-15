@@ -24,7 +24,7 @@ import onnx
 if TYPE_CHECKING:
     import torch.nn as nn
 
-from ..utils import logging, recurse_getattr
+from optimum.utils import logging, recurse_getattr
 
 
 logger = logging.get_logger()

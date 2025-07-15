@@ -30,13 +30,13 @@ from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.utils.import_utils import requires_backends
 
-from ..quantization_base import OptimumQuantizer
-from ..utils.save_utils import maybe_save_preprocessors
-from . import ORTQuantizableOperator
-from .configuration import CalibrationConfig, ORTConfig, QuantizationConfig
-from .modeling_ort import ORTModel
-from .modeling_seq2seq import ORTModelForConditionalGeneration
-from .preprocessors import QuantizationPreprocessor
+from optimum.quantization_base import OptimumQuantizer
+from optimum.utils.save_utils import maybe_save_preprocessors
+from optimum.onnxruntime import ORTQuantizableOperator
+from optimum.onnxruntime.configuration import CalibrationConfig, ORTConfig, QuantizationConfig
+from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
+from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 
 
 if TYPE_CHECKING:

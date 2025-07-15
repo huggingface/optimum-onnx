@@ -30,9 +30,9 @@ from transformers.utils import is_torch_available
 
 import onnx
 
-from ...onnx.graph_transformations import check_and_save_model
-from ...onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
-from ...utils import (
+from optimum.onnx.graph_transformations import check_and_save_model
+from optimum.onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
+from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
@@ -42,15 +42,15 @@ from ...utils import (
     is_transformers_version,
     logging,
 )
-from ...utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
-from ...utils.save_utils import maybe_save_preprocessors
-from ..error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
-from ..tasks import TasksManager
-from ..utils import check_dummy_inputs_are_allowed
-from .base import OnnxConfig
-from .constants import UNPICKABLE_ARCHS
-from .model_configs import SpeechT5OnnxConfig
-from .utils import (
+from optimum.utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
+from optimum.utils.save_utils import maybe_save_preprocessors
+from optimum.exporters.error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
+from optimum.exporters.tasks import TasksManager
+from optimum.exporters.utils import check_dummy_inputs_are_allowed
+from optimum.exporters.onnx.base import OnnxConfig
+from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
+from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
+from optimum.exporters.onnx.utils import (
     MODEL_TYPES_REQUIRING_POSITION_IDS,
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
@@ -762,7 +762,7 @@ def export(
         )
 
     if is_torch_available() and isinstance(model, nn.Module):
-        from ...utils.import_utils import _torch_version
+        from optimum.utils.import_utils import _torch_version
 
         if not is_torch_onnx_support_available():
             raise MinimumVersionError(
@@ -1090,7 +1090,7 @@ def onnx_export_from_model(
     )
 
     if optimize is not None:
-        from ...onnxruntime import AutoOptimizationConfig, ORTOptimizer
+        from optimum.onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
         optimizer = ORTOptimizer.from_pretrained(output, file_names=onnx_files_subpaths)
 

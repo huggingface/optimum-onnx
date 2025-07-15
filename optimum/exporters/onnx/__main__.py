@@ -21,19 +21,19 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
-from ...commands.export.onnx import parse_args_onnx
-from ...utils import DEFAULT_DUMMY_SHAPES, logging
-from ...utils.import_utils import (
+from optimum.commands.export.onnx import parse_args_onnx
+from optimum.utils import DEFAULT_DUMMY_SHAPES, logging
+from optimum.utils.import_utils import (
     is_diffusers_available,
     is_sentence_transformers_available,
     is_timm_available,
     is_transformers_version,
 )
-from ...utils.save_utils import maybe_load_preprocessors
-from ..tasks import TasksManager
-from ..utils import DisableCompileContextManager
-from .constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
-from .convert import onnx_export_from_model
+from optimum.utils.save_utils import maybe_load_preprocessors
+from optimum.exporters.tasks import TasksManager
+from optimum.exporters.utils import DisableCompileContextManager
+from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
+from optimum.exporters.onnx.convert import onnx_export_from_model
 
 
 if is_torch_available():
@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 
 if TYPE_CHECKING:
-    from .base import OnnxConfig
+    from optimum.exporters.onnx.base import OnnxConfig
 
 logger = logging.get_logger()
 

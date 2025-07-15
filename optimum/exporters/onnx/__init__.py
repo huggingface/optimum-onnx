@@ -37,7 +37,7 @@ _import_structure = {
 }
 
 if TYPE_CHECKING:
-    from .base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
+    from optimum.exporters.onnx.base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
     from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
     from .convert import (
         export,

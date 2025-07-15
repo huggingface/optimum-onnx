@@ -28,8 +28,8 @@ from onnxruntime.quantization.calibrate import create_calibrator
 from onnxruntime.quantization.registry import IntegerOpsRegistry, QDQRegistry, QLinearOpsRegistry
 from onnxruntime.transformers.fusion_options import FusionOptions
 
-from ..configuration_utils import BaseConfig
-from ..utils import logging
+from optimum.configuration_utils import BaseConfig
+from optimum.utils import logging
 
 
 if TYPE_CHECKING:

@@ -60,14 +60,14 @@ from typing_extensions import Self
 
 from onnxruntime import InferenceSession, SessionOptions
 
-from ..exporters import TasksManager
-from ..exporters.onnx import main_export
-from ..modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
-from ..utils.file_utils import find_files_matching_pattern
-from ..utils.save_utils import maybe_save_preprocessors
-from .base import ORTSessionMixin
-from .constants import ONNX_FILE_PATTERN
-from .utils import prepare_providers_and_provider_options
+from optimum.exporters import TasksManager
+from optimum.exporters.onnx import main_export
+from optimum.modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
+from optimum.utils.file_utils import find_files_matching_pattern
+from optimum.utils.save_utils import maybe_save_preprocessors
+from optimum.onnxruntime.base import ORTSessionMixin
+from optimum.onnxruntime.constants import ONNX_FILE_PATTERN
+from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 
 
 if TYPE_CHECKING:

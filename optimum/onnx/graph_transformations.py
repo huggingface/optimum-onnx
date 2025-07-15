@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import onnx
 
-from ..utils import logging
-from .transformations_utils import (
+from optimum.utils import logging
+from optimum.onnx.transformations_utils import (
     _create_name_sharing_dict,
     _deduplicate_gather_matmul,
     _deduplicated_cross_model_initializers,

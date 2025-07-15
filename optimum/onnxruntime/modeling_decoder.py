@@ -32,20 +32,20 @@ from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 
-from ..exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
-from ..exporters.tasks import TasksManager
-from ..onnx.utils import check_model_uses_external_data
-from ..utils import NormalizedConfigManager, is_transformers_version
-from ..utils.file_utils import find_files_matching_pattern
-from ..utils.save_utils import maybe_save_preprocessors
-from .constants import (
+from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
+from optimum.exporters.tasks import TasksManager
+from optimum.onnx.utils import check_model_uses_external_data
+from optimum.utils import NormalizedConfigManager, is_transformers_version
+from optimum.utils.file_utils import find_files_matching_pattern
+from optimum.utils.save_utils import maybe_save_preprocessors
+from optimum.onnxruntime.constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ONNX_FILE_PATTERN,
 )
-from .modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
-from .utils import prepare_providers_and_provider_options
+from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
+from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 
 
 if TYPE_CHECKING:

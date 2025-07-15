@@ -39,22 +39,22 @@ from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 
-from ..exporters.onnx import main_export
-from ..exporters.tasks import TasksManager
-from ..utils import NormalizedConfigManager, is_transformers_version
-from ..utils.file_utils import find_files_matching_pattern
-from ..utils.logging import get_logger, warn_once
-from ..utils.save_utils import maybe_save_preprocessors
-from .base import ORTParentMixin, ORTSessionMixin
-from .constants import (
+from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
+from optimum.utils import NormalizedConfigManager, is_transformers_version
+from optimum.utils.file_utils import find_files_matching_pattern
+from optimum.utils.logging import get_logger, warn_once
+from optimum.utils.save_utils import maybe_save_preprocessors
+from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
+from optimum.onnxruntime.constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ENCODER_ONNX_FILE_PATTERN,
     ONNX_FILE_PATTERN,
 )
-from .modeling_ort import ORTModel
-from .utils import (
+from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.utils import (
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,

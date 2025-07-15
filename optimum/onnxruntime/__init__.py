@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from transformers.utils import OptionalDependencyNotAvailable, _LazyModule
 
-from ..utils import is_diffusers_available
+from optimum.utils import is_diffusers_available
 
 
 _import_structure = {
@@ -160,7 +160,7 @@ if TYPE_CHECKING:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
-        from ..utils.dummy_diffusers_objects import (
+        from optimum.utils.dummy_diffusers_objects import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux

@@ -33,7 +33,7 @@ from transformers.utils import logging
 import onnxruntime as ort
 from onnxruntime.transformers.io_binding_helper import TypeHelper
 
-from ..exporters.onnx import OnnxConfig, OnnxConfigWithLoss
+from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 if TYPE_CHECKING:

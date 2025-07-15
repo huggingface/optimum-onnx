@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
-from ...exporters import TasksManager
-from ...utils import DEFAULT_DUMMY_SHAPES
-from ..base import BaseOptimumCLICommand, CommandInfo
+from optimum.exporters import TasksManager
+from optimum.utils import DEFAULT_DUMMY_SHAPES
+from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
 
 
 if TYPE_CHECKING:
@@ -267,7 +267,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
         return parse_args_onnx(parser)
 
     def run(self):
-        from ...exporters.onnx import main_export
+        from optimum.exporters.onnx import main_export
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}

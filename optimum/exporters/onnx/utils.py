@@ -19,29 +19,29 @@ import torch
 from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
-from ...utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
-from ...utils.import_utils import (
+from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
+from optimum.utils.import_utils import (
     _diffusers_version,
     is_diffusers_available,
     is_diffusers_version,
     is_transformers_version,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     _get_submodels_and_export_configs,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     get_decoder_models_for_export as _get_decoder_models_for_export,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     get_diffusion_models_for_export as _get_diffusion_models_for_export,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     get_encoder_decoder_models_for_export as _get_encoder_decoder_models_for_export,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     get_sam_models_for_export as _get_sam_models_for_export,
 )
-from ..utils import (
+from optimum.exporters.onnx.utils import (
     get_speecht5_models_for_export as _get_speecht5_models_for_export,
 )
 
@@ -50,14 +50,14 @@ logger = logging.get_logger()
 
 
 if is_diffusers_available():
-    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
+    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSIONoptimum.exporters.onnx.base_version):
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"
         )
 
 if TYPE_CHECKING:
-    from ..base import ExportConfig
+    from optimum.exporters.onnx.base import ExportConfig
 
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel

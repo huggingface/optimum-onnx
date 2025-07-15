@@ -24,9 +24,9 @@ import torch
 from onnxruntime import InferenceSession, IOBinding
 from onnxruntime.transformers.io_binding_helper import TypeHelper
 
-from ..onnx.utils import _get_model_external_data_paths
-from ..utils.logging import get_logger
-from .utils import (
+from optimum.onnx.utils import _get_model_external_data_paths
+from optimum.utils.logging import get_logger
+from optimum.onnxruntime.utils import (
     get_device_for_provider,
     get_dtype_from_session,
     get_provider_for_device,

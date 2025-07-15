@@ -23,8 +23,8 @@ import torch
 import transformers
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from ...utils import is_transformers_version, logging
-from ._traceable_cache import TraceableCache
+from optimum.utils import is_transformers_version, logging
+from optimum.exporters.onnx._traceable_cache import TraceableCache
 
 
 if is_transformers_version(">=", "4.35"):
@@ -44,7 +44,7 @@ if is_transformers_version(">=", "4.48"):
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, TFPreTrainedModel
 
-    from .base import OnnxConfig
+    from optimum.exporters.onnx.base import OnnxConfig
 
 
 logger = logging.get_logger(__name__)

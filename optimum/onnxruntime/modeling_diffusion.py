@@ -52,8 +52,8 @@ from transformers.utils import http_user_agent
 
 from onnxruntime import InferenceSession, SessionOptions
 
-from ..exporters.onnx import main_export
-from ..utils import (
+from optimum.exporters.onnx import main_export
+from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_SUBFOLDER,
@@ -65,8 +65,8 @@ from ..utils import (
     ONNX_WEIGHTS_NAME,
     is_diffusers_version,
 )
-from .base import ORTParentMixin, ORTSessionMixin
-from .utils import get_device_for_provider, np_to_pt_generators, prepare_providers_and_provider_options
+from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
+from optimum.onnxruntime.utils import get_device_for_provider, np_to_pt_generators, prepare_providers_and_provider_options
 
 
 if is_diffusers_version(">=", "0.25.0"):
