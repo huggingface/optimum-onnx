@@ -404,7 +404,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         suffix = f"_{file_suffix}" if file_suffix else ""
         quantized_model_path = save_dir.joinpath(f"{self.onnx_model_path.stem}{suffix}").with_suffix(".onnx")
-        LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: " f"{use_external_data_format})")
+        LOGGER.info(f"Saving quantized model at: {save_dir} (external data format: {use_external_data_format})")
         quantizer.model.save_model_to_file(quantized_model_path.as_posix(), use_external_data_format)
 
         # Create and save the configuration summarizing all the parameters related to quantization

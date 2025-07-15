@@ -146,7 +146,7 @@ def parse_args_onnx(parser):
         type=str,
         choices=["transformers", "diffusers", "timm", "sentence_transformers"],
         default=None,
-        help=("The library on the model." " If not provided, will attempt to infer the local checkpoint's library"),
+        help=("The library on the model. If not provided, will attempt to infer the local checkpoint's library"),
     )
     optional_group.add_argument(
         "--model-kwargs",

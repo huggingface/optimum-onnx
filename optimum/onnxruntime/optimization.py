@@ -264,7 +264,7 @@ class ORTOptimizer:
         onnx_optimized_model = BertOnnxModel(load_model(onnx_model_path))
         fused_operator = onnx_optimized_model.get_fused_operator_statistics()
         logger.info(
-            f"The following operators were fused : { ', '.join([k for k,v in fused_operator.items() if v > 0])}"
+            f"The following operators were fused : {', '.join([k for k, v in fused_operator.items() if v > 0])}"
         )
         return {k: v for k, v in fused_operator.items() if v > 0}
 
