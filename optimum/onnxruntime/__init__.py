@@ -67,7 +67,7 @@ _import_structure = {
 
 try:
     if not is_diffusers_available():
-        raise OptionalDependencyNotAvailable()
+        raise OptionalDependencyNotAvailable()  # noqa: TRY301
 except OptionalDependencyNotAvailable:
     _import_structure[".utils.dummy_diffusers_objects"] = [
         "ORTDiffusionPipeline",
@@ -158,7 +158,7 @@ if TYPE_CHECKING:
 
     try:
         if not is_diffusers_available():
-            raise OptionalDependencyNotAvailable()
+            raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
         from ..utils.dummy_diffusers_objects import (
             # generic entrypoint

@@ -40,7 +40,7 @@ from optimum.utils.testing_utils import grid_parameters
 
 
 class ORTQuantizerTest(unittest.TestCase):
-    LOAD_CONFIGURATION = {
+    LOAD_CONFIGURATION = {  # noqa: RUF012
         "local_asset": {
             "model_or_path": "tests/assets/onnx",
         },

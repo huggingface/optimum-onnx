@@ -18,7 +18,7 @@ import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from packaging.version import Version, parse
 
@@ -49,8 +49,7 @@ ORT_DEFAULT_OPS_STATIC_QUANTIZATION_QOPS = list(QLinearOpsRegistry.keys())
 
 @dataclass
 class CalibrationConfig:
-    """
-    CalibrationConfig is the configuration class handling all the ONNX Runtime parameters related to the calibration
+    """CalibrationConfig is the configuration class handling all the ONNX Runtime parameters related to the calibration
     step of static quantization.
 
     Args:
@@ -94,7 +93,7 @@ class CalibrationConfig:
     def create_calibrator(
         self,
         onnx_model_path: Union[str, os.PathLike, Path],
-        operators_to_quantize: Optional[List[str]],
+        operators_to_quantize: Optional[list[str]],
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
@@ -123,8 +122,7 @@ class AutoCalibrationConfig:
     def minmax(
         dataset: "Dataset", moving_average: bool = False, averaging_constant: float = 0.01
     ) -> CalibrationConfig:
-        """
-        Args:
+        """Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
             moving_average (`bool`):
@@ -160,8 +158,7 @@ class AutoCalibrationConfig:
         num_bins: int = 128,
         num_quantized_bins: int = 128,
     ) -> CalibrationConfig:
-        """
-        Args:
+        """Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
             num_bins (`int`):
@@ -194,8 +191,7 @@ class AutoCalibrationConfig:
 
     @staticmethod
     def percentiles(dataset: "Dataset", num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
-        """
-        Args:
+        """Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
             num_bins (`int`):
@@ -228,8 +224,7 @@ class AutoCalibrationConfig:
 
 @dataclass
 class QuantizationConfig:
-    """
-    QuantizationConfig is the configuration class handling all the ONNX Runtime quantization parameters.
+    """QuantizationConfig is the configuration class handling all the ONNX Runtime quantization parameters.
 
     Args:
         is_static (`bool`):
@@ -283,12 +278,12 @@ class QuantizationConfig:
     weights_symmetric: bool = True
     per_channel: bool = False
     reduce_range: bool = False
-    nodes_to_quantize: List[str] = field(default_factory=list)
-    nodes_to_exclude: List[str] = field(default_factory=list)
-    operators_to_quantize: List[str] = field(default_factory=list)
+    nodes_to_quantize: list[str] = field(default_factory=list)
+    nodes_to_exclude: list[str] = field(default_factory=list)
+    operators_to_quantize: list[str] = field(default_factory=list)
     qdq_add_pair_to_weight: bool = False
     qdq_dedicated_pair: bool = False
-    qdq_op_type_per_channel_support_to_axis: Dict[str, int] = field(
+    qdq_op_type_per_channel_support_to_axis: dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
 
@@ -372,8 +367,8 @@ def default_quantization_parameters(
     is_static: bool,
     format: Optional[QuantFormat] = None,
     mode: Optional[QuantizationMode] = None,
-    operators_to_quantize: Optional[List[str]] = None,
-) -> Tuple[QuantFormat, QuantizationMode, List[str]]:
+    operators_to_quantize: Optional[list[str]] = None,
+) -> tuple[QuantFormat, QuantizationMode, list[str]]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
 
@@ -398,12 +393,11 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[str]] = None,
-        nodes_to_exclude: Optional[List[str]] = None,
-        operators_to_quantize: Optional[List[str]] = None,
+        nodes_to_quantize: Optional[list[str]] = None,
+        nodes_to_exclude: Optional[list[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
     ):
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
 
         Args:
             is_static (`bool`):
@@ -450,12 +444,11 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[List[str]] = None,
-        nodes_to_exclude: Optional[List[str]] = None,
-        operators_to_quantize: Optional[List[str]] = None,
+        nodes_to_quantize: Optional[list[str]] = None,
+        nodes_to_exclude: Optional[list[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
     ) -> QuantizationConfig:
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
 
         Args:
             is_static (`bool`):
@@ -506,12 +499,11 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[List[str]] = None,
-        nodes_to_exclude: Optional[List[str]] = None,
-        operators_to_quantize: Optional[List[str]] = None,
+        nodes_to_quantize: Optional[list[str]] = None,
+        nodes_to_exclude: Optional[list[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
     ) -> QuantizationConfig:
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
 
         Args:
             is_static (`bool`):
@@ -561,12 +553,11 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[str]] = None,
-        nodes_to_exclude: Optional[List[str]] = None,
-        operators_to_quantize: Optional[List[str]] = None,
+        nodes_to_quantize: Optional[list[str]] = None,
+        nodes_to_exclude: Optional[list[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
     ) -> QuantizationConfig:
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.
+        r"""Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.
 
         When targeting Intel AVX512-VNNI CPU underlying execution engine leverage the CPU instruction VPDPBUSD to
         compute  \\i32 += i8(w) * u8(x)\\ within a single instruction.
@@ -615,12 +606,11 @@ class AutoQuantizationConfig:
     @staticmethod
     def tensorrt(
         per_channel: bool = True,
-        nodes_to_quantize: Optional[List[str]] = None,
-        nodes_to_exclude: Optional[List[str]] = None,
-        operators_to_quantize: Optional[List[str]] = None,
+        nodes_to_quantize: Optional[list[str]] = None,
+        nodes_to_exclude: Optional[list[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
     ) -> QuantizationConfig:
-        """
-        Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
 
         Args:
             per_channel (`bool`, defaults to `True`):
@@ -660,8 +650,7 @@ class AutoQuantizationConfig:
 
 @dataclass
 class OptimizationConfig:
-    """
-    OptimizationConfig is the configuration class handling all the ONNX Runtime optimization parameters.
+    """OptimizationConfig is the configuration class handling all the ONNX Runtime optimization parameters.
     There are two stacks of optimizations:
         1. The ONNX Runtime general-purpose optimization tool: it can work on any ONNX model.
         2. The ONNX Runtime transformers optimization tool: it can only work on a subset of transformers models.
@@ -758,7 +747,6 @@ class OptimizationConfig:
     enable_gelu_approximation: bool = False
     use_mask_index: bool = False
     no_attention_mask: bool = False
-    disable_embed_layer_norm: bool = True
     disable_shape_inference: bool = False
 
     # ONNX Runtime 1.14.0 arguments
@@ -785,6 +773,7 @@ class OptimizationConfig:
                     f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
                     f"{getattr(self, new_name)}.",
                     FutureWarning,
+                    stacklevel=2,
                 )
 
         deprecate_renamed_attribute(
@@ -834,11 +823,9 @@ class OptimizationConfig:
 
 
 class AutoOptimizationConfig:
-    """
-    Factory to create common `OptimizationConfig`.
-    """
+    """Factory to create common `OptimizationConfig`."""
 
-    _LEVELS = {
+    _LEVELS = {  # noqa: RUF012
         "O1": {
             "optimization_level": 1,
             "enable_transformers_specific_optimizations": False,
@@ -862,8 +849,7 @@ class AutoOptimizationConfig:
 
     @classmethod
     def with_optimization_level(cls, optimization_level: str, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
-        """
-        Creates an [`~OptimizationConfig`] with pre-defined arguments according to an optimization level.
+        """Creates an [`~OptimizationConfig`] with pre-defined arguments according to an optimization level.
 
         Args:
             optimization_level (`str`):
@@ -894,9 +880,8 @@ class AutoOptimizationConfig:
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
 
     @classmethod
-    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
-        """
-        Creates an O1 [`~OptimizationConfig`].
+    def O1(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
+        """Creates an O1 [`~OptimizationConfig`].
 
         Args:
             for_gpu (`bool`, defaults to `False`):
@@ -911,9 +896,8 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O1", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
-        """
-        Creates an O2 [`~OptimizationConfig`].
+    def O2(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
+        """Creates an O2 [`~OptimizationConfig`].
 
         Args:
             for_gpu (`bool`, defaults to `False`):
@@ -928,9 +912,8 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O2", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:
-        """
-        Creates an O3 [`~OptimizationConfig`].
+    def O3(cls, for_gpu: bool = False, **kwargs) -> OptimizationConfig:  # noqa: N802
+        """Creates an O3 [`~OptimizationConfig`].
 
         Args:
             for_gpu (`bool`, defaults to `False`):
@@ -945,9 +928,8 @@ class AutoOptimizationConfig:
         return cls.with_optimization_level("O3", for_gpu=for_gpu, **kwargs)
 
     @classmethod
-    def O4(cls, for_gpu: bool = True, **kwargs) -> OptimizationConfig:
-        """
-        Creates an O4 [`~OptimizationConfig`].
+    def O4(cls, for_gpu: bool = True, **kwargs) -> OptimizationConfig:  # noqa: N802
+        """Creates an O4 [`~OptimizationConfig`].
 
         Args:
             for_gpu (`bool`, defaults to `False`):
@@ -963,8 +945,7 @@ class AutoOptimizationConfig:
 
 
 class ORTConfig(BaseConfig):
-    """
-    ORTConfig is the configuration class handling all the ONNX Runtime parameters related to the ONNX IR model export,
+    """ORTConfig is the configuration class handling all the ONNX Runtime parameters related to the ONNX IR model export,
     optimization and quantization parameters.
 
     Attributes:
@@ -1037,7 +1018,7 @@ class ORTConfig(BaseConfig):
             new_config[k] = v
         return new_config
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         dict_config = {
             "opset": self.opset,
             "use_external_data_format": self.use_external_data_format,

@@ -16,7 +16,7 @@
 import gc
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import onnx
 from onnx import load_model
@@ -44,12 +44,11 @@ logger = logging.get_logger()
 
 
 class ORTOptimizer:
-    """
-    Handles the ONNX Runtime optimization process for models shared on huggingface.co/models.
-    """
+    """Handles the ONNX Runtime optimization process for models shared on huggingface.co/models."""
 
-    def __init__(self, onnx_model_path: List[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
-        """
+    def __init__(self, onnx_model_path: list[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
+        """Initializes the `ORTOptimizer`.
+
         Args:
             onnx_model_path (`List[os.PathLike]`):
                 The paths of the onnx models to optimize.
@@ -74,9 +73,10 @@ class ORTOptimizer:
 
     @classmethod
     def from_pretrained(
-        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[List[str]] = None
+        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[list[str]] = None
     ) -> "ORTOptimizer":
-        """
+        """Initializes the `ORTOptimizer` from a local directory or an `ORTModel`.
+
         Args:
             model_or_path (`Union[str, os.PathLike, ORTModel]`):
                 The path to a local directory hosting the model to optimize or an instance of an `ORTModel` to quantize.
@@ -127,8 +127,7 @@ class ORTOptimizer:
         use_external_data_format: Optional[bool] = None,
         one_external_file: bool = True,
     ):
-        """
-        Optimizes a model given the optimization specifications defined in `optimization_config`.
+        """Optimizes a model given the optimization specifications defined in `optimization_config`.
 
         Args:
             optimization_config ([`~optimum.onnxruntime.OptimizationConfig`]):
@@ -214,7 +213,7 @@ class ORTOptimizer:
             except Exception as e:
                 if "Incomplete symbolic shape inference" in str(e):
                     err = RuntimeError(
-                        f"{str(e)}. Try to set `disable_shape_inference=True` in your optimization configuration."
+                        f"{e!s}. Try to set `disable_shape_inference=True` in your optimization configuration."
                     )
                     raise err from e
                 raise
@@ -250,9 +249,8 @@ class ORTOptimizer:
         return Path(save_dir)
 
     @staticmethod
-    def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> Dict[str, int]:
-        """
-        Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
+    def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> dict[str, int]:
+        """Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
 
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
@@ -272,8 +270,7 @@ class ORTOptimizer:
     def get_nodes_number_difference(
         onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
     ) -> int:
-        """
-        Compute the difference in the number of nodes between the original and the optimized model.
+        """Compute the difference in the number of nodes between the original and the optimized model.
 
         Args:
             onnx_model_path (`Union[str, os.PathLike]`):
@@ -300,9 +297,8 @@ class ORTOptimizer:
     @staticmethod
     def get_operators_difference(
         onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
-    ) -> Dict[str, int]:
-        """
-        Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
+    ) -> dict[str, int]:
+        """Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
         the original and the optimized model.
 
         Args:

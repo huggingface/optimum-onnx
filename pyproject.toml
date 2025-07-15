@@ -1,20 +1,64 @@
-[tool.black]
-line-length = 119
-target-version = ['py37']
-
 [tool.ruff]
-# Never enforce `E501` (line length violations).
-ignore = ["C901", "E501", "E741", "W605"]
-select = ["C", "E", "F", "I", "W"]
 line-length = 119
+target-version = "py39"
+
+[tool.ruff.lint]
+ignore = [
+    "B9",  # Opinionated bugbear rules
+    "C901",
+    "D1",
+    "D205",
+    "D401",
+    "D403",
+    "E501",  # Never enforce line length violations
+    "E741",
+    "G004",  # FIXME: Re-enable when autofix is available
+    "NPY002", # We may not always need a generator
+    "PERF203", # try-except in loops sometimes necessary
+    "PERF401", # List comprehension is not always readable
+    "SIM102", # Collapible if statements are not always more readable
+    "SIM108", # We don't always encourage ternary operators
+    "SIM114", # Don't always combine if branches for debugability
+    "SIM116", # Don't use dict lookup to replace if-else
+    "TID252", # Allow relative imports
+    "TRY003", # Messages can be constructed in the exception
+]
+select = [
+    "B", # flake8-bugbear
+    "C", # flake8-comprehensions
+    "D", # pydocstyle
+    "E", # pycodestyle
+    "F", # Pyflakes
+    "G", # flake8-logging-format
+    "I", # isort
+    "ISC", # flake8-implicit-str-concat
+    "LOG", # flake8-logging
+    "N", # pep8-naming
+    "NPY", # modern numpy
+    "PERF", # Perflint
+    "PIE", # flake8-pie
+    "PYI", # flake8-pyi
+    "RUF", # Ruff-specific rules
+    "SIM", # flake8-simplify
+    "SLOT", # flake8-slot
+    "T10", # flake8-debugger
+    "TID", # Disallow relative imports
+    "TRY", # flake8-try-except-raise
+    "UP", # pyupgrade
+    "W", # pycodestyle
+    "YTT", # flake8-2020
+]
 
 # Ignore import violations in all `__init__.py` files.
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401", "F403", "F811"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 lines-after-imports = 2
 known-first-party = ["optimum"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 markers = [

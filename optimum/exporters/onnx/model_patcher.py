@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +17,7 @@ import inspect
 import math
 import sys
 import types
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import torch
 import transformers
@@ -52,8 +51,7 @@ logger = logging.get_logger(__name__)
 
 
 def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Optional[str] = None):
-    """
-    Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+    """Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
 
     Args:
         attribute_name (`str`):
@@ -72,10 +70,8 @@ def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: Option
             setattr(module, attribute_name, patch)
 
 
-def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, Any]):
-    """
-    Override the args and kwargs with the argument values from model_kwargs, following the signature forward_signature corresponding to args and kwargs.
-    """
+def override_arguments(args, kwargs, forward_signature, model_kwargs: dict[str, Any]):
+    """Override the args and kwargs with the argument values from model_kwargs, following the signature forward_signature corresponding to args and kwargs."""
     args = list(args)
 
     for argument in model_kwargs:
@@ -93,8 +89,7 @@ def override_arguments(args, kwargs, forward_signature, model_kwargs: Dict[str, 
 
 @dataclasses.dataclass
 class PatchingSpec:
-    """
-    Data class that holds patching specifications.
+    """Data class that holds patching specifications.
 
     Args:
         o: Module / object where the op to patch is located
@@ -116,8 +111,7 @@ class PatchingSpec:
 # torch.onnx.errors.SymbolicValueError: Unsupported: ONNX export of operator Unfold, input size not accessible.
 # See https://github.com/pytorch/pytorch/issues/81871 for more information
 def onnx_compatible_unfold(input_tensor, dimension, size, step):
-    """
-    Custom implementation of torch.unfold without using torch.unfold.
+    """Custom implementation of torch.unfold without using torch.unfold.
 
     Args:
         input_tensor (torch.Tensor): The input tensor.
@@ -160,9 +154,8 @@ def onnx_compatible_unfold(input_tensor, dimension, size, step):
 # Without this, we get the following error: https://github.com/pytorch/pytorch/issues/145100
 # NOTE: This implementation is only necessary for export with dynamo=False (dynamo=True works correctly).
 # and can be removed once Optimum switches to dynamo-based exports
-def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):
-    """
-    Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
+def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_size=None):  # noqa: D417
+    """Custom implementation of torch.repeat_interleave without using torch.repeat_interleave.
 
     Args:
         input_tensor (torch.Tensor): The input tensor.
@@ -200,11 +193,9 @@ original_linal_norm = torch.linalg.norm
 
 # Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
 def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
-    """
-    Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
+    """Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
     It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
     """
-
     if ord == 2:
         if dim is None:
             dim = (-2, -1)
@@ -233,7 +224,7 @@ class ModelPatcher:
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         self._model = model
 
@@ -314,7 +305,7 @@ class ModelPatcher:
                     if (
                         onnx_output_name in config.outputs
                         or (allow_past_in_outputs and name.startswith("past_key_values"))
-                        or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                        or any(key.startswith(onnx_output_name) for key in config.outputs)
                     ):
                         filtered_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
@@ -328,9 +319,9 @@ class ModelPatcher:
                         f"config.outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
                     )
                 else:
-                    name = list(config.outputs.keys())[0]
+                    name = next(iter(config.outputs.keys()))
                     filtered_outputs[name] = outputs
-                name = list(config.outputs.keys())[0]
+                name = next(iter(config.outputs.keys()))
                 filtered_outputs[name] = outputs
 
             if is_transformers_version(">=", "4.48"):
@@ -382,7 +373,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -410,7 +401,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 if (
                     onnx_output_name in config.outputs
                     or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    or any(key.startswith(onnx_output_name) for key in config.outputs)
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
@@ -442,7 +433,7 @@ def patched_sdpa_attention_forward(
     scaling: Optional[float] = None,
     is_causal: Optional[bool] = None,
     **kwargs,
-) -> Tuple[torch.Tensor, None]:
+) -> tuple[torch.Tensor, None]:
     if hasattr(module, "num_key_value_groups"):
         key = repeat_kv(key, module.num_key_value_groups)
         value = repeat_kv(value, module.num_key_value_groups)
@@ -482,7 +473,7 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
         use_cache = hasattr(self.real_config, "use_past")
@@ -511,9 +502,7 @@ def _make_causal_mask_patched(
     past_key_values_length: int = 0,
     sliding_window: Optional[int] = None,
 ):
-    """
-    Make causal mask used for bi-directional self-attention.
-    """
+    """Make causal mask used for bi-directional self-attention."""
     # We add self in the signature because `self._make_causal_mask` is used elsewhere in the class definition, despite the method being a staticmethod.
     bsz, tgt_len = input_ids_shape
     mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
@@ -539,13 +528,12 @@ def _make_causal_mask_patched(
 # Adapted from _prepare_4d_causal_attention_mask
 def _prepare_4d_causal_attention_mask_for_sdpa_patched(
     attention_mask: Optional[torch.Tensor],
-    input_shape: Union[torch.Size, Tuple, List],
+    input_shape: Union[torch.Size, tuple, list],
     inputs_embeds: torch.Tensor,
     past_key_values_length: int,
     sliding_window: Optional[int] = None,
 ):
-    """
-    Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
+    """Prepares the correct `attn_mask` argument to be used by `torch.nn.functional.scaled_dot_product_attention`.
 
     In case no token is masked in the `attention_mask` argument, we simply set it to `None` for the cases `query_length == 1` and
     `key_value_length == query_length`, and rely instead on SDPA `is_causal` argument to use causal/non-causal masks,
@@ -602,7 +590,7 @@ class DecoderModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -674,7 +662,7 @@ class FalconModelPatcher(DecoderModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
         self.build_alibi_tensor_original = transformers.models.falcon.modeling_falcon.build_alibi_tensor
@@ -685,7 +673,7 @@ class WavLMModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -709,7 +697,7 @@ class WavLMModelPatcher(ModelPatcher):
                 if (
                     onnx_output_name in config.outputs
                     or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs.keys())
+                    or any(key.startswith(onnx_output_name) for key in config.outputs)
                 ):
                     filterd_outputs[name] = value
             return filterd_outputs
@@ -722,7 +710,7 @@ class MgpstrModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -748,7 +736,7 @@ class SAMModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -878,7 +866,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+        model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1016,7 +1004,7 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+        model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1047,7 +1035,7 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Dict[str, Any],
+        model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1083,7 +1071,9 @@ def triu_onnx(x, diagonal=0):
     return x.masked_fill(mask == 0, 0)
 
 
-def patched_build_delay_pattern_mask(self, input_ids: torch.Tensor, pad_token_id: int, max_length: int = None):
+def patched_build_delay_pattern_mask(
+    self, input_ids: torch.Tensor, pad_token_id: int, max_length: Optional[int] = None
+):
     # (bsz * num_codebooks, seq_len) -> (bsz, num_codebooks, seq_len)
     input_ids = input_ids.reshape(-1, self.num_codebooks, input_ids.shape[-1])
     bsz, num_codebooks, seq_len = input_ids.shape
@@ -1162,7 +1152,7 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1344,7 +1334,7 @@ class MistralModelPatcher(DecoderModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
 
@@ -1373,7 +1363,7 @@ class VitPoseModelPatcher(ModelPatcher):
         self,
         config: "OnnxConfig",
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         # Set dataset_index (defaulting to COCO=0), otherwise we will get an error like:
         # ValueError: dataset_index must be provided when using multiple experts (num_experts=6). Please provide dataset_index to the forward pass.

@@ -11,14 +11,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-ORTModelForXXX classes related to seq2seq, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers.
-"""
+"""ORTModelForXXX classes related to seq2seq, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 import torch
@@ -337,9 +336,7 @@ PIX2STRUCT_EXAMPLE = r"""
 
 
 class ORTEncoder(ORTSessionMixin):
-    """
-    Encoder of an encoder-decoder model for ONNX Runtime inference.
-    """
+    """Encoder of an encoder-decoder model for ONNX Runtime inference."""
 
     main_input_name = "input_ids"
 
@@ -384,9 +381,7 @@ class ORTEncoder(ORTSessionMixin):
 
 
 class ORTDecoderForSeq2Seq(ORTSessionMixin):
-    """
-    Decoder of an encoder-decoder model for ONNX Runtime inference.
-    """
+    """Decoder of an encoder-decoder model for ONNX Runtime inference."""
 
     main_input_name = "input_ids"
 
@@ -448,8 +443,8 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         input_ids: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
         use_cache_branch: Optional[bool],
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-    ) -> Dict[str, int]:
+        past_key_values: Optional[tuple[tuple[torch.FloatTensor]]] = None,
+    ) -> dict[str, int]:
         batch_size = input_ids.size(0)
 
         num_attention_heads = self.normalized_config.num_attention_heads
@@ -476,7 +471,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             past_key_values_shapes[name] = self_attn_shape if (is_self_attn or self.num_pkv == 2) else cross_attn_shape
         return past_key_values_shapes
 
-    def get_outputs_not_to_bind(self, use_merged_cache: bool) -> Set[str]:
+    def get_outputs_not_to_bind(self, use_merged_cache: bool) -> set[str]:
         result = {
             output_name
             for output_name in self.output_names
@@ -494,7 +489,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         encoder_hidden_states: torch.FloatTensor,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.FloatTensor]]] = None,
         cache_position: Optional[torch.Tensor] = None,
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -549,7 +544,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             # Set -1 for sequence_length as it could be larger than the real sequence_length
             for name, shape in output_shapes.items():
                 if name in self.key_value_output_names:
-                    output_shapes[name] = shape[:2] + (-1,) + shape[3:]
+                    output_shapes[name] = (*shape[:2], -1, *shape[3:])
 
             # Tuple of length equal to : number of layer * number of past_key_value per decoder layer (2 corresponds to the
             # self-attention layer and 2 to the cross-attention layer)
@@ -655,7 +650,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
     def prepare_inputs_for_merged(
         self,
         input_ids: Optional[Union[torch.LongTensor, np.ndarray]],
-        past_key_values: Optional[Tuple[Union[torch.FloatTensor, np.ndarray]]],
+        past_key_values: Optional[tuple[Union[torch.FloatTensor, np.ndarray]]],
         cache_position: Optional[Union[torch.LongTensor, np.ndarray]],
         use_torch: bool,
     ):
@@ -693,8 +688,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
 
 
 class ORTEncoderForSpeech(ORTEncoder):
-    """
-    Encoder model for ONNX Runtime inference for Whisper model.
+    """Encoder model for ONNX Runtime inference for Whisper model.
 
     Args:
         session (`InferenceSession`):
@@ -740,8 +734,7 @@ class ORTEncoderForSpeech(ORTEncoder):
 
 
 class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
-    """
-    Encoder model for ONNX Runtime inference for VisionEncoderDecoder models.
+    """Encoder model for ONNX Runtime inference for VisionEncoderDecoder models.
 
     Args:
         session (`InferenceSession`):
@@ -785,8 +778,7 @@ class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
 
 
 class ORTEncoderForPix2Struct(ORTEncoder):
-    """
-    Encoder model for ONNX Runtime inference for Pix2Struct.
+    """Encoder model for ONNX Runtime inference for Pix2Struct.
 
     Args:
         session (`InferenceSession`):
@@ -832,8 +824,7 @@ class ORTEncoderForPix2Struct(ORTEncoder):
 
 
 class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
-    """
-    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
+    """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
 
     Important attributes:
         config ([`PretrainedConfig`]):
@@ -871,7 +862,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     _ort_encoder_class = ORTEncoder
     _ort_decoder_class = ORTDecoderForSeq2Seq
 
-    def __init__(
+    def __init__(  # noqa: D417
         self,
         *args,
         config: "PretrainedConfig" = None,
@@ -883,7 +874,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
         **kwargs,
     ):
-        """
+        """Initialize an `ORTModelForConditionalGeneration` instance.
+
         Args:
             config ([`PretrainedConfig`]):
                 `config` is an instance of the configuration associated to the model. Initializing with a config file
@@ -903,7 +895,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             model_save_dir (``Optional[Union[str, Path, TemporaryDirectory]]`, *optional*, defaults to `None`):
                 The directory under which the model exported to ONNX was saved.
         """
-
         # DEPRECATED BEHAVIOR
         if args:
             logger.warning(
@@ -1017,21 +1008,20 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             self.auto_model_class.register(AutoConfig, self.__class__)
 
     def _save_pretrained(self, save_directory: Union[str, Path]):
-        """
-        Saves the encoder, decoder and decoder_with_past ONNX files to the save directory.
+        """Saves the encoder, decoder and decoder_with_past ONNX files to the save directory.
+
         Args:
             save_directory (`Union[str, Path`]):
                 The directory under which the models will be saved.
         """
-
         self.encoder.save_session(save_directory)
         self.decoder.save_session(save_directory)
         if self.decoder_with_past is not None:
             self.decoder_with_past.save_session(save_directory)
 
     def _save_config(self, save_directory):
-        """
-        Saves the model and generation configs to the save directory.
+        """Saves the model and generation configs to the save directory.
+
         Args:
             save_directory (`Union[str, Path`]):
                 The directory under which the configs will be saved.
@@ -1059,7 +1049,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
         # inference options
         use_cache: bool = True,
@@ -1143,7 +1133,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                     local_files_only=local_files_only,
                 )
                 # try download external data
-                try:
+                try:  # noqa: SIM105
                     cached_file(
                         model_id,
                         subfolder=subfolder,
@@ -1154,7 +1144,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                         force_download=force_download,
                         local_files_only=local_files_only,
                     )
-                except EnvironmentError:
+                except OSError:
                     # If the external data file is not found, we assume that the model is not using external data.
                     pass
 
@@ -1250,7 +1240,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if use_cache:
             task += "-with-past"
 
-        if kwargs.get("task", None) is not None:
+        if kwargs.get("task") is not None:
             raise ValueError(
                 f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
                 f"The `task` is automatically inferred from the class as `{task}`."
@@ -1295,9 +1285,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
-    """
-    Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5.
-    """
+    """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5."""
 
     auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
@@ -1315,8 +1303,8 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1353,7 +1341,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         use_cache=None,
         encoder_outputs=None,
         **kwargs,
-    ) -> Dict:
+    ) -> dict:
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
@@ -1380,7 +1368,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
-    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+    def _reorder_cache(past, beam_idx) -> tuple[tuple[torch.FloatTensor]]:
         reordered_past = ()
         for layer_past in past:
             # Cached cross_attention states don't have to be reordered -> they are always the same
@@ -1392,9 +1380,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
-    """
-    Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text.
-    """
+    """Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text."""
 
     main_input_name = "input_features"
     auto_model_class = AutoModelForSpeechSeq2Seq
@@ -1426,8 +1412,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         input_features: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
         cache_position: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
@@ -1483,7 +1469,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
-    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+    def _reorder_cache(past, beam_idx) -> tuple[tuple[torch.FloatTensor]]:
         reordered_past = ()
         for layer_past in past:
             # Cached cross_attention states don't have to be reordered -> they are always the same
@@ -1501,9 +1487,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
 
 class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
-    """
-    Whisper implements its own generate() method.
-    """
+    """Whisper implements its own generate() method."""
 
     auto_model_class = WhisperForConditionalGeneration
 
@@ -1528,9 +1512,7 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
-    """
-    VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder.
-    """
+    """VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder."""
 
     auto_model_class = AutoModelForVision2Seq
     main_input_name = "pixel_values"
@@ -1550,8 +1532,8 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         self,
         pixel_values: Optional[torch.FloatTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1586,7 +1568,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         use_cache=None,
         encoder_outputs=None,
         **kwargs,
-    ) -> Dict:
+    ) -> dict:
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
@@ -1612,7 +1594,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
-    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+    def _reorder_cache(past, beam_idx) -> tuple[tuple[torch.FloatTensor]]:
         reordered_past = ()
         for layer_past in past:
             # Cached cross_attention states don't have to be reordered -> they are always the same
@@ -1624,9 +1606,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
-    """
-    Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct.
-    """
+    """Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct."""
 
     # pix2struct cannot be loaded using AutoModel
     auto_model_class = Pix2StructForConditionalGeneration
@@ -1648,8 +1628,8 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.BoolTensor] = None,
-        encoder_outputs: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1692,7 +1672,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         use_cache=None,
         encoder_outputs=None,
         **kwargs,
-    ) -> Dict:
+    ) -> dict:
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
@@ -1724,5 +1704,5 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
 
     # Copied from transformers.models.bart.modeling_bart.BartForConditionalGeneration._reorder_cache
     @staticmethod
-    def _reorder_cache(past, beam_idx) -> Tuple[Tuple[torch.FloatTensor]]:
+    def _reorder_cache(past, beam_idx) -> tuple[tuple[torch.FloatTensor]]:
         ORTModelForSeq2SeqLM._reorder_cache(past, beam_idx)

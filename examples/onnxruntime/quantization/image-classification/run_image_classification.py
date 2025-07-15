@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 #  Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,8 +55,7 @@ require_version("datasets>=2.0.0", "To fix: pip install -r examples/pytorch/imag
 
 @dataclass
 class DataTrainingArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
+    """Arguments pertaining to what data we are going to input our model for training and eval.
 
     Using `HfArgumentParser` we can turn this class
     into argparse arguments to be able to specify them on
@@ -100,9 +98,7 @@ class DataTrainingArguments:
 
 @dataclass
 class ModelArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
+    """Arguments pertaining to which model/config/tokenizer we are going to fine-tune from."""
 
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
@@ -115,9 +111,7 @@ class ModelArguments:
 
 @dataclass
 class OptimizationArguments:
-    """
-    Arguments pertaining to what type of optimization we are going to apply on the model.
-    """
+    """Arguments pertaining to what type of optimization we are going to apply on the model."""
 
     quantization_approach: str = field(
         default="dynamic",
@@ -183,9 +177,7 @@ class OptimizationArguments:
 
 @dataclass
 class OnnxExportArguments:
-    """
-    Arguments to decide how the ModelProto will be saved.
-    """
+    """Arguments to decide how the ModelProto will be saved."""
 
     # TODO: currently onnxruntime put external data in different path than the model proto, which will cause problem on re-loading it.
     # https://github.com/microsoft/onnxruntime/issues/12576

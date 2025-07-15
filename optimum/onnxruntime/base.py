@@ -16,7 +16,7 @@
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -41,15 +41,14 @@ NON_EMPTY_TENSOR = torch.tensor(0)
 
 
 class ORTSessionMixin:
-    """
-    Mixin class that provides common functionalities for an ONNX Runtime session.
+    """Mixin class that provides common functionalities for an ONNX Runtime session.
     This class is used to manage the session, the execution provider, and the IO binding.
     It also provides methods to prepare the inputs and outputs for ONNX Runtime.
     """
 
     def initialize_ort_attributes(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
-        """
-        Initializes the ORTSessionMixin class.
+        """Initializes the ORTSessionMixin class.
+
         Args:
             session (`onnxruntime.InferenceSession`):
                 The ONNX Runtime session to use for inference.
@@ -57,7 +56,6 @@ class ORTSessionMixin:
                 Whether to use IO Binding or not. If `None`, it will be set to `True` for CUDAExecutionProvider and `False`
                 for other providers.
         """
-
         self.session = session
         self.path = Path(session._model_path)
 
@@ -86,9 +84,7 @@ class ORTSessionMixin:
 
     @property
     def model_path(self) -> str:
-        """
-        Returns the path of the onnx file from which the session was created.
-        """
+        """Returns the path of the onnx file from which the session was created."""
         logger.warning(
             "The `ORTSessionMixin.model_path` property is deprecated and will be removed in a future version. "
             "Please use `ORTSessionMixin.path` instead (`ORTSessionMixin.path` is a proper Path object)."
@@ -97,9 +93,7 @@ class ORTSessionMixin:
 
     @property
     def model_name(self) -> str:
-        """
-        Returns the name of the onnx file from which the session was created.
-        """
+        """Returns the name of the onnx file from which the session was created."""
         logger.warning(
             "The `ORTSessionMixin.model_name` property is deprecated and will be removed in a future version. "
             "Please use `ORTSessionMixin.path.name` instead (`ORTSessionMixin.path` is a proper Path object)."
@@ -107,37 +101,28 @@ class ORTSessionMixin:
         return self.path.name
 
     @property
-    def providers(self) -> List[str]:
-        """
-        Returns a list of Execution Providers registered with the session.
-        """
+    def providers(self) -> list[str]:
+        """Returns a list of Execution Providers registered with the session."""
         return self.session.get_providers()
 
     @property
     def provider(self) -> str:
-        """
-        Returns the main Execution Provider registered with the session.
-        """
+        """Returns the main Execution Provider registered with the session."""
         return self.providers[0]
 
     @property
-    def provider_options(self) -> Dict[str, Any]:
-        """
-        Returns a dictionary of Execution Providers configurations/options.
-        """
+    def provider_options(self) -> dict[str, Any]:
+        """Returns a dictionary of Execution Providers configurations/options."""
         return self.session.get_provider_options()
 
     @property
-    def provider_option(self) -> Dict[str, Any]:
-        """
-        Returns the configuration/options of the main Execution Provider.
-        """
+    def provider_option(self) -> dict[str, Any]:
+        """Returns the configuration/options of the main Execution Provider."""
         return self.provider_options[self.provider]
 
     @property
     def device(self) -> torch.device:
-        """
-        Returns the `torch.device` associated with the ONNX Runtime session.
+        """Returns the `torch.device` associated with the ONNX Runtime session.
         This device is inferred from the provider and provider options.
         """
         return self._device
@@ -151,8 +136,7 @@ class ORTSessionMixin:
 
     @property
     def dtype(self) -> torch.dtype:
-        """
-        Returns the `torch.dtype` associated with the ONNX Runtime session.
+        """Returns the `torch.dtype` associated with the ONNX Runtime session.
         This dtype is inferred from the input/output dtypes of the session.
         If no floating point type is found, it defaults to `torch.float32`.
         """
@@ -160,34 +144,31 @@ class ORTSessionMixin:
 
     @property
     def use_io_binding(self) -> Optional[bool]:
-        """
-        Returns whether IO Binding is used or not.
-        """
+        """Returns whether IO Binding is used or not."""
         return self._use_io_binding
 
     @use_io_binding.setter
     def use_io_binding(self, value: bool):
-        """
-        Sets the IO Binding usage.
-        """
+        """Sets the IO Binding usage."""
         if not isinstance(value, bool):
-            raise ValueError("`use_io_binding` should be a boolean value.")
+            raise TypeError("`use_io_binding` should be a boolean value.")
 
         self._use_io_binding = value
 
-    def to(self, *args, **kwargs):
-        """
-        Moves the session to the specified device by updating the execution provider and its options.
+    def to(self, *args, **kwargs):  # noqa: D417
+        """Moves the session to the specified device by updating the execution provider and its options.
+
         Args:
             device (`str`, `int`, `torch.device`):
                 The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
                 or a `torch.device` object.
+
         Returns:
             `ORTSessionMixin`: The updated session.
+
         Raises:
             ValueError: If the device is not supported or if the provider is not available.
         """
-
         dtype = None
         device = None
 
@@ -238,8 +219,7 @@ class ORTSessionMixin:
         return self
 
     def raise_on_numpy_input_io_binding(self, use_torch: bool):
-        """
-        Raises an error if IO Binding is requested although the tensor used are numpy arrays.
+        """Raises an error if IO Binding is requested although the tensor used are numpy arrays.
 
         Args:
             use_torch (`bool`):
@@ -251,11 +231,10 @@ class ORTSessionMixin:
                 " with `model.use_io_binding=False`, or pass `torch.Tensor` inputs instead."
             )
 
-    def _prepare_onnx_inputs(
-        self, use_torch: bool, model_inputs: Dict[str, Union[torch.Tensor, np.ndarray]]
-    ) -> Dict[str, np.ndarray]:
-        """
-        Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
+    def _prepare_onnx_inputs(  # noqa: D417
+        self, use_torch: bool, model_inputs: dict[str, Union[torch.Tensor, np.ndarray]]
+    ) -> dict[str, np.ndarray]:
+        """Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
 
         Args:
             use_torch (`bool`):
@@ -266,11 +245,10 @@ class ORTSessionMixin:
         Returns:
             `Dict[str, np.ndarray]`: The inputs prepared for ONNX Runtime.
         """
-
         onnx_inputs = {}
 
-        for input_name in self.input_names.keys():
-            if model_inputs.get(input_name, None) is None:
+        for input_name in self.input_names:
+            if model_inputs.get(input_name) is None:
                 raise ValueError(f"Input {input_name} is required by model but not provided.")
 
             if use_torch:
@@ -286,10 +264,9 @@ class ORTSessionMixin:
         return onnx_inputs
 
     def _prepare_onnx_outputs(
-        self, use_torch: bool, onnx_outputs: List[np.ndarray]
-    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
-        """
-        Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
+        self, use_torch: bool, onnx_outputs: list[np.ndarray]
+    ) -> dict[str, Union[torch.Tensor, np.ndarray]]:
+        """Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
 
         Args:
             use_torch (`bool`):
@@ -300,7 +277,6 @@ class ORTSessionMixin:
         Returns:
             `Dict[str, Union[torch.Tensor, np.ndarray]]`: The outputs prepared for the user.
         """
-
         model_outputs = {}
 
         for output_name, idx in self.output_names.items():
@@ -311,9 +287,8 @@ class ORTSessionMixin:
 
         return model_outputs
 
-    def _prepare_output_buffer(self, output_name: str, output_shape: Tuple[int]) -> torch.Tensor:
-        """
-        Prepares an output buffer for ONNX Runtime IO Binding.
+    def _prepare_output_buffer(self, output_name: str, output_shape: tuple[int]) -> torch.Tensor:
+        """Prepares an output buffer for ONNX Runtime IO Binding.
 
         Args:
             output_name (`str`):
@@ -341,9 +316,8 @@ class ORTSessionMixin:
 
         return output_buffer
 
-    def _output_shape_inference(self, output_name: str, known_axes_values: Dict[str, int]) -> List[int]:
-        """
-        Infers the shape of a given output by using the `known_axes_values` mapping.
+    def _output_shape_inference(self, output_name: str, known_axes_values: dict[str, int]) -> list[int]:
+        """Infers the shape of a given output by using the `known_axes_values` mapping.
 
         Args:
             output_name (`str`):
@@ -354,7 +328,6 @@ class ORTSessionMixin:
         Returns:
             `List[int]`: The inferred shape of the output.
         """
-
         output_shape = list(self.output_shapes[output_name])
 
         for idx, axis_name in enumerate(output_shape):
@@ -363,9 +336,8 @@ class ORTSessionMixin:
 
         return output_shape
 
-    def _dynamic_axis_inference(self, axis_name: Union[str], known_axes_values: Dict[str, int]) -> int:
-        """
-        Infers the value of a given dynamic axis by using the `known_axes_values` mapping.
+    def _dynamic_axis_inference(self, axis_name: Union[str], known_axes_values: dict[str, int]) -> int:
+        """Infers the value of a given dynamic axis by using the `known_axes_values` mapping.
 
         For instance, for the following inputs:
             axis_name = "sequence_length + past_sequence_length"
@@ -374,7 +346,6 @@ class ORTSessionMixin:
         The inferred value will be:
             3 + 7 = 10
         """
-
         if axis_name in known_axes_values:
             # simple case, the axis value is known
             return known_axes_values[axis_name]
@@ -388,13 +359,12 @@ class ORTSessionMixin:
 
     def _prepare_io_binding(
         self,
-        model_inputs: Dict[str, torch.Tensor],
-        outputs_to_not_bind: Optional[Set[str]] = None,
-        known_output_buffers: Optional[Dict[str, str]] = None,
-        known_output_shapes: Optional[Dict[str, Tuple[int]]] = None,
-    ) -> Tuple[Dict[str, Tuple[int]], Dict[str, torch.Tensor]]:
-        """
-        Prepares IO binding for ONNX Runtime.
+        model_inputs: dict[str, torch.Tensor],
+        outputs_to_not_bind: Optional[set[str]] = None,
+        known_output_buffers: Optional[dict[str, str]] = None,
+        known_output_shapes: Optional[dict[str, tuple[int]]] = None,
+    ) -> tuple[dict[str, tuple[int]], dict[str, torch.Tensor]]:
+        """Prepares IO binding for ONNX Runtime.
 
         Args:
             model_inputs (`Dict[str, torch.Tensor]`):
@@ -412,10 +382,9 @@ class ORTSessionMixin:
             `TupleDict[str, Tuple[int]], Dict[str, torch.Tensor]`: A dictionary of the output shapes and a dictionary of
             the output buffers.
         """
-
         known_axes_values = {}
 
-        for input_name in self.input_names.keys():
+        for input_name in self.input_names:
             input_shape = model_inputs[input_name].shape
 
             if not model_inputs[input_name].is_contiguous():
@@ -452,7 +421,7 @@ class ORTSessionMixin:
         known_output_buffers = known_output_buffers or {}
         outputs_to_not_bind = outputs_to_not_bind or set()
 
-        for output_name in self.output_names.keys():
+        for output_name in self.output_names:
             if output_name in outputs_to_not_bind:
                 continue
 
@@ -492,14 +461,12 @@ class ORTSessionMixin:
         return self.forward(*args, **kwargs)
 
     def save_session(self, save_directory: Union[str, Path]):
-        """
-        Saves the ONNX Runtime session to the specified directory.
+        """Saves the ONNX Runtime session to the specified directory.
 
         Args:
             save_directory (`Union[str, Path]`):
                 The directory where to save the ONNX Runtime session.
         """
-
         os.makedirs(save_directory, exist_ok=True)
 
         model_path = Path(self.session._model_path)
@@ -515,20 +482,18 @@ class ORTSessionMixin:
 
 
 class ORTParentMixin:
-    """
-    Wrapper class for multiple ORTSessionMixin instances. This class allows to combine multiple parts into
+    """Wrapper class for multiple ORTSessionMixin instances. This class allows to combine multiple parts into
     a single wrapper. It is useful for pipelines/models that require multiple parts to work together, such
     as diffusion pipelines or encoder-decoder models, as it provides a unified interface for inference.
     """
 
-    def initialize_ort_attributes(self, parts: List[ORTSessionMixin]):
-        """
-        Initializes the ORTParentMixin class.
+    def initialize_ort_attributes(self, parts: list[ORTSessionMixin]):
+        """Initializes the ORTParentMixin class.
+
         Args:
             parts (`List[ORTSessionMixin]`):
                 List of ORTSessionMixin instances to wrap.
         """
-
         if len(parts) < 1:
             raise ValueError("ORTParentMixin should be initialized with at least one part.")
 
@@ -539,9 +504,7 @@ class ORTParentMixin:
 
     @property
     def providers(self):
-        """
-        Returns a list of Execution Providers registered with the session.
-        """
+        """Returns a list of Execution Providers registered with the session."""
         if not all(model.providers == self.parts[0].providers for model in self.parts):
             logger.warning(
                 "Calling `ORTParentMixin.providers` when the underlying parts have different values "
@@ -551,9 +514,7 @@ class ORTParentMixin:
 
     @property
     def provider(self):
-        """
-        Returns the main Execution Provider registered with the session.
-        """
+        """Returns the main Execution Provider registered with the session."""
         if not all(model.provider == self.parts[0].provider for model in self.parts):
             logger.warning(
                 "Calling `ORTParentMixin.provider` when the underlying parts have different values "
@@ -563,9 +524,7 @@ class ORTParentMixin:
 
     @property
     def provider_options(self):
-        """
-        Returns a dictionary of Execution Providers configurations/options.
-        """
+        """Returns a dictionary of Execution Providers configurations/options."""
         if not all(model.provider_options == self.parts[0].provider_options for model in self.parts):
             logger.warning(
                 "Calling `ORTParentMixin.provider_options` when the underlying parts have different values "
@@ -575,9 +534,7 @@ class ORTParentMixin:
 
     @property
     def provider_option(self):
-        """
-        Returns the configuration/options of the main Execution Provider.
-        """
+        """Returns the configuration/options of the main Execution Provider."""
         if not all(model.provider_option == self.parts[0].provider_option for model in self.parts):
             logger.warning(
                 "Calling `ORTParentMixin.provider_option` when the underlying parts have different values "
@@ -587,8 +544,7 @@ class ORTParentMixin:
 
     @property
     def device(self):
-        """
-        Returns the `torch.device` associated with the ONNX Runtime session.
+        """Returns the `torch.device` associated with the ONNX Runtime session.
         This device is inferred from the provider and provider options.
         """
         if not all(model.device == self.parts[0].device for model in self.parts):
@@ -600,8 +556,7 @@ class ORTParentMixin:
 
     @property
     def dtype(self):
-        """
-        Returns the `torch.dtype` associated with the ONNX Runtime session.
+        """Returns the `torch.dtype` associated with the ONNX Runtime session.
         This dtype is inferred from the input/output dtypes of the session.
         If no floating point type is found, it defaults to `torch.float32`.
         """
@@ -614,9 +569,7 @@ class ORTParentMixin:
 
     @property
     def use_io_binding(self):
-        """
-        Returns whether IO Binding is used or not.
-        """
+        """Returns whether IO Binding is used or not."""
         if not all(model.use_io_binding == self.parts[0].use_io_binding for model in self.parts):
             logger.warning(
                 "Calling `ORTParentMixin.use_io_binding` when the underlying parts have different values "
@@ -626,21 +579,21 @@ class ORTParentMixin:
 
     @use_io_binding.setter
     def use_io_binding(self, value: bool):
-        """
-        Setter for the use_io_binding property.
-        """
+        """Setter for the use_io_binding property."""
         for model in self.parts:
             model.use_io_binding = value
 
-    def to(self, *args, **kwargs):
-        """
-        Moves all parts to the specified device by updating the execution provider and its options.
+    def to(self, *args, **kwargs):  # noqa: D417
+        """Moves all parts to the specified device by updating the execution provider and its options.
+
         Args:
             device (`str`, `int`, `torch.device`):
                 The device to move the session to. It can be a string (e.g., "cuda", "cpu"), an integer (e.g., 0 for GPU 0),
                 or a `torch.device` object.
+
         Returns:
             `ORTParentMixin`: The updated session.
+
         Raises:
             ValueError: If the device is not supported or if the provider is not available.
         """

@@ -18,7 +18,7 @@ import os
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import onnx
 from packaging.version import Version, parse
@@ -47,7 +47,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ORTCalibrationDataReader(CalibrationDataReader):
-    __slots__ = ["batch_size", "dataset", "_dataset_iter"]
+    __slots__ = ["_dataset_iter", "batch_size", "dataset"]
 
     def __init__(self, dataset: "Dataset", batch_size: int = 1):
         if dataset is None:
@@ -83,12 +83,11 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 
 
 class ORTQuantizer(OptimumQuantizer):
-    """
-    Handles the ONNX Runtime quantization process for models shared on huggingface.co/models.
-    """
+    """Handles the ONNX Runtime quantization process for models shared on huggingface.co/models."""
 
     def __init__(self, onnx_model_path: Path, config: Optional["PretrainedConfig"] = None):
-        """
+        """Initializes the `ORTQuantizer`.
+
         Args:
             onnx_model_path (`Path`):
                 Path to the onnx model files you want to quantize.
@@ -115,8 +114,7 @@ class ORTQuantizer(OptimumQuantizer):
         model_or_path: Union["ORTModel", str, Path],
         file_name: Optional[str] = None,
     ) -> "ORTQuantizer":
-        """
-        Instantiates a `ORTQuantizer` from an ONNX model file or an `ORTModel`.
+        """Instantiates a `ORTQuantizer` from an ONNX model file or an `ORTModel`.
 
         Args:
             model_or_path (`Union[ORTModel, str, Path]`):
@@ -126,6 +124,7 @@ class ORTQuantizer(OptimumQuantizer):
             file_name(`Optional[str]`, defaults to `None`):
                 Overwrites the default model file name from `"model.onnx"` to `file_name`.
                 This allows you to load different model files from the same repository or directory.
+
         Returns:
             An instance of `ORTQuantizer`.
         """
@@ -162,14 +161,13 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: "Dataset",
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
         force_symmetric_range: bool = False,
-    ) -> Dict[str, Tuple[float, float]]:
-        """
-        Performs the calibration step and computes the quantization ranges.
+    ) -> dict[str, tuple[float, float]]:
+        """Performs the calibration step and computes the quantization ranges.
 
         Args:
             dataset (`Dataset`):
@@ -216,14 +214,13 @@ class ORTQuantizer(OptimumQuantizer):
         dataset: "Dataset",
         calibration_config: CalibrationConfig,
         onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[List[str]] = None,
+        operators_to_quantize: Optional[list[str]] = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
         force_symmetric_range: bool = False,
     ):
-        """
-        Performs the calibration step and collects the quantization ranges without computing them.
+        """Performs the calibration step and collects the quantization ranges without computing them.
 
         Args:
             dataset (`Dataset`):
@@ -261,9 +258,8 @@ class ORTQuantizer(OptimumQuantizer):
         reader = ORTCalibrationDataReader(dataset, batch_size)
         self._calibrator.collect_data(reader)
 
-    def compute_ranges(self) -> Dict[str, Tuple[float, float]]:
-        """
-        Computes the quantization ranges.
+    def compute_ranges(self) -> dict[str, tuple[float, float]]:
+        """Computes the quantization ranges.
 
         Returns:
             The dictionary mapping the nodes name to their quantization ranges.
@@ -285,12 +281,11 @@ class ORTQuantizer(OptimumQuantizer):
         quantization_config: QuantizationConfig,
         save_dir: Union[str, Path],
         file_suffix: Optional[str] = "quantized",
-        calibration_tensors_range: Optional[Dict[str, Tuple[float, float]]] = None,
+        calibration_tensors_range: Optional[dict[str, tuple[float, float]]] = None,
         use_external_data_format: bool = False,
         preprocessor: Optional[QuantizationPreprocessor] = None,
     ) -> Path:
-        """
-        Quantizes a model given the optimization specifications defined in `quantization_config`.
+        """Quantizes a model given the optimization specifications defined in `quantization_config`.
 
         Args:
             quantization_config (`QuantizationConfig`):
@@ -430,8 +425,7 @@ class ORTQuantizer(OptimumQuantizer):
         use_auth_token: Optional[Union[bool, str]] = None,
         token: Optional[Union[bool, str]] = None,
     ) -> "Dataset":
-        """
-        Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
+        """Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
 
         Args:
             dataset_name (`str`):
@@ -459,11 +453,11 @@ class ORTQuantizer(OptimumQuantizer):
             The calibration `datasets.Dataset` to use for the post-training static quantization calibration
             step.
         """
-
         if use_auth_token is not None:
             warnings.warn(
                 "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
                 FutureWarning,
+                stacklevel=2,
             )
             if token is not None:
                 raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")

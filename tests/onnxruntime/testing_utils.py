@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2023 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +15,6 @@
 import shutil
 import tempfile
 import unittest
-from typing import Dict
 
 import numpy as np
 import torch
@@ -144,7 +142,7 @@ MODEL_NAMES = {
 
 
 class ORTModelTestMixin(unittest.TestCase):
-    TENSOR_ALIAS_TO_TYPE = {
+    TENSOR_ALIAS_TO_TYPE = {  # noqa: RUF012
         "pt": torch.Tensor,
         "np": np.ndarray,
     }
@@ -161,12 +159,10 @@ class ORTModelTestMixin(unittest.TestCase):
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
 
-    def _setup(self, model_args: Dict):
-        """
-        Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
+    def _setup(self, model_args: dict):
+        """Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
         We don't use unittest setUpClass, in order to still be able to run individual tests.
         """
-
         model_arch_and_params = model_args.pop("test_name")
         model_arch = model_args.pop("model_arch")
         trust_remote_code = model_args.pop("trust_remote_code", False)
@@ -204,9 +200,9 @@ class ORTModelTestMixin(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        for _, dir_path in cls.onnx_model_dirs.items():
+        for dir_path in cls.onnx_model_dirs.values():
             if isinstance(dir_path, dict):
-                for _, sec_dir_path in dir_path.items():
+                for sec_dir_path in dir_path.values():
                     shutil.rmtree(sec_dir_path)
             else:
                 shutil.rmtree(dir_path)

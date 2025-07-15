@@ -16,9 +16,10 @@
 import logging
 import os
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import onnx
 import torch
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
 if is_transformers_version(">=", "4.25.0"):
     from transformers.generation import GenerationMixin
 else:
-    from transformers.generation_utils import GenerationMixin  # type: ignore # noqa: F401
+    from transformers.generation_utils import GenerationMixin  # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -121,9 +122,7 @@ TEXT_GENERATION_EXAMPLE = r"""
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForCausalLM(ORTModel, GenerationMixin):
-    """
-    ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt-bigcode, gpt_neo, gpt_neox, gptj, llama.
-    """
+    """ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt-bigcode, gpt_neo, gpt_neox, gptj, llama."""
 
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
@@ -160,7 +159,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if len(args) > 6:
                 _ = args[6]
 
-        if kwargs.get("model", None) is not None:
+        if kwargs.get("model") is not None:
             logger.warning(
                 "Passing the inference session as `model` argument to an ORTModelForCausalLM is deprecated. Please use `session` instead."
             )
@@ -250,7 +249,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
         position_ids: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         **kwargs,
@@ -405,8 +404,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @staticmethod
     def _reorder_cache(
-        past_key_values: Tuple[Tuple[torch.Tensor]], beam_idx: torch.Tensor
-    ) -> Tuple[Tuple[torch.Tensor]]:
+        past_key_values: tuple[tuple[torch.Tensor]], beam_idx: torch.Tensor
+    ) -> tuple[tuple[torch.Tensor]]:
         if isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
             # GPT2 style
             return tuple(
@@ -417,7 +416,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # GPT BigCode style
             return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
         else:
-            raise ValueError(
+            raise TypeError(
                 f"Unexpected past_key_values: {past_key_values}. "
                 "Expected tuple of tuples (GPT2 style) or tuple of tensors (GPT BigCode style)."
             )
@@ -440,7 +439,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
         session_options: Optional[SessionOptions] = None,
         # inference options
         use_cache: bool = True,
@@ -531,7 +530,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if model_save_dir is None:
             model_save_dir = Path(model_cache_path).parent
 
-        try:
+        try:  # noqa: SIM105
             cached_file(
                 model_id,
                 filename=file_name + "_data",
@@ -543,7 +542,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 force_download=force_download,
                 local_files_only=local_files_only,
             )
-        except EnvironmentError:
+        except OSError:
             # If the external data file is not found, we assume that the model is not using external data.
             pass
 
@@ -569,7 +568,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             override_dims = True
         # Since https://github.com/huggingface/optimum/pull/871/
         # changed axis notation/naming during export, we need to update the dims
-        for input_name in input_dims.keys():
+        for input_name in input_dims:
             if "past" in input_name and input_dims[input_name][2] == "past_sequence_length + sequence_length":
                 input_dims[input_name][2] = "past_sequence_length"
                 override_dims = True
@@ -673,7 +672,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if use_cache:
             task += "-with-past"
 
-        if kwargs.get("task", None) is not None:
+        if kwargs.get("task") is not None:
             raise ValueError(
                 f"The `task` argument is not needed when exporting a model with `{cls.__name__}`. "
                 f"The `task` is automatically inferred from the class as `{task}`."
@@ -708,8 +707,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         )
 
     def _save_config(self, save_directory):
-        """
-        Save the model and generation configs to the specified directory.
+        """Save the model and generation configs to the specified directory.
 
         Args:
             save_directory (`str` or `os.PathLike`):

@@ -14,7 +14,7 @@
 import copy
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import onnx
 
@@ -43,8 +43,7 @@ logger = logging.get_logger()
 
 
 def remove_duplicate_weights(model: onnx.ModelProto, inplace: bool = False) -> onnx.ModelProto:
-    """
-    Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
+    """Finds and removes duplicate weights in a model by keeping only unique weights, and make the duplicate values point
     to them.
 
     This function only removes duplicate weights that are exactly identical (e.g., not transposed).
@@ -67,11 +66,10 @@ def remove_duplicate_weights(model: onnx.ModelProto, inplace: bool = False) -> o
     return model
 
 
-def remove_duplicate_weights_from_tied_info(
-    onnx_model: onnx.ModelProto, torch_model: "nn.Module", tied_params: List[List[str]], save_path: str
+def remove_duplicate_weights_from_tied_info(  # noqa: D417
+    onnx_model: onnx.ModelProto, torch_model: "nn.Module", tied_params: list[list[str]], save_path: str
 ):
-    """
-    Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
+    """Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
 
     Args:
         onnx_model (`onnx.ModelProto`):
@@ -102,8 +100,7 @@ def remove_duplicate_weights_from_tied_info(
 
 
 def replace_atenops_to_gather(model: onnx.ModelProto) -> onnx.ModelProto:
-    """
-    Replaces broken ATenOp nodes back to Gather nodes.
+    """Replaces broken ATenOp nodes back to Gather nodes.
 
     Args:
         model (`onnx.ModelProto`):
@@ -144,7 +141,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
             if "No Op registered for" in str(e):
                 pass
             else:
-                raise e
+                raise
 
     save_path = Path(save_path).as_posix()
     external_file_name = os.path.basename(save_path) + "_data"
@@ -158,7 +155,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
         model_uses_external_data = True
         os.remove(external_file_path)
 
-    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"
+    FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"  # noqa: N806
 
     if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
         onnx.save(
@@ -179,7 +176,7 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
         if "No Op registered for" in str(e):
             pass
         else:
-            raise e
+            raise
 
 
 def merge_decoders(
@@ -190,8 +187,7 @@ def merge_decoders(
     save_path: Optional[Union[str, Path]] = None,
     strict: bool = True,
 ) -> onnx.ModelProto:
-    """
-    Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
+    """Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.
 
     Args:
         decoder (`Union[ModelProto, Path, str]`):
@@ -288,7 +284,7 @@ def merge_decoders(
     merged_graph = onnx.helper.make_graph(
         nodes=[if_node],
         name=graph_name,
-        inputs=all_inputs + [use_cache_branch],
+        inputs=[*all_inputs, use_cache_branch],
         outputs=no_past_branch.output,
         initializer=deduplicated_initializers,
     )
@@ -312,8 +308,7 @@ def merge_decoders(
 
 
 def cast_slice_nodes_inputs_to_int32(model: onnx.ModelProto) -> onnx.ModelProto:
-    """
-    Convert node inputs of `Slice` nodes from int64 to int32, casting the out of range values.
+    """Convert node inputs of `Slice` nodes from int64 to int32, casting the out of range values.
 
     The constant node inputs are stored in `model.graph.node`, and the sole way to check which node
     they are consumed by is to iterate over nodes and check `node.input` for a match.

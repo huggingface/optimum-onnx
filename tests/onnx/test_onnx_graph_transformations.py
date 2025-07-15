@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,7 +67,7 @@ class WeightSharingTestCase(TestCase):
 
 
 class OnnxMergingTestCase(TestCase):
-    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {
+    SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {  # noqa: RUF012
         "hf-internal-testing/tiny-random-GPT2Model": "text-generation-with-past",
         "hf-internal-testing/tiny-random-t5": "text2text-generation-with-past",
         "hf-internal-testing/tiny-random-bart": "text2text-generation-with-past",

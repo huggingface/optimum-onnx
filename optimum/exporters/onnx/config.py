@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +14,9 @@
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
 
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from transformers.utils import is_tf_available
 
@@ -52,17 +52,13 @@ logger = logging.get_logger(__name__)
 
 
 class TextEncoderOnnxConfig(OnnxConfig):
-    """
-    Handles encoder-based text architectures.
-    """
+    """Handles encoder-based text architectures."""
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator,)
 
 
 class TextDecoderOnnxConfig(OnnxConfigWithPast):
-    """
-    Handles decoder-based text architectures.
-    """
+    """Handles decoder-based text architectures."""
 
     PAD_ATTENTION_MASK_TO_PAST = True
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyPastKeyValuesGenerator)
@@ -76,7 +72,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-        preprocessors: Optional[List[Any]] = None,
+        preprocessors: Optional[list[Any]] = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -91,7 +87,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         )
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         if self.use_past_in_inputs:
             common_inputs = {"input_ids": {0: "batch_size", 1: "sequence_length"}}
             self.add_past_key_values(common_inputs, direction="inputs")
@@ -104,7 +100,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         return common_inputs
 
     @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
+    def outputs(self) -> dict[str, dict[int, str]]:
         if self.is_merged is False:
             common_outputs = super().outputs
         else:
@@ -117,10 +113,10 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: Dict[
-            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        models_and_onnx_configs: dict[
+            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
         ],
-        onnx_files_subpaths: List[str],
+        onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
             path, models_and_onnx_configs, onnx_files_subpaths
@@ -140,7 +136,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
                     save_path=decoder_merged_path,
                 )
             except Exception as e:
-                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+                raise RuntimeError("Unable to merge decoders") from e
 
             # In order to do the validation of the two branches on the same file
             onnx_files_subpaths = [decoder_merged_path.name, decoder_merged_path.name]
@@ -160,7 +156,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
 class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = super().inputs
 
         # Decoders based on GPT2 require a position_ids input to avoid
@@ -173,9 +169,7 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
 
 
 class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
-    """
-    Handles encoder-decoder-based text architectures.
-    """
+    """Handles encoder-decoder-based text architectures."""
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
@@ -184,7 +178,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -194,7 +188,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
@@ -215,7 +209,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_inputs
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> List["DummyInputGenerator"]:
+    def _create_dummy_input_generator_classes(self, **kwargs) -> list["DummyInputGenerator"]:
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
             self.task, self._normalized_config, **kwargs
         )
@@ -240,30 +234,24 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
 
 class VisionOnnxConfig(OnnxConfig):
-    """
-    Handles vision architectures.
-    """
+    """Handles vision architectures."""
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator,)
 
 
 class TextAndVisionOnnxConfig(OnnxConfig):
-    """
-    Handles multi-modal text and vision architectures.
-    """
+    """Handles multi-modal text and vision architectures."""
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyVisionInputGenerator, DummyBboxInputGenerator)
 
 
 class AudioOnnxConfig(OnnxConfig):
-    """
-    Handles audio architectures.
-    """
+    """Handles audio architectures."""
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyAudioInputGenerator,)
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         return {"input_values": {0: "batch_size", 1: "sequence_length"}}
 
 
@@ -275,7 +263,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
 
         if self._behavior is not ConfigBehavior.DECODER:
@@ -294,7 +282,7 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return common_inputs
 
     @property
-    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -316,7 +304,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[List[Any]] = None,
+        preprocessors: Optional[list[Any]] = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -398,7 +386,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self.DUMMY_INPUT_GENERATOR_CLASSES += self._past_key_values_generator
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
@@ -426,7 +414,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return common_inputs
 
     @property
-    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
@@ -435,7 +423,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             }
         return {}
 
-    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
         if self.is_decoder_with_past:
             return self._decoder_onnx_config.add_past_key_values(inputs_or_outputs, direction)
 
@@ -443,12 +431,12 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self.is_decoder_with_past:
             return self._decoder_onnx_config.flatten_past_key_values(flattened_output, name, idx, t)
 
-    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+    ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
         else:
@@ -466,10 +454,10 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: Dict[
-            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        models_and_onnx_configs: dict[
+            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
         ],
-        onnx_files_subpaths: List[str],
+        onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
             path, models_and_onnx_configs, onnx_files_subpaths

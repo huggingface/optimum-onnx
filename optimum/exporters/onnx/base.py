@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +22,9 @@ import os
 import re
 from abc import ABC
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
 
 import numpy as np
 from transformers.utils import is_accelerate_available, is_torch_available
@@ -102,12 +102,12 @@ GENERATE_DUMMY_DOCSTRING = r"""
 
 class OnnxConfig(ExporterConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
-    VARIANTS = {"default": "The default ONNX variant."}
+    VARIANTS: ClassVar[dict[str, str]] = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-    PATCHING_SPECS: Optional[List["PatchingSpec"]] = None
+    PATCHING_SPECS: Optional[list["PatchingSpec"]] = None
     _MODEL_PATCHER = ModelPatcher
 
-    _TASK_TO_COMMON_OUTPUTS = {
+    _TASK_TO_COMMON_OUTPUTS = {  # noqa: RUF012
         "audio-classification": OrderedDict({"logits": {0: "batch_size"}}),
         "audio-frame-classification": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "automatic-speech-recognition": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
@@ -171,7 +171,7 @@ class OnnxConfig(ExporterConfig, ABC):
         self,
         config: "PretrainedConfig",
         task: str = "feature-extraction",
-        preprocessors: Optional[List[Any]] = None,
+        preprocessors: Optional[list[Any]] = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         legacy: bool = False,
@@ -184,8 +184,9 @@ class OnnxConfig(ExporterConfig, ABC):
 
     @property
     def variant(self) -> str:
-        """
-        For a given ONNX config, the variant of the model to export. This property allows to define variants of a given model, in case
+        """For a given ONNX config, the variant of the model to export.
+
+        This property allows to define variants of a given model, in case
         different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
         """
         return self._variant
@@ -199,16 +200,22 @@ class OnnxConfig(ExporterConfig, ABC):
         self._variant = value
 
     def fix_dynamic_axes(
-        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[Dict] = None
+        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[dict] = None
     ):
-        """
-        Fixes potential issues with dynamic axes.
+        """Fixes potential issues with dynamic axes.
+
         During the export, ONNX will infer some axes to be dynamic which are actually static. This method is called
         right after the export to fix such issues.
 
         Args:
             model_path (`Path`):
                 The path of the freshly exported ONNX model.
+            device (`str`, defaults to `"cpu"`):
+                The device on which the model will be run. This is used to determine the ONNX Runtime provider.
+            dtype (`Optional[str]`, defaults to `None`):
+                The data type of the model inputs. If `None`, it will be inferred from the model inputs.
+            input_shapes (`Optional[Dict[str, Any]]`, defaults to `None`):
+                The shapes of the model inputs. If `None`, it will be inferred from the model inputs.
         """
         if not (is_onnx_available() and is_onnxruntime_available()):
             raise RuntimeError(
@@ -281,9 +288,9 @@ class OnnxConfig(ExporterConfig, ABC):
             gc.collect()
 
     @property
-    def torch_to_onnx_input_map(self) -> Dict[str, str]:
-        """
-        Dictionary mapping input names from the PyTorch model to input names from the exported ONNX model.
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
+        """Dictionary mapping input names from the PyTorch model to input names from the exported ONNX model.
+
         Override the function when the input names and the exported ONNX input names are different.
 
         Returns:
@@ -292,9 +299,9 @@ class OnnxConfig(ExporterConfig, ABC):
         return {}
 
     @property
-    def torch_to_onnx_output_map(self) -> Dict[str, str]:
-        """
-        Dictionary mapping output names from the PyTorch model to output names from the exported ONNX model.
+    def torch_to_onnx_output_map(self) -> dict[str, str]:
+        """Dictionary mapping output names from the PyTorch model to output names from the exported ONNX model.
+
         Override the function when the output names and the exported ONNX output names are different.
 
         Returns:
@@ -302,9 +309,9 @@ class OnnxConfig(ExporterConfig, ABC):
         """
         return {}
 
-    def rename_ambiguous_inputs(self, inputs) -> Dict[str, Dict[int, str]]:
-        """
-        Updates the input names of the model to export.
+    def rename_ambiguous_inputs(self, inputs) -> dict[str, dict[int, str]]:
+        """Updates the input names of the model to export.
+
         Override the function when the model input names are ambiguous or too generic.
 
         Returns:
@@ -312,9 +319,8 @@ class OnnxConfig(ExporterConfig, ABC):
         """
         return inputs
 
-    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> Dict[str, Dict[int, str]]:
-        """
-        Re-orders the inputs using the model forward pass signature.
+    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> dict[str, dict[int, str]]:
+        """Re-orders the inputs using the model forward pass signature.
 
         Args:
             model ([`transformers.PreTrainedModel`] or [`transformers.TFPreTrainedModel`]):
@@ -346,10 +352,8 @@ class OnnxConfig(ExporterConfig, ABC):
         return ordered_inputs
 
     @classmethod
-    def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> Dict[str, Any]:
-        """
-        Flattens any potential nested structure expanding the name of the field with the index of the element within the
-        structure.
+    def flatten_output_collection_property(cls, name: str, field: Iterable[Any]) -> dict[str, Any]:
+        """Flattens any potential nested structure expanding the name of the field with the index of the element within the structure.
 
         Args:
             name (`str`):
@@ -367,10 +371,11 @@ class OnnxConfig(ExporterConfig, ABC):
             return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        Generates inputs for ONNX Runtime using the reference model inputs. Override this to run inference with seq2seq
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+    ) -> dict[str, Any]:
+        """Generates inputs for ONNX Runtime using the reference model inputs.
+
+        Override this to run inference with seq2seq
         models which have the encoder and decoder exported as separate ONNX files.
 
         Args:
@@ -388,13 +393,12 @@ class OnnxConfig(ExporterConfig, ABC):
     def post_process_exported_models(
         self,
         path: "Path",
-        models_and_onnx_configs: Dict[
-            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        models_and_onnx_configs: dict[
+            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
         ],
-        onnx_files_subpaths: List[str],
+        onnx_files_subpaths: list[str],
     ):
-        """
-        Performs any model-specific post-processing on the ONNX.
+        """Performs any model-specific post-processing on the ONNX.
 
         Args:
             path (`Path`):
@@ -430,15 +434,13 @@ class OnnxConfig(ExporterConfig, ABC):
         return models_and_onnx_configs, onnx_files_subpaths
 
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[Dict[str, Any]] = None
+        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[dict[str, Any]] = None
     ) -> ModelPatcher:
         return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
 
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
-    """
-    Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models.
-    """
+    """Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models."""
 
     PAD_ATTENTION_MASK_TO_PAST: bool = False
     SUPPORTS_PAST: bool = True
@@ -452,7 +454,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-        preprocessors: Optional[List[Any]] = None,
+        preprocessors: Optional[list[Any]] = None,
         legacy: bool = False,
     ):
         self.use_past = use_past
@@ -470,7 +472,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         )
 
     @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
+    def outputs(self) -> dict[str, dict[int, str]]:
         if not self.use_past_in_inputs:
             common_outputs = super().outputs
         # In the other cases, the sequence_length axis is not dynamic, always of length 1
@@ -484,7 +486,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return common_outputs
 
     @property
-    def values_override(self) -> Optional[Dict[str, Any]]:
+    def values_override(self) -> Optional[dict[str, Any]]:
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past}
 
@@ -493,7 +495,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
 
         dummy_inputs = {}
-        input_names = [key for key in self.inputs.keys() if not key.startswith("past_key_values")]
+        input_names = [key for key in self.inputs if not key.startswith("past_key_values")]
         if self.use_past_in_inputs and self.use_cache_branch is not False:
             input_names.append("past_key_values")
 
@@ -543,13 +545,13 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return dummy_inputs
 
     def overwrite_shape_and_generate_input(
-        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: Dict
+        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
     ):
-        """
-        The shape passed to the dummy input generator may not always be correct for all of the inputs it manages. This method allows
+        """The shape passed to the dummy input generator may not always be correct for all of the inputs it manages.
+
+        This method allows
         to overwrite some shapes, and generate the dummy input. This should probably be refactored more elegantly.
         """
-
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
 
@@ -576,9 +578,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return dummy_input
 
-    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
-        """
-        Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
+    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
+        """Fills `input_or_outputs` mapping with past_key_values dynamic axes considering the direction.
 
         Args:
             inputs_or_outputs (`Dict[str, Dict[int, str]]`):
@@ -605,7 +606,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         flattened_output[f"{name}.{idx}.key"] = t[0]
         flattened_output[f"{name}.{idx}.value"] = t[1]
 
-    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> dict[str, Any]:
         flattened_output = {}
         if name in ["present", "past_key_values"]:
             for idx, t in enumerate(field):
@@ -616,8 +617,8 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+    ) -> dict[str, Any]:
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
@@ -637,11 +638,11 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
 
 class ConfigBehavior(str, enum.Enum):
-    """
-    Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`]:
-        - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
-        - ENCODER: the config can be used to export the encoder part of the seq2seq model.
-        - DECODER: the config can be used to export the decoder part of the seq2seq model.
+    """Specifies the behavior of the [`~exporters.onnx.base.OnnxSeq2SeqConfigWithPast`].
+
+    - MONOLITH: the config can be used to export the whole seq2seq model as a single file.
+    - ENCODER: the config can be used to export the encoder part of the seq2seq model.
+    - DECODER: the config can be used to export the decoder part of the seq2seq model.
     """
 
     MONOLITH = "monolith"
@@ -650,9 +651,7 @@ class ConfigBehavior(str, enum.Enum):
 
 
 class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
-    """
-    Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models.
-    """
+    """Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models."""
 
     DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
     _MODEL_PATCHER = Seq2SeqModelPatcher
@@ -666,7 +665,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[List[Any]] = None,
+        preprocessors: Optional[list[Any]] = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -691,8 +690,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
     ) -> "OnnxSeq2SeqConfigWithPast":
-        """
-        Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
+        """Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
 
         Args:
             behavior ([`ConfigBehavior`]):
@@ -723,7 +721,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return onnx_config
 
     @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
+    def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
         for name, axes_names in common_outputs.items():
@@ -750,7 +748,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return common_outputs
 
-    def add_past_key_values(self, inputs_or_outputs: Dict[str, Dict[int, str]], direction: str):
+    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
@@ -791,10 +789,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: Dict[
-            str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
+        models_and_onnx_configs: dict[
+            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
         ],
-        onnx_files_subpaths: List[str],
+        onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
             path, models_and_onnx_configs, onnx_files_subpaths
@@ -817,7 +815,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                     strict=False,
                 )
             except Exception as e:
-                raise Exception(f"Unable to merge decoders. Detailed error: {e}")
+                raise RuntimeError("Unable to merge decoders") from e
 
             # In order to do the validation of the two branches on the same file
             encoder_path = onnx_files_subpaths[0]
@@ -840,8 +838,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths_new
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+    ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             if "decoder_input_ids" in reference_model_inputs:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
@@ -874,13 +872,12 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
-    """
-    Wrapper for the children classes of `optimum.exporters.onnx.OnnxConfig` to export the model through the ONNX format
+    """Wrapper for the children classes of `optimum.exporters.onnx.OnnxConfig` to export the model through the ONNX format
     with loss in outputs and labels in the inputs. For seq-to-seq models, labels will be appended to the inputs of
     decoders.
     """
 
-    _tasks_to_extra_inputs = {
+    _tasks_to_extra_inputs = {  # noqa: RUF012
         "feature-extraction": {"labels": {0: "batch_size"}},
         "fill-mask": {"labels": {0: "batch_size", 1: "sequence_length"}},
         "text-generation": {"labels": {0: "batch_size", 1: "sequence_length"}},
@@ -896,7 +893,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         },
         "image-classification": {"labels": {0: "batch_size"}},
     }
-    _tasks_to_extra_outputs = {
+    _tasks_to_extra_outputs = {  # noqa: RUF012
         "feature-extraction": OrderedDict({"loss": {}}),
     }
 
@@ -917,13 +914,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return cls(config)
 
     @property
-    def inputs(self) -> Dict[str, Dict[int, str]]:
+    def inputs(self) -> dict[str, dict[int, str]]:
         inputs = self._onnx_config.inputs
         inputs.update(self._tasks_to_extra_inputs[self.task])
         return inputs
 
     @property
-    def outputs(self) -> Dict[str, Dict[int, str]]:
+    def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = self._onnx_config.outputs
         extra_outputs = self._tasks_to_extra_outputs["feature-extraction"]
         common_outputs.update(extra_outputs)
@@ -944,7 +941,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         ):
             kwargs["sequence_length"] = 1
         else:
-            for input_name, dynamic_axes in self._tasks_to_extra_inputs[self.task].items():
+            for dynamic_axes in self._tasks_to_extra_inputs[self.task].values():
                 if "sequence_length" in dynamic_axes.values():
                     kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"]
 
@@ -972,8 +969,8 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return dummy_inputs
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: Dict[str, Any], onnx_input_names: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+    ) -> dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     def flatten_decoder_past_key_values(self, flattened_output, name, idx, t):
@@ -992,7 +989,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
             flattened_output[f"{name}.{idx}.encoder.key"] = t[2]
             flattened_output[f"{name}.{idx}.encoder.value"] = t[3]
 
-    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> Dict[str, Any]:
+    def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> dict[str, Any]:
         flattened_output = {}
         if name in ["present", "past_key_values"]:
             if "text-generation" in self.task:
@@ -1007,13 +1004,13 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return flattened_output
 
     @property
-    def torch_to_onnx_input_map(self) -> Dict[str, str]:
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
         return self._onnx_config.torch_to_onnx_input_map
 
     @property
-    def torch_to_onnx_output_map(self) -> Dict[str, str]:
+    def torch_to_onnx_output_map(self) -> dict[str, str]:
         return self._onnx_config.torch_to_onnx_output_map
 
     @property
-    def values_override(self) -> Optional[Dict[str, Any]]:
+    def values_override(self) -> Optional[dict[str, Any]]:
         return self._onnx_config.values_override

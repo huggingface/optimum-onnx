@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,7 +59,7 @@ logger = get_logger(__name__)
 
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "codegen",
         "falcon",
         "gpt2",
@@ -106,10 +105,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(InternLM2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("internlm2")
 
-    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}
-    BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}
+    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "do_sample": False, "num_beams": 1}  # noqa: RUF012
+    BEAM_KWARGS = {"max_new_tokens": 3, "min_new_tokens": 3, "num_beams": 4}  # noqa: RUF012
 
-    MODEL_TRUST_REMOTE_CODE = {"internlm2"}
+    MODEL_TRUST_REMOTE_CODE = {"internlm2"}  # noqa: RUF012
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
     AUTOMODEL_CLASS = AutoModelForCausalLM

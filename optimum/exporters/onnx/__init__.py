@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2022 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,14 +38,14 @@ _import_structure = {
 
 if TYPE_CHECKING:
     from .base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
-    from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig  # noqa
+    from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
     from .convert import (
         export,
         export_models,
         validate_model_outputs,
         validate_models_outputs,
         onnx_export_from_model,
-    )  # noqa
+    )
     from .utils import (
         get_decoder_models_for_export,
         get_encoder_decoder_models_for_export,

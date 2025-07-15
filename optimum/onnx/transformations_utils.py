@@ -14,7 +14,7 @@
 
 import hashlib
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
@@ -31,17 +31,16 @@ logger = logging.get_logger()
 
 
 def _find_duplicate_initializers(
-    models: List[onnx.ModelProto],
-) -> DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]]:
-    """
-    Creates a map (unique data) --> set of (initializer name, model id)
+    models: list[onnx.ModelProto],
+) -> defaultdict[tuple[int, str, tuple], set[tuple[str, int]]]:
+    """Creates a map (unique data) --> set of (initializer name, model id).
 
     Initializers with a dimension 0, or dimension 1 with data type int32 or int64, are not included in the generated map.
     """
     duplicates = defaultdict(set)
     for i in range(len(models)):
         for initializer in models[i].graph.initializer:
-            tensor_dims = tuple(getattr(initializer, "dims"))
+            tensor_dims = tuple(initializer.dims)
             if len(tensor_dims) > 1 or (len(tensor_dims) == 1 and initializer.data_type not in [6, 7]):
                 # Extract tensor data as numpy array
                 tensor_data = onnx.numpy_helper.to_array(initializer)
@@ -56,11 +55,10 @@ def _find_duplicate_initializers(
     return duplicates
 
 
-def _create_name_sharing_dict(
-    duplicate_weights: DefaultDict[Tuple[int, str, Tuple], Set[Tuple[str, int]]], suffix: str = ""
-) -> Dict[Tuple[str, int], str]:
-    """
-    Creates a map mapping old initializer names to new initializer names. As different ONNX models
+def _create_name_sharing_dict(  # noqa: D417
+    duplicate_weights: defaultdict[tuple[int, str, tuple], set[tuple[str, int]]], suffix: str = ""
+) -> dict[tuple[str, int], str]:
+    """Creates a map mapping old initializer names to new initializer names. As different ONNX models
     may use the same initializer name but need to be mapped to a different new name, the map is actually from
     (old name, model id) to new name.
 
@@ -76,7 +74,6 @@ def _create_name_sharing_dict(
 
         suffix (`str`, defaults to `""`):
     """
-
     name_sharing_dict = {}
     used_common_names = {}
     for duplicates in duplicate_weights.values():
@@ -99,10 +96,8 @@ def _create_name_sharing_dict(
     return name_sharing_dict
 
 
-def _replace_input_names(models: List[onnx.ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
-    """
-    Replaces the names of node inputs from the models by the names in the name_sharing_dict.
-    """
+def _replace_input_names(models: list[onnx.ModelProto], name_sharing_dict: dict[tuple[str, int], str]):
+    """Replaces the names of node inputs from the models by the names in the name_sharing_dict."""
     for i in range(len(models)):
         for node in models[i].graph.node:
             for j in range(len(node.input)):
@@ -110,10 +105,8 @@ def _replace_input_names(models: List[onnx.ModelProto], name_sharing_dict: Dict[
                     node.input[j] = name_sharing_dict[(node.input[j], i)]
 
 
-def _remove_redundant_initializers(models: List[onnx.ModelProto], name_sharing_dict: Dict[Tuple[str, int], str]):
-    """
-    TODO: short documentation.
-    """
+def _remove_redundant_initializers(models: list[onnx.ModelProto], name_sharing_dict: dict[tuple[str, int], str]):
+    """TODO: short documentation."""
     to_pop = []
     for i in range(len(models)):
         for idx, initializer in enumerate(models[i].graph.initializer):
@@ -125,15 +118,13 @@ def _remove_redundant_initializers(models: List[onnx.ModelProto], name_sharing_d
 
 
 def _infer_output_shape(output: onnx.ValueInfoProto):
-    """
-    TODO: short documentation.
-    """
+    """TODO: short documentation."""
     output_shape = []
     for dim in output.type.tensor_type.shape.dim:
-        if getattr(dim, "dim_param"):
-            output_shape.append(getattr(dim, "dim_param"))
-        elif getattr(dim, "dim_value"):
-            output_shape.append(getattr(dim, "dim_value"))
+        if dim.dim_param:
+            output_shape.append(dim.dim_param)
+        elif dim.dim_value:
+            output_shape.append(dim.dim_value)
         else:
             raise ValueError("Cannot find `dim_param` nor `dim_value` in the output dimension info.")
 
@@ -141,11 +132,9 @@ def _infer_output_shape(output: onnx.ValueInfoProto):
 
 
 def _unify_onnx_outputs(model1: onnx.ModelProto, model2: onnx.ModelProto, strict: bool):
-    """
-    Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
+    """Unifies the outputs of two ONNX model protos. The outputs of model1 will be replaced by outputs of model2.
     According to the rules of "If" op, two subgraphs must have the same number of outputs.
     """
-
     model1_outputs = {output.name for output in model1.graph.output}
     model2_outputs = {output.name for output in model2.graph.output}
 
@@ -246,10 +235,8 @@ def _unify_onnx_outputs(model1: onnx.ModelProto, model2: onnx.ModelProto, strict
         raise RuntimeError("Failed to unify outputs of given ONNX model protos.")
 
 
-def _get_all_inputs(model_list: List[onnx.ModelProto]) -> List[onnx.ValueInfoProto]:
-    """
-    Returns all the inputs to all the models in `model_list`, in a single list.
-    """
+def _get_all_inputs(model_list: list[onnx.ModelProto]) -> list[onnx.ValueInfoProto]:
+    """Returns all the inputs to all the models in `model_list`, in a single list."""
     inputs = []
     input_names = set()
     for model in model_list:
@@ -261,18 +248,13 @@ def _get_all_inputs(model_list: List[onnx.ModelProto]) -> List[onnx.ValueInfoPro
 
 
 def _get_onnx_opset(model: onnx.ModelProto):
-    """
-    Returns the ONNX opset version used to generate `model`.
-    """
+    """Returns the ONNX opset version used to generate `model`."""
     opset_import = model.opset_import[0]
-    return getattr(opset_import, "version")
+    return opset_import.version
 
 
-def _deduplicated_cross_model_initializers(models: List[onnx.ModelProto], suffix: str = None):
-    """
-    TODO: short documentation.
-    """
-
+def _deduplicated_cross_model_initializers(models: list[onnx.ModelProto], suffix: Optional[str] = None):
+    """TODO: short documentation."""
     duplicates = _find_duplicate_initializers(models)
     name_sharing_dict = _create_name_sharing_dict(duplicates, suffix=suffix)
 
@@ -293,8 +275,7 @@ def _deduplicated_cross_model_initializers(models: List[onnx.ModelProto], suffix
 
 
 def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = False):
-    """
-    Casts in place the input TensorProto data to int32. Its data is assumed to be of type int64,
+    """Casts in place the input TensorProto data to int32. Its data is assumed to be of type int64,
     and in case some values are out of range, they are cast to the min/max representable
     value in int32.
     """
@@ -320,13 +301,12 @@ def cast_int64_tensorproto_to_int32(initializer: onnx.TensorProto, cast: bool = 
     initializer.name = original_name
 
 
-def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") -> Tuple[List[List[str]]]:
-    """
-    Separates tied weights from the torch_model in groups for which a tying implementation is (and is not) available.
+def _get_weights_to_tie(tied_params: list[list[str]], torch_model: "nn.Module") -> tuple[list[list[str]]]:
+    """Separates tied weights from the torch_model in groups for which a tying implementation is (and is not) available.
 
     Currently, only Embedding and Linear weight sharing the same data can be tied.
     """
-    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")
+    SUPPORTED_DEDUPLICATION_OPS = ("Embedding", "Linear")  # noqa: N806
     tied_params_with_op = []
     tied_groups_to_tie = []
     tied_groups_ignored = []
@@ -351,10 +331,9 @@ def _get_weights_to_tie(tied_params: List[List[str]], torch_model: "nn.Module") 
 
 
 def _find_matching_initializers(
-    tied_params_with_op: List[Dict[str, str]], model: onnx.ModelProto, initializer_name_to_idx: Dict[str, int]
+    tied_params_with_op: list[dict[str, str]], model: onnx.ModelProto, initializer_name_to_idx: dict[str, int]
 ):
-    """
-    From the torch parameter names in `tied_params`, find the matching initializers
+    """From the torch parameter names in `tied_params`, find the matching initializers
     in the ONNX model.
 
     Args:
@@ -377,7 +356,7 @@ def _find_matching_initializers(
             # To find which initializer correspond to a torch parameter, we first look for
             # exactly matching initializer name.
             identical_initializer = False
-            if param_name in initializer_name_to_idx.keys():
+            if param_name in initializer_name_to_idx:
                 nodes_containing_initializer = set()
                 for node in model.graph.node:
                     if param_name in node.input:
@@ -416,7 +395,7 @@ def _find_matching_initializers(
                 nodes_containing_initializer = set()
                 for node_name, input_names in candidate_inputs.items():
                     for input_name in input_names:
-                        if input_name in initializer_name_to_idx.keys():
+                        if input_name in initializer_name_to_idx:
                             torch_to_initializer_param.add(input_name)
                             nodes_containing_initializer.add(node_name)
 
@@ -464,13 +443,11 @@ def _find_matching_initializers(
 
 def _deduplicate_gather_matmul(
     model: onnx.ModelProto,
-    tied_groups_to_tie: List[List[str]],
-    tied_groups_map: Dict[Tuple[str], List[Dict[str, Any]]],
-    initializer_name_to_idx: Dict[str, int],
+    tied_groups_to_tie: list[list[str]],
+    tied_groups_map: dict[tuple[str], list[dict[str, Any]]],
+    initializer_name_to_idx: dict[str, int],
 ):
-    """
-    Removes the duplicate initializers for Gather and MatMul from the ONNX model based on the information in tied_groups_map i.e. of which ONNX initializers correspond to a single torch parameter.
-    """
+    """Removes the duplicate initializers for Gather and MatMul from the ONNX model based on the information in tied_groups_map i.e. of which ONNX initializers correspond to a single torch parameter."""
     node_name_to_idx = {}
     for idx, node in enumerate(model.graph.node):
         node_name_to_idx[node.name] = idx

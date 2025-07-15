@@ -1,4 +1,3 @@
-# coding=utf-8
 #  Copyright 2021 The HuggingFace Team. All rights reserved.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +11,14 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-Post-processing utilities for question answering.
-"""
+"""Post-processing utilities for question answering."""
+
 
 import collections
 import json
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -32,7 +30,7 @@ logger = logging.getLogger(__name__)
 def postprocess_qa_predictions(
     examples,
     features,
-    predictions: Tuple[np.ndarray, np.ndarray],
+    predictions: tuple[np.ndarray, np.ndarray],
     version_2_with_negative: bool = False,
     n_best_size: int = 20,
     max_answer_length: int = 30,
@@ -41,8 +39,7 @@ def postprocess_qa_predictions(
     prefix: Optional[str] = None,
     log_level: Optional[int] = logging.WARNING,
 ):
-    """
-    Post-processes the predictions of a question-answering model to convert them to answers that are substrings of the
+    """Post-processes the predictions of a question-answering model to convert them to answers that are substrings of the
     original contexts. This is the base postprocessing functions for models that only return start and end logits.
 
     Args:
@@ -216,7 +213,7 @@ def postprocess_qa_predictions(
     # If we have an output_dir, let's save all those dicts.
     if output_dir is not None:
         if not os.path.isdir(output_dir):
-            raise EnvironmentError(f"{output_dir} is not a directory.")
+            raise OSError(f"{output_dir} is not a directory.")
 
         prediction_file = os.path.join(
             output_dir, "predictions.json" if prefix is None else f"{prefix}_predictions.json"
@@ -246,7 +243,7 @@ def postprocess_qa_predictions(
 def postprocess_qa_predictions_with_beam_search(
     examples,
     features,
-    predictions: Tuple[np.ndarray, np.ndarray],
+    predictions: tuple[np.ndarray, np.ndarray],
     version_2_with_negative: bool = False,
     n_best_size: int = 20,
     max_answer_length: int = 30,
@@ -256,8 +253,7 @@ def postprocess_qa_predictions_with_beam_search(
     prefix: Optional[str] = None,
     log_level: Optional[int] = logging.WARNING,
 ):
-    """
-    Post-processes the predictions of a question-answering model with beam search to convert them to answers that are substrings of the
+    """Post-processes the predictions of a question-answering model with beam search to convert them to answers that are substrings of the
     original contexts. This is the postprocessing functions for models that return start and end logits, indices, as well as
     cls token predictions.
 
@@ -405,7 +401,7 @@ def postprocess_qa_predictions_with_beam_search(
     # If we have an output_dir, let's save all those dicts.
     if output_dir is not None:
         if not os.path.isdir(output_dir):
-            raise EnvironmentError(f"{output_dir} is not a directory.")
+            raise OSError(f"{output_dir} is not a directory.")
 
         prediction_file = os.path.join(
             output_dir, "predictions.json" if prefix is None else f"{prefix}_predictions.json"

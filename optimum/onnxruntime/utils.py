@@ -16,9 +16,10 @@
 import importlib
 import os
 import re
+from collections.abc import Sequence
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import numpy as np
 import torch
@@ -52,17 +53,14 @@ ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
 
 def is_cupy_available():
-    """
-    Checks if CuPy is available.
-    """
+    """Checks if CuPy is available."""
     # Don't use _is_package_available as it doesn't work with CuPy installed
     # with `cupy-cuda*` and `cupy-rocm-*` package name (prebuilt wheels).
     return importlib.util.find_spec("cupy") is not None
 
 
 class ORTConfigManager:
-    """
-    A class that contains all the information needed by ONNX Runtime optimization for a given model type.
+    """A class that contains all the information needed by ONNX Runtime optimization for a given model type.
 
     Attributes:
         _conf (`Dict[str]`):
@@ -71,7 +69,7 @@ class ORTConfigManager:
 
     # Contribution note: Please add new models in alphabetical order
     # TODO: for encoder-decoder models, validate if bert or gpt2 optimization is better
-    _conf = {
+    _conf = {  # noqa: RUF012
         "albert": "bert",
         "bart": "bart",
         "bert": "bert",
@@ -157,10 +155,8 @@ def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
     return OnnxConfigWithLoss(onnx_config)
 
 
-def get_device_for_provider(provider: str, provider_options: Dict) -> torch.device:
-    """
-    Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider.
-    """
+def get_device_for_provider(provider: str, provider_options: dict) -> torch.device:
+    """Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider."""
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
         return torch.device(f"cuda:{provider_options.get('device_id', 0)}")
     else:
@@ -168,9 +164,7 @@ def get_device_for_provider(provider: str, provider_options: Dict) -> torch.devi
 
 
 def get_provider_for_device(device: torch.device) -> str:
-    """
-    Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA).
-    """
+    """Gets the ONNX Runtime provider associated with the PyTorch device (CPU/CUDA)."""
     if device.type.lower() == "cuda":
         if "ROCMExecutionProvider" in ort.get_available_providers():
             return "ROCMExecutionProvider"
@@ -179,7 +173,7 @@ def get_provider_for_device(device: torch.device) -> str:
     return "CPUExecutionProvider"
 
 
-def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, Dict]:
+def parse_device(device: Union[torch.device, str, int]) -> tuple[torch.device, dict]:
     """Gets the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
     if device == -1:
         device = torch.device("cpu")
@@ -198,8 +192,7 @@ def parse_device(device: Union[torch.device, str, int]) -> Tuple[torch.device, D
 
 
 def validate_provider_availability(provider: str):
-    """
-    Ensure the ONNX Runtime execution provider `provider` is available, and raise an error if it is not.
+    """Ensure the ONNX Runtime execution provider `provider` is available, and raise an error if it is not.
 
     Args:
         provider (str): Name of an ONNX Runtime execution provider.
@@ -215,7 +208,7 @@ def validate_provider_availability(provider: str):
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
         path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
 
-        with open(path_dependecy_loading, "r") as f:
+        with open(path_dependecy_loading) as f:
             file_string = f.read()
 
             if "ORT_CUDA" not in file_string or "ORT_TENSORRT" not in file_string:
@@ -249,10 +242,10 @@ def validate_provider_availability(provider: str):
 def prepare_providers_and_provider_options(
     provider: str = "CPUExecutionProvider",
     providers: Optional[Sequence[str]] = None,
-    provider_options: Optional[Union[Sequence[Dict[str, Any]], Dict[str, Any]]] = None,
+    provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
 ):
-    """
-    Prepare the providers and provider options for ONNX Runtime.
+    """Prepare the providers and provider options for ONNX Runtime.
+
     Args:
         provider (`str`):
             The provider to use. If `None`, the default provider will be used.
@@ -280,10 +273,8 @@ def prepare_providers_and_provider_options(
     return providers, provider_options
 
 
-def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None) -> bool:
-    """
-    Whether to use IOBinding or not.
-    """
+def check_io_binding(providers: list[str], use_io_binding: Optional[bool] = None) -> bool:
+    """Whether to use IOBinding or not."""
     if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
     elif providers[0] != "CPUExecutionProvider" and providers[0] != "CUDAExecutionProvider":
@@ -296,9 +287,10 @@ def check_io_binding(providers: List[str], use_io_binding: Optional[bool] = None
     return use_io_binding
 
 
-def get_ordered_input_names(input_names: List[str], func: Callable) -> List[str]:
-    """
-    Returns the input names from input_names keys ordered according to the signature of func. This is especially useful with the
+def get_ordered_input_names(input_names: list[str], func: Callable) -> list[str]:
+    """Returns the input names from input_names keys ordered according to the signature of func.
+
+    This is especially useful with the
     forward function when using IO Binding, as the input order of the ONNX and forward may be different.
 
     Method inspired from OnnxConfig.ordered_inputs.
@@ -350,11 +342,10 @@ class ORTQuantizableOperator(Enum):
 def evaluation_loop(
     model: "ORTModel",
     dataset: "Dataset",
-    label_names: Optional[List[str]] = None,
-    compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+    label_names: Optional[list[str]] = None,
+    compute_metrics: Optional[Callable[[EvalPrediction], dict]] = None,
 ):
-    """
-    Run evaluation and returns metrics and predictions.
+    """Run evaluation and returns metrics and predictions.
 
     Args:
         model (`ORTModel`):
@@ -367,7 +358,6 @@ def evaluation_loop(
             The function that will be used to compute metrics at evaluation. Must take an `EvalPrediction` and
             return a dictionary string to metric values.
     """
-
     all_preds = None
     all_labels = None
 
@@ -427,12 +417,11 @@ class DummyWhisperModel:
 
 
 def get_dtype_from_session(session: ort.InferenceSession) -> torch.dtype:
-    """
-    Returns the `torch.dtype` associated with the ONNX Runtime session.
+    """Returns the `torch.dtype` associated with the ONNX Runtime session.
+
     This dtype is inferred from the input/output dtypes of the session.
     If no floating point type is found, it defaults to `torch.float32`.
     """
-
     for input in session.get_inputs():
         torch_dtype = TypeHelper.ort_type_to_torch_type(input.type)
         if torch_dtype.is_floating_point:

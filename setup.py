@@ -9,12 +9,13 @@ try:
     with open(filepath) as version_file:
         (__version__,) = re.findall('__version__ = "(.*)"', version_file.read())
 except Exception as error:
-    assert False, "Error: Could not open '%s' due %s\n" % (filepath, error)
+    raise AssertionError(f"Error: Could not open '{filepath}' due {error}\n")
 
 INSTALL_REQUIRE = [
     "optimum@git+https://github.com/huggingface/optimum.git@mv-onnx",  # "optimum~=1.26",
     "transformers>=4.36,<4.53.0",
     "onnx",
+    "onnxscript>=0.3.0",
 ]
 
 TESTS_REQUIRE = [
@@ -37,12 +38,12 @@ TESTS_REQUIRE = [
 ]
 
 
-QUALITY_REQUIRE = ["black~=23.1", "ruff==0.5.1"]
+QUALITY_REQUIRE = ["ruff==0.12.3"]
 
 
 EXTRAS_REQUIRE = {
-    "onnxruntime": "onnxruntime>=1.11.0",
-    "onnxruntime-gpu": "onnxruntime-gpu>=1.11.0",
+    "onnxruntime": "onnxruntime>=1.18.0",
+    "onnxruntime-gpu": "onnxruntime-gpu>=1.18.0",
     "tests": TESTS_REQUIRE,
     "quality": QUALITY_REQUIRE,
 }
@@ -52,7 +53,7 @@ setup(
     name="optimum-onnx",
     version=__version__,
     description="Optimum ONNX is an interface between the Hugging Face libraries and ONNX / ONNX Runtime",
-    long_description=open("README.md", "r", encoding="utf-8").read(),
+    long_description=open("README.md", encoding="utf-8").read(),  # noqa: SIM115
     long_description_content_type="text/markdown",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
@@ -62,9 +63,11 @@ setup(
         "Intended Audience :: Science/Research",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="transformers, quantization, inference, onnx, onnxruntime",
