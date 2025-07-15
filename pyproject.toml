@@ -92,7 +92,6 @@ ignore = [
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability
     "SIM116", # Don't use dict lookup to replace if-else
-    "TID252", # Allow relative imports
     "TRY003", # Messages can be constructed in the exception
 ]
 select = [
