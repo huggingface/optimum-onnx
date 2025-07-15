@@ -63,7 +63,6 @@ quality = ["ruff==0.12.3"]
 
 [tool.setuptools]
 include-package-data = true
-zip-safe = false
 
 [tool.setuptools.packages.find]
 include = ["optimum*"]
