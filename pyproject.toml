@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/huggingface/optimum"
+Homepage = "https://github.com/huggingface/optimum-onnx"
 
 [project.optional-dependencies]
 onnxruntime = ["onnxruntime>=1.18.0"]
