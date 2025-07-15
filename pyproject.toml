@@ -33,7 +33,6 @@ dependencies = [
     "optimum @ git+https://github.com/huggingface/optimum.git@mv-onnx",
     "transformers>=4.36,<4.53.0",
     "onnx",
-    "onnxscript>=0.3.0",
 ]
 
 [project.urls]
