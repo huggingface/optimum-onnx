@@ -157,15 +157,18 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
 
     FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"  # noqa: N806
 
-    onnx.save(
-        model,
-        save_path,
-        save_as_external_data=model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA,
-        all_tensors_to_one_file=True,
-        location=external_file_name,
-        convert_attribute=True,
-        size_threshold=1024 if not FORCE_ONNX_EXTERNAL_DATA else 100,
-    )
+    if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+        onnx.save(
+            model,
+            save_path,
+            save_as_external_data=True,
+            location=external_file_name,
+            all_tensors_to_one_file=True,
+            convert_attribute=True,
+            size_threshold=100,  # for some reason, some operations fail when a model is saved with a size threshold of 0
+        )
+    else:
+        onnx.save(model, save_path)
 
     try:
         onnx.checker.check_model(save_path)

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Union
 
 import onnx
-from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors
+from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors, uses_external_data
 
 
 def _get_onnx_external_constants(model: onnx.ModelProto) -> list[str]:
@@ -37,11 +37,7 @@ def _get_onnx_external_data_tensors(model: onnx.ModelProto) -> list[str]:
     Note: make sure you load the model with load_external_data=False.
     """
     model_tensors = _get_initializer_tensors(model)
-    model_tensors_ext = [
-        ExternalDataInfo(tensor).location
-        for tensor in model_tensors
-        if tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
-    ]
+    model_tensors_ext = [ExternalDataInfo(tensor).location for tensor in model_tensors if uses_external_data(tensor)]
     return model_tensors_ext
 
 
@@ -81,13 +77,14 @@ def _get_model_external_data_paths(model_path: Path) -> list[Path]:
     return list({model_path.parent / tensor_name for tensor_name in model_tensors_ext})
 
 
-def check_model_uses_external_data(model: onnx.ModelProto) -> bool:
+def check_model_uses_external_data(model: Union[onnx.ModelProto, Path, str]) -> bool:
     """Checks if the model uses external data."""
-    model_tensors = _get_initializer_tensors(model)
-    return any(
-        tensor.HasField("data_location") and tensor.data_location == onnx.TensorProto.EXTERNAL
-        for tensor in model_tensors
-    )
+    if isinstance(model, (str, Path)):
+        model = Path(model).as_posix()
+        model = onnx.load(model, load_external_data=False)
+
+    initializer_tensors = _get_initializer_tensors(model)
+    return any(uses_external_data(tensor) for tensor in initializer_tensors)
 
 
 def has_onnx_input(model: Union[onnx.ModelProto, Path, str], input_name: str) -> bool:

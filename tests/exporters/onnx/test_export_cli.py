@@ -566,9 +566,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 raise
 
     @parameterized.expand([(False,), (True,)])
+    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_external_data(self, use_cache: bool):
-        os.environ["FORCE_ONNX_EXTERNAL_DATA"] = "1"  # force exporting small model with external data
-
         with TemporaryDirectory() as tmpdirname:
             task = "text2text-generation"
             if use_cache:
@@ -590,8 +589,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             if use_cache:
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
-
-        os.environ.pop("FORCE_ONNX_EXTERNAL_DATA")
 
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:

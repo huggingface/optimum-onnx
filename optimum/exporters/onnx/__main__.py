@@ -118,8 +118,7 @@ def main_export(
         no_post_process (`bool`, defaults to `False`):
             Allows to disable any post-processing done by default on the exported ONNX models.
         framework (`Optional[str]`, defaults to `None`):
-            The framework to use for the ONNX export (`"pt"` or `"tf"`). If not provided, will attempt to automatically detect
-            the framework for the checkpoint.
+            The framework to use for the ONNX export (`"pt"`). If not provided, will attempt to automatically detect the framework for the checkpoint.
         atol (`Optional[float]`, defaults to `None`):
             If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
         cache_dir (`Optional[str]`, defaults to `None`):
@@ -205,14 +204,6 @@ def main_export(
         raise ValueError(
             "Requested O4 optimization, but this optimization requires to do the export on GPU."
             " Please pass the argument `--device cuda`."
-        )
-
-    if (framework == "tf" and fp16) or not is_torch_available():
-        raise ValueError("The --fp16 option is supported only for PyTorch.")
-
-    if dtype == "fp16" and device == "cpu":
-        raise ValueError(
-            "FP16 export is supported only when exporting on GPU. Please pass the option `--device cuda`."
         )
 
     if for_ort:
