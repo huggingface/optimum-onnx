@@ -16,7 +16,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from optimum.commands import BaseOptimumCLICommand
+from optimum.commands.base import BaseOptimumCLICommand
 
 
 if TYPE_CHECKING:

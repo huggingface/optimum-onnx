@@ -13,7 +13,7 @@
 # limitations under the License.
 """optimum.onnxruntime command-line interface base classes."""
 
-from optimum.commands import BaseOptimumCLICommand, CommandInfo
+from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
 
 from .optimize import ONNXRuntimeOptimizeCommand
 from .quantize import ONNXRuntimeQuantizeCommand
