@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ruff: noqa: F401
+
 from typing import TYPE_CHECKING
 
 from transformers.utils import _LazyModule
