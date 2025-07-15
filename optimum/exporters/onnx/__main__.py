@@ -22,6 +22,10 @@ from transformers import AutoConfig, AutoTokenizer
 from transformers.utils import is_torch_available
 
 from optimum.commands.export.onnx import parse_args_onnx
+from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
+from optimum.exporters.onnx.convert import onnx_export_from_model
+from optimum.exporters.tasks import TasksManager
+from optimum.exporters.utils import DisableCompileContextManager
 from optimum.utils import DEFAULT_DUMMY_SHAPES, logging
 from optimum.utils.import_utils import (
     is_diffusers_available,
@@ -30,10 +34,6 @@ from optimum.utils.import_utils import (
     is_transformers_version,
 )
 from optimum.utils.save_utils import maybe_load_preprocessors
-from optimum.exporters.tasks import TasksManager
-from optimum.exporters.utils import DisableCompileContextManager
-from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED
-from optimum.exporters.onnx.convert import onnx_export_from_model
 
 
 if is_torch_available():

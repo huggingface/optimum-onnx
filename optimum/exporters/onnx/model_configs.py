@@ -20,6 +20,34 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from packaging import version
 
+from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from optimum.exporters.onnx.config import (
+    AudioOnnxConfig,
+    AudioToTextOnnxConfig,
+    EncoderDecoderBaseOnnxConfig,
+    TextAndVisionOnnxConfig,
+    TextDecoderOnnxConfig,
+    TextDecoderWithPositionIdsOnnxConfig,
+    TextEncoderOnnxConfig,
+    TextSeq2SeqOnnxConfig,
+    VisionOnnxConfig,
+)
+from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.model_patcher import (
+    CLIPModelPatcher,
+    FalconModelPatcher,
+    MgpstrModelPatcher,
+    MistralModelPatcher,
+    MusicgenModelPatcher,
+    SAMModelPatcher,
+    SentenceTransformersCLIPPatcher,
+    SentenceTransformersTransformerPatcher,
+    SpeechT5ModelPatcher,
+    VisionEncoderDecoderPatcher,
+    VitPoseModelPatcher,
+    WavLMModelPatcher,
+)
+from optimum.exporters.tasks import TasksManager
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
     ASTDummyAudioInputGenerator,
@@ -74,34 +102,6 @@ from optimum.utils import (
     logging,
 )
 from optimum.utils.normalized_config import NormalizedConfigManager
-from optimum.exporters.tasks import TasksManager
-from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from .config import (
-    AudioOnnxConfig,
-    AudioToTextOnnxConfig,
-    EncoderDecoderBaseOnnxConfig,
-    TextAndVisionOnnxConfig,
-    TextDecoderOnnxConfig,
-    TextDecoderWithPositionIdsOnnxConfig,
-    TextEncoderOnnxConfig,
-    TextSeq2SeqOnnxConfig,
-    VisionOnnxConfig,
-)
-from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from optimum.exporters.onnx.model_patcher import (
-    CLIPModelPatcher,
-    FalconModelPatcher,
-    MgpstrModelPatcher,
-    MistralModelPatcher,
-    MusicgenModelPatcher,
-    SAMModelPatcher,
-    SentenceTransformersCLIPPatcher,
-    SentenceTransformersTransformerPatcher,
-    SpeechT5ModelPatcher,
-    VisionEncoderDecoderPatcher,
-    VitPoseModelPatcher,
-    WavLMModelPatcher,
-)
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization

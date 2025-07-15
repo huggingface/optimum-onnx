@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 from transformers.utils import is_tf_available
 
+from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
+from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -32,8 +34,6 @@ from optimum.utils import (
     is_diffusers_available,
     logging,
 )
-from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
-from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization

@@ -37,22 +37,28 @@ _import_structure = {
 }
 
 if TYPE_CHECKING:
-    from optimum.exporters.onnx.base import OnnxConfig, OnnxConfigWithLoss, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast  # noqa
-    from .config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
-    from .convert import (
+    from optimum.exporters.onnx.__main__ import main_export
+    from optimum.exporters.onnx.base import (
+        OnnxConfig,
+        OnnxConfigWithLoss,
+        OnnxConfigWithPast,
+        OnnxSeq2SeqConfigWithPast,
+    )
+    from optimum.exporters.onnx.config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
+    from optimum.exporters.onnx.convert import (
         export,
         export_models,
+        onnx_export_from_model,
         validate_model_outputs,
         validate_models_outputs,
-        onnx_export_from_model,
     )
+
     from .utils import (
-        get_decoder_models_for_export,
-        get_encoder_decoder_models_for_export,
-        get_diffusion_models_for_export,
         MODEL_TYPES_REQUIRING_POSITION_IDS,
+        get_decoder_models_for_export,
+        get_diffusion_models_for_export,
+        get_encoder_decoder_models_for_export,
     )
-    from .__main__ import main_export
 else:
     import sys
 

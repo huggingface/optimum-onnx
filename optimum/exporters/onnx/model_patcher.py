@@ -23,8 +23,8 @@ import torch
 import transformers
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from optimum.utils import is_transformers_version, logging
 from optimum.exporters.onnx._traceable_cache import TraceableCache
+from optimum.utils import is_transformers_version, logging
 
 
 if is_transformers_version(">=", "4.35"):

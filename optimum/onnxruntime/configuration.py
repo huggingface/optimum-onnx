@@ -27,7 +27,6 @@ from onnxruntime.quantization import CalibraterBase, CalibrationMethod, QuantFor
 from onnxruntime.quantization.calibrate import create_calibrator
 from onnxruntime.quantization.registry import IntegerOpsRegistry, QDQRegistry, QLinearOpsRegistry
 from onnxruntime.transformers.fusion_options import FusionOptions
-
 from optimum.configuration_utils import BaseConfig
 from optimum.utils import logging
 

@@ -19,13 +19,6 @@ import torch
 from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
-from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
-from optimum.utils.import_utils import (
-    _diffusers_version,
-    is_diffusers_available,
-    is_diffusers_version,
-    is_transformers_version,
-)
 from optimum.exporters.onnx.utils import (
     _get_submodels_and_export_configs,
 )
@@ -43,6 +36,13 @@ from optimum.exporters.onnx.utils import (
 )
 from optimum.exporters.onnx.utils import (
     get_speecht5_models_for_export as _get_speecht5_models_for_export,
+)
+from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
+from optimum.utils.import_utils import (
+    _diffusers_version,
+    is_diffusers_available,
+    is_diffusers_version,
+    is_transformers_version,
 )
 
 

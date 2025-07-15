@@ -33,6 +33,9 @@ from transformers.utils import is_accelerate_available, is_torch_available
 if is_torch_available():
     import torch.nn as nn
 
+from optimum.exporters.base import ExporterConfig
+from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
     DummyInputGenerator,
@@ -47,9 +50,6 @@ from optimum.utils.import_utils import (
     is_onnxruntime_available,
     is_transformers_version,
 )
-from optimum.exporters.base import ExporterConfig
-from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from  optimum.exporters.onnx.model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
@@ -413,7 +413,6 @@ class OnnxConfig(ExporterConfig, ABC):
         if is_torch_available() and isinstance(models_and_onnx_configs[first_key][0], nn.Module):
             if is_accelerate_available():
                 import onnx
-
                 from optimum.onnx import remove_duplicate_weights_from_tied_info
 
                 logger.info("Deduplicating shared (tied) weights...")

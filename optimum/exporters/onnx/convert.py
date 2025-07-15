@@ -29,9 +29,24 @@ from transformers.modeling_utils import get_parameter_dtype
 from transformers.utils import is_torch_available
 
 import onnx
-
+from optimum.exporters.error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
+from optimum.exporters.onnx.base import OnnxConfig
+from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
+from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
+from optimum.exporters.onnx.utils import (
+    MODEL_TYPES_REQUIRING_POSITION_IDS,
+    PickableInferenceSession,
+    _get_submodels_and_onnx_configs,
+    recursive_to_device,
+)
+from optimum.exporters.tasks import TasksManager
+from optimum.exporters.utils import check_dummy_inputs_are_allowed
 from optimum.onnx.graph_transformations import check_and_save_model
-from optimum.onnx.utils import _get_onnx_external_constants, _get_onnx_external_data_tensors, check_model_uses_external_data
+from optimum.onnx.utils import (
+    _get_onnx_external_constants,
+    _get_onnx_external_data_tensors,
+    check_model_uses_external_data,
+)
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
     ONNX_WEIGHTS_NAME,
@@ -44,18 +59,6 @@ from optimum.utils import (
 )
 from optimum.utils.modeling_utils import MODEL_TO_PATCH_FOR_PAST
 from optimum.utils.save_utils import maybe_save_preprocessors
-from optimum.exporters.error_utils import AtolError, MinimumVersionError, OutputMatchError, ShapeError
-from optimum.exporters.tasks import TasksManager
-from optimum.exporters.utils import check_dummy_inputs_are_allowed
-from optimum.exporters.onnx.base import OnnxConfig
-from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
-from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
-from optimum.exporters.onnx.utils import (
-    MODEL_TYPES_REQUIRING_POSITION_IDS,
-    PickableInferenceSession,
-    _get_submodels_and_onnx_configs,
-    recursive_to_device,
-)
 
 
 # TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization

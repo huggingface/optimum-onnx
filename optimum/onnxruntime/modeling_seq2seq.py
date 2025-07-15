@@ -38,13 +38,8 @@ from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MA
 from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
-
 from optimum.exporters.onnx import main_export
 from optimum.exporters.tasks import TasksManager
-from optimum.utils import NormalizedConfigManager, is_transformers_version
-from optimum.utils.file_utils import find_files_matching_pattern
-from optimum.utils.logging import get_logger, warn_once
-from optimum.utils.save_utils import maybe_save_preprocessors
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
 from optimum.onnxruntime.constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
@@ -61,6 +56,10 @@ from optimum.onnxruntime.utils import (
     DummyWhisperModel,
     prepare_providers_and_provider_options,
 )
+from optimum.utils import NormalizedConfigManager, is_transformers_version
+from optimum.utils.file_utils import find_files_matching_pattern
+from optimum.utils.logging import get_logger, warn_once
+from optimum.utils.save_utils import maybe_save_preprocessors
 
 
 if TYPE_CHECKING:
