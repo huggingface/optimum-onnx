@@ -19,22 +19,22 @@ import torch
 from packaging import version
 from transformers.utils import is_tf_available, is_torch_available
 
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     _get_submodels_and_export_configs,
 )
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     get_decoder_models_for_export as _get_decoder_models_for_export,
 )
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     get_diffusion_models_for_export as _get_diffusion_models_for_export,
 )
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     get_encoder_decoder_models_for_export as _get_encoder_decoder_models_for_export,
 )
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     get_sam_models_for_export as _get_sam_models_for_export,
 )
-from optimum.exporters.onnx.utils import (
+from optimum.exporters.utils import (
     get_speecht5_models_for_export as _get_speecht5_models_for_export,
 )
 from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
