@@ -50,7 +50,7 @@ logger = logging.get_logger()
 
 
 if is_diffusers_available():
-    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSIONoptimum.exporters.onnx.base_version):
+    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
         raise ImportError(
             f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
             "Please update diffusers by running `pip install --upgrade diffusers`"

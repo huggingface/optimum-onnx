@@ -15,8 +15,7 @@
 from onnx import ModelProto
 
 from onnxruntime.transformers.onnx_model import OnnxModel
-
-from .. import PreprocessorPass
+from optimum.onnxruntime.preprocessors import PreprocessorPass
 
 
 class ExcludeNodeFollowedBy(PreprocessorPass):
