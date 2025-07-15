@@ -57,7 +57,7 @@ if is_diffusers_available():
         )
 
 if TYPE_CHECKING:
-    from optimum.exporters.onnx.base import ExportConfig
+    from optimum.exporters.base import ExportConfig
 
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
