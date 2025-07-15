@@ -319,7 +319,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             legacy=legacy,
         )
 
-        from ..tasks import TasksManager
+        from optimum.exporters.tasks import TasksManager
 
         self.is_decoder_with_past = False
 

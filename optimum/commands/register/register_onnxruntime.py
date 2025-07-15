@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from ..onnxruntime import ONNXRuntimeCommand
+from optimum.commands.onnxruntime import ONNXRuntimeCommand
 
 
 REGISTER_COMMANDS = [ONNXRuntimeCommand]
