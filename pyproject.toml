@@ -1,3 +1,76 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optimum-onnx"
+dynamic = ["version"]
+description = "Optimum ONNX is an interface between the Hugging Face libraries and ONNX / ONNX Runtime"
+readme = "README.md"
+requires-python = ">=3.9.0"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "HuggingFace Inc. Special Ops Team", email = "hardware@huggingface.co"}
+]
+keywords = ["transformers", "quantization", "inference", "onnx", "onnxruntime"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # "optimum~=1.26",
+    "optimum @ git+https://github.com/huggingface/optimum.git",
+    "transformers>=4.36,<4.53.0",
+    "onnx",
+    "onnxscript>=0.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/huggingface/optimum"
+
+[project.optional-dependencies]
+onnxruntime = ["onnxruntime>=1.18.0"]
+onnxruntime-gpu = ["onnxruntime-gpu>=1.18.0"]
+tests = [
+    "accelerate>=0.26.0",
+    "pytest",
+    "pytest-xdist",
+    "parameterized",
+    "sentencepiece",
+    "datasets",
+    "safetensors",
+    "Pillow",
+    "einops",
+    "timm",
+    "sacremoses",
+    "rjieba",
+    "hf_xet",
+    "onnxslim>=0.1.53",
+    "scipy",
+]
+quality = ["ruff==0.12.3"]
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.packages.find]
+include = ["optimum*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "optimum.onnx.version.__version__"}
+
 [tool.ruff]
 line-length = 119
 target-version = "py39"
