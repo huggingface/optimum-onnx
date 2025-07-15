@@ -78,9 +78,7 @@ def _get_model_external_data_paths(model_path: Path) -> list[Path]:
 
 
 def check_model_uses_external_data(model: Union[onnx.ModelProto, Path, str]) -> bool:
-    """
-    Checks if the model uses external data.
-    """
+    """Checks if the model uses external data."""
     if isinstance(model, (str, Path)):
         model = Path(model).as_posix()
         model = onnx.load(model, load_external_data=False)

@@ -16,7 +16,7 @@
 import math
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from packaging import version
 
@@ -2212,8 +2212,8 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: Dict[str, Tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
-        onnx_files_subpaths: List[str],
+        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+        onnx_files_subpaths: list[str],
     ):
         # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
         if "with-past" in self.variant:

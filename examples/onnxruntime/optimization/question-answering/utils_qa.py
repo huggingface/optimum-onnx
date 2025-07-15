@@ -13,7 +13,6 @@
 #  limitations under the License.
 """Post-processing utilities for question answering."""
 
-
 import collections
 import json
 import logging
