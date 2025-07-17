@@ -453,15 +453,11 @@ class OnnxCustomExport(TestCase):
     def test_custom_export_official_model(self):
         model_id = "openai/whisper-tiny.en"
         config = AutoConfig.from_pretrained(model_id)
+        custom_onnx_config = CustomWhisperOnnxConfig(config=config, task="automatic-speech-recognition")
 
-        custom_whisper_onnx_config = CustomWhisperOnnxConfig(
-            config=config,
-            task="automatic-speech-recognition",
-        )
-
-        encoder_config = custom_whisper_onnx_config.with_behavior("encoder")
-        decoder_config = custom_whisper_onnx_config.with_behavior("decoder", use_past=False)
-        decoder_with_past_config = custom_whisper_onnx_config.with_behavior("decoder", use_past=True)
+        encoder_config = custom_onnx_config.with_behavior("encoder")
+        decoder_config = custom_onnx_config.with_behavior("decoder", use_past=False)
+        decoder_with_past_config = custom_onnx_config.with_behavior("decoder", use_past=True)
 
         custom_onnx_configs = {
             "encoder_model": encoder_config,
