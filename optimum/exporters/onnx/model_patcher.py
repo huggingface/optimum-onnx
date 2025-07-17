@@ -412,9 +412,15 @@ class ModelPatcher:
         self.patch_ops()
         setattr(self._model, self.orig_forward_name, self.patched_forward)
 
+        # This is a workaround for the Cache class in transformers
+        # The traceable cache is because the original one used in transformers
+        # inherited from nn.Module (for a couple versions)
+        # TODO: specify the version range where this is needed
         self.original_cache_class = transformers.cache_utils.Cache
         transformers.cache_utils.Cache = TraceableCache
 
+        # This is a workaround for mask generation in transformers < 4.53.
+        # The masking process uses vmap which is not traceable by TorchScript.
         if is_transformers_version(">=", "4.53"):
             self.original_sdpa_mask = ALL_MASK_ATTENTION_FUNCTIONS["sdpa"]
             self.original_eager_mask = ALL_MASK_ATTENTION_FUNCTIONS["eager"]
@@ -1465,6 +1471,10 @@ class Qwen3MoeModelPatcher(DecoderModelPatcher):
     def __enter__(self):
         super().__enter__()
 
+        # This is a workaround for the Qwen3 Moe Sparse block that is not compatible with ONNX export.
+        # The forward method of the Moe Sparse block is patched to avoid looping only on the experts that are selected
+        # by the router, which fails during execution in ONNX Runtime.
+        # TODO: investigate more on this issue.
         if is_transformers_version(">=", "4.53"):
             self.original_moe_forward = Qwen3MoeSparseMoeBlock.forward
             Qwen3MoeSparseMoeBlock.forward = qwen3_moe_forward_patched
