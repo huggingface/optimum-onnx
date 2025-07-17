@@ -44,7 +44,7 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, TFPreTrainedModel
+    from transformers import PreTrainedModel
 
     from optimum.exporters.onnx.base import OnnxConfig
 
@@ -290,7 +290,7 @@ class ModelPatcher:
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         self._model = model
@@ -455,7 +455,7 @@ class Seq2SeqModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -555,7 +555,7 @@ class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -672,7 +672,7 @@ class DecoderModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -744,7 +744,7 @@ class FalconModelPatcher(DecoderModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -755,7 +755,7 @@ class MgpstrModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -781,7 +781,7 @@ class SAMModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -911,7 +911,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
@@ -1049,7 +1049,7 @@ class SentenceTransformersTransformerPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
@@ -1080,7 +1080,7 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
@@ -1197,7 +1197,7 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -1379,7 +1379,7 @@ class MistralModelPatcher(DecoderModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         super().__init__(config, model, model_kwargs)
@@ -1408,7 +1408,7 @@ class VitPoseModelPatcher(ModelPatcher):
     def __init__(
         self,
         config: "OnnxConfig",
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
+        model: Union["PreTrainedModel"],
         model_kwargs: Optional[dict[str, Any]] = None,
     ):
         # Set dataset_index (defaulting to COCO=0), otherwise we will get an error like:

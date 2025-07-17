@@ -567,18 +567,17 @@ class OnnxExportWithLossTestCase(TestCase):
                     )
                 ],
             )
-            framework = "pt" if isinstance(model, PreTrainedModel) else "tf"
             normalized_config = NormalizedConfigManager.get_normalized_config_class("bert")(model.config)
             input_generator = DummyTextInputGenerator(
                 "text-classification", normalized_config, batch_size=2, sequence_length=16
             )
 
             inputs = {
-                name: input_generator.generate(name, framework=framework)
+                name: input_generator.generate(name, framework="pt")
                 for name in ["input_ids", "attention_mask", "token_type_ids"]
             }
             inputs["labels"] = input_generator.constant_tensor(
-                [2], value=0, dtype=inputs["input_ids"].dtype, framework=framework
+                [2], value=0, dtype=inputs["input_ids"].dtype, framework="pt"
             )
 
             input_names = [ort_input.name for ort_input in ort_sess._inputs_meta]
