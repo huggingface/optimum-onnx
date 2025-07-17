@@ -237,9 +237,7 @@ def get_sam_models_for_export(model: PreTrainedModel, config: ExporterConfig):
     return _get_sam_models_for_export(model, config)
 
 
-def get_speecht5_models_for_export(
-    model: PreTrainedModel, config: ExporterConfig, model_kwargs: dict | None
-):
+def get_speecht5_models_for_export(model: PreTrainedModel, config: ExporterConfig, model_kwargs: dict | None):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
     return _get_speecht5_models_for_export(model, config)
 

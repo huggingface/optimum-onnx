@@ -1125,9 +1125,7 @@ def triu_onnx(x, diagonal=0):
     return x.masked_fill(mask == 0, 0)
 
 
-def patched_build_delay_pattern_mask(
-    self, input_ids: torch.Tensor, pad_token_id: int, max_length: int | None = None
-):
+def patched_build_delay_pattern_mask(self, input_ids: torch.Tensor, pad_token_id: int, max_length: int | None = None):
     # (bsz * num_codebooks, seq_len) -> (bsz, num_codebooks, seq_len)
     input_ids = input_ids.reshape(-1, self.num_codebooks, input_ids.shape[-1])
     bsz, num_codebooks, seq_len = input_ids.shape
