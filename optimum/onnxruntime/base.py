@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Defines the base classes that are used to perform inference with ONNX Runtime sessions."""
+from __future__ import annotations
 
 import os
 import shutil

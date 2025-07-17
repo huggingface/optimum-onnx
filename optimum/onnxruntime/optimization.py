@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Main class for performing graph optimization with ONNX Runtime."""
+from __future__ import annotations
 
 import gc
 import os

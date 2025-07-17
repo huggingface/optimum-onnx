@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
+from __future__ import annotations
 
 import importlib
 import os
