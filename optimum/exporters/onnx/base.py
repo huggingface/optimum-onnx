@@ -319,7 +319,7 @@ class OnnxConfig(ExporterConfig, ABC):
         """
         return inputs
 
-    def ordered_inputs(self, model: PreTrainedModel) -> dict[str, dict[int, str]]:
+    def ordered_inputs(self, model: "PreTrainedModel") -> dict[str, dict[int, str]]:
         """Re-orders the inputs using the model forward pass signature.
 
         Args:
