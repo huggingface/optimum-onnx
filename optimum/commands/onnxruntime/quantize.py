@@ -13,6 +13,8 @@
 # limitations under the License.
 """Quantization with ONNX Runtime command-line interface class."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
     from argparse import ArgumentParser
 
 
-def parse_args_onnxruntime_quantize(parser: "ArgumentParser"):
+def parse_args_onnxruntime_quantize(parser: ArgumentParser):
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
         "--onnx_model",
@@ -64,7 +66,7 @@ def parse_args_onnxruntime_quantize(parser: "ArgumentParser"):
 
 class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
     @staticmethod
-    def parse_args(parser: "ArgumentParser"):
+    def parse_args(parser: ArgumentParser):
         return parse_args_onnxruntime_quantize(parser)
 
     def run(self):

@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Fine-tuning the library models for multiple choice."""
-# You can also adapt this script on your own multiple choice task. Pointers for this are left as comments.
 
+from __future__ import annotations
+
+# You can also adapt this script on your own multiple choice task. Pointers for this are left as comments.
 import json
 import logging
 import os
@@ -22,7 +24,6 @@ import sys
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
-from typing import Optional
 
 import datasets
 import numpy as np
@@ -51,13 +52,13 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    config_name: Optional[str] = field(
+    config_name: str | None = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
-    tokenizer_name: Optional[str] = field(
+    tokenizer_name: str | None = field(
         default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
     )
-    cache_dir: Optional[str] = field(
+    cache_dir: str | None = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
@@ -82,26 +83,26 @@ class ModelArguments:
 class DataTrainingArguments:
     """Arguments pertaining to what data we are going to input our model for training and eval."""
 
-    train_file: Optional[str] = field(default=None, metadata={"help": "The input training data file (a text file)."})
-    validation_file: Optional[str] = field(
+    train_file: str | None = field(default=None, metadata={"help": "The input training data file (a text file)."})
+    validation_file: str | None = field(
         default=None,
         metadata={"help": "An optional input evaluation data file to evaluate the perplexity on (a text file)."},
     )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    preprocessing_num_workers: Optional[int] = field(
+    preprocessing_num_workers: int | None = field(
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    max_seq_length: Optional[int] = field(
+    max_seq_length: int | None = field(
         default=1024,
         metadata={
             "help": "The maximum total input sequence length after tokenization. If passed, sequences longer "
             "than this will be truncated, sequences shorter will be padded."
         },
     )
-    max_eval_samples: Optional[int] = field(
+    max_eval_samples: int | None = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
@@ -122,7 +123,7 @@ class DataTrainingArguments:
 class OptimizationArguments:
     """Arguments pertaining to what type of optimization we are going to apply on the model."""
 
-    optimization_level: Optional[int] = field(
+    optimization_level: int | None = field(
         default=1,
         metadata={
             "help": "Optimization level performed by ONNX Runtime of the loaded graph."

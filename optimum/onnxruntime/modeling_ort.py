@@ -13,12 +13,14 @@
 #  limitations under the License.
 """ORTModelForXXX classes, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
+from __future__ import annotations
+
 import logging
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -151,10 +153,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     def __init__(
         self,
         *args,
-        config: "PretrainedConfig" = None,
-        session: "InferenceSession" = None,
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        config: PretrainedConfig = None,
+        session: InferenceSession = None,
+        use_io_binding: bool | None = None,
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
         **kwargs,
     ):
         # DEPRECATED BEHAVIOR
@@ -218,7 +220,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         if hasattr(self.auto_model_class, "register"):
             self.auto_model_class.register(AutoConfig, self.__class__)
 
-    def _save_pretrained(self, save_directory: Union[str, Path]):
+    def _save_pretrained(self, save_directory: str | Path):
         """Saves the underlying ONNX model and its external data files (if any) to the specified directory.
         This method is called by the `save_pretrained` method of the `OptimizedModel` class.
         The model is copied from `self.session._model_path` to `save_directory`.
@@ -236,12 +238,12 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     @staticmethod
     def _infer_onnx_filename(
-        model_name_or_path: Union[str, Path],
+        model_name_or_path: str | Path,
         patterns: list[str],
         argument_name: str,
         subfolder: str = "",
-        token: Optional[Union[bool, str]] = None,
-        revision: Optional[str] = None,
+        token: bool | str | None = None,
+        revision: str | None = None,
         fail_if_not_found: bool = True,
     ) -> str:
         onnx_files = []
@@ -276,8 +278,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     @classmethod
     def _from_pretrained(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -285,19 +287,19 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # file options
-        file_name: Optional[str] = None,
+        file_name: str | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
-        providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        providers: Sequence[str] | None = None,
+        provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
+        session_options: SessionOptions | None = None,
         # inference options
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool | None = None,
         # other arguments
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-    ) -> "ORTModel":
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
+    ) -> ORTModel:
         defaut_file_name = file_name or "model.onnx"
         onnx_files = find_files_matching_pattern(
             model_id,
@@ -390,8 +392,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     @classmethod
     def _export(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -399,10 +401,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # other arguments
         **kwargs,
-    ) -> "ORTModel":
+    ) -> ORTModel:
         # this is garanteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
@@ -438,8 +440,8 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     @add_start_docstrings(FROM_PRETRAINED_START_DOCSTRING)
     def from_pretrained(
         cls,
-        model_id: Union[str, Path],
-        config: Optional["PretrainedConfig"] = None,
+        model_id: str | Path,
+        config: PretrainedConfig | None = None,
         # export options
         export: bool = False,
         # hub options
@@ -449,14 +451,14 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
-        providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        providers: Sequence[str] | None = None,
+        provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
+        session_options: SessionOptions | None = None,
         # inference options
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool | None = None,
         **kwargs,
     ) -> Self:
         """provider (`str`, defaults to `"CPUExecutionProvider"`):
@@ -631,16 +633,16 @@ class ORTModelForFeatureExtraction(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        position_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        pixel_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        visual_embeds: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        visual_attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        visual_token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
+        position_ids: torch.Tensor | np.ndarray | None = None,
+        pixel_values: torch.Tensor | np.ndarray | None = None,
+        visual_embeds: torch.Tensor | np.ndarray | None = None,
+        visual_attention_mask: torch.Tensor | np.ndarray | None = None,
+        visual_token_type_ids: torch.Tensor | np.ndarray | None = None,
+        input_features: torch.Tensor | np.ndarray | None = None,
+        input_values: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -763,9 +765,9 @@ class ORTModelForMaskedLM(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -863,9 +865,9 @@ class ORTModelForQuestionAnswering(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -981,9 +983,9 @@ class ORTModelForSequenceClassification(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1083,9 +1085,9 @@ class ORTModelForTokenClassification(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1178,9 +1180,9 @@ class ORTModelForMultipleChoice(ORTModel):
     )
     def forward(
         self,
-        input_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        token_type_ids: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_ids: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        token_type_ids: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1281,7 +1283,7 @@ class ORTModelForImageClassification(ORTModel):
     )
     def forward(
         self,
-        pixel_values: Union[torch.Tensor, np.ndarray],
+        pixel_values: torch.Tensor | np.ndarray,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1377,7 +1379,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
     )
     def forward(
         self,
-        pixel_values: Union[torch.Tensor, np.ndarray],
+        pixel_values: torch.Tensor | np.ndarray,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1479,9 +1481,9 @@ class ORTModelForAudioClassification(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        attention_mask: Optional[Union[torch.Tensor, np.ndarray]] = None,
-        input_features: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: torch.Tensor | np.ndarray | None = None,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        input_features: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1575,7 +1577,7 @@ class ORTModelForCTC(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1677,7 +1679,7 @@ class ORTModelForAudioXVector(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1764,7 +1766,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
     )
     def forward(
         self,
-        input_values: Optional[Union[torch.Tensor, np.ndarray]] = None,
+        input_values: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1842,7 +1844,7 @@ class ORTModelForImageToImage(ORTModel):
     )
     def forward(
         self,
-        pixel_values: Union[torch.Tensor, np.ndarray],
+        pixel_values: torch.Tensor | np.ndarray,
         *,
         return_dict: bool = True,
         **kwargs,
@@ -1938,7 +1940,7 @@ class ORTModelForCustomTasks(ORTModel):
             checkpoint="optimum/sbert-all-MiniLM-L6-with-pooler",
         )
     )
-    def forward(self, **model_inputs: Union[torch.Tensor, np.ndarray]):
+    def forward(self, **model_inputs: torch.Tensor | np.ndarray):
         use_torch = isinstance(next(iter(model_inputs.values())), torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 

@@ -11,10 +11,12 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from __future__ import annotations
+
 import copy
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import onnx
 from optimum.onnx.transformations_utils import (
@@ -66,7 +68,7 @@ def remove_duplicate_weights(model: onnx.ModelProto, inplace: bool = False) -> o
 
 
 def remove_duplicate_weights_from_tied_info(  # noqa: D417
-    onnx_model: onnx.ModelProto, torch_model: "nn.Module", tied_params: list[list[str]], save_path: str
+    onnx_model: onnx.ModelProto, torch_model: nn.Module, tied_params: list[list[str]], save_path: str
 ):
     """Tries to remove potential duplicate ONNX initializers from the tied information in tied_params.
 
@@ -127,7 +129,7 @@ def replace_atenops_to_gather(model: onnx.ModelProto) -> onnx.ModelProto:
     return model
 
 
-def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, Path]]):
+def check_and_save_model(model: onnx.ModelProto, save_path: str | Path | None):
     # We can check ModelProtos that are smaller than 2GB before saving them.
     # For larger models, we need to save them first and then check their save path.
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
@@ -179,11 +181,11 @@ def check_and_save_model(model: onnx.ModelProto, save_path: Optional[Union[str, 
 
 
 def merge_decoders(
-    decoder: Union[onnx.ModelProto, Path, str],
-    decoder_with_past: Union[onnx.ModelProto, Path, str],
+    decoder: onnx.ModelProto | Path | str,
+    decoder_with_past: onnx.ModelProto | Path | str,
     graph_name: str = "merged",
     producer_name: str = "optimum-onnx",
-    save_path: Optional[Union[str, Path]] = None,
+    save_path: str | Path | None = None,
     strict: bool = True,
 ) -> onnx.ModelProto:
     """Fuses decoder ONNX model and decoder with past ONNX model into one ONNX model with if logic.

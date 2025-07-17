@@ -11,9 +11,9 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
 
 import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors, uses_external_data
@@ -77,7 +77,7 @@ def _get_model_external_data_paths(model_path: Path) -> list[Path]:
     return list({model_path.parent / tensor_name for tensor_name in model_tensors_ext})
 
 
-def check_model_uses_external_data(model: Union[onnx.ModelProto, Path, str]) -> bool:
+def check_model_uses_external_data(model: onnx.ModelProto | Path | str) -> bool:
     """Checks if the model uses external data."""
     if isinstance(model, (str, Path)):
         model = Path(model).as_posix()
@@ -87,7 +87,7 @@ def check_model_uses_external_data(model: Union[onnx.ModelProto, Path, str]) -> 
     return any(uses_external_data(tensor) for tensor in initializer_tensors)
 
 
-def has_onnx_input(model: Union[onnx.ModelProto, Path, str], input_name: str) -> bool:
+def has_onnx_input(model: onnx.ModelProto | Path | str, input_name: str) -> bool:
     """Checks if the model has a specific input."""
     if isinstance(model, (str, Path)):
         model = Path(model).as_posix()

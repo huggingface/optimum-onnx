@@ -13,10 +13,12 @@
 #  limitations under the License.
 """Main class for performing graph optimization with ONNX Runtime."""
 
+from __future__ import annotations
+
 import gc
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import onnx
 from onnx import load_model
@@ -45,7 +47,7 @@ logger = logging.get_logger()
 class ORTOptimizer:
     """Handles the ONNX Runtime optimization process for models shared on huggingface.co/models."""
 
-    def __init__(self, onnx_model_path: list[os.PathLike], config: "PretrainedConfig", from_ortmodel: bool = False):
+    def __init__(self, onnx_model_path: list[os.PathLike], config: PretrainedConfig, from_ortmodel: bool = False):
         """Initializes the `ORTOptimizer`.
 
         Args:
@@ -72,8 +74,8 @@ class ORTOptimizer:
 
     @classmethod
     def from_pretrained(
-        cls, model_or_path: Union[str, os.PathLike, ORTModel], file_names: Optional[list[str]] = None
-    ) -> "ORTOptimizer":
+        cls, model_or_path: str | os.PathLike | ORTModel, file_names: list[str] | None = None
+    ) -> ORTOptimizer:
         """Initializes the `ORTOptimizer` from a local directory or an `ORTModel`.
 
         Args:
@@ -121,9 +123,9 @@ class ORTOptimizer:
     def optimize(
         self,
         optimization_config: OptimizationConfig,
-        save_dir: Union[str, os.PathLike],
-        file_suffix: Optional[str] = "optimized",
-        use_external_data_format: Optional[bool] = None,
+        save_dir: str | os.PathLike,
+        file_suffix: str | None = "optimized",
+        use_external_data_format: bool | None = None,
         one_external_file: bool = True,
     ):
         """Optimizes a model given the optimization specifications defined in `optimization_config`.
@@ -248,7 +250,7 @@ class ORTOptimizer:
         return Path(save_dir)
 
     @staticmethod
-    def get_fused_operators(onnx_model_path: Union[str, os.PathLike]) -> dict[str, int]:
+    def get_fused_operators(onnx_model_path: str | os.PathLike) -> dict[str, int]:
         """Computes the dictionary mapping the name of the fused operators to their number of apparition in the model.
 
         Args:
@@ -267,7 +269,7 @@ class ORTOptimizer:
 
     @staticmethod
     def get_nodes_number_difference(
-        onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
+        onnx_model_path: str | os.PathLike, onnx_optimized_model_path: str | os.PathLike
     ) -> int:
         """Compute the difference in the number of nodes between the original and the optimized model.
 
@@ -295,7 +297,7 @@ class ORTOptimizer:
 
     @staticmethod
     def get_operators_difference(
-        onnx_model_path: Union[str, os.PathLike], onnx_optimized_model_path: Union[str, os.PathLike]
+        onnx_model_path: str | os.PathLike, onnx_optimized_model_path: str | os.PathLike
     ) -> dict[str, int]:
         """Compute the dictionary mapping the operators name to the difference in the number of corresponding nodes between
         the original and the optimized model.

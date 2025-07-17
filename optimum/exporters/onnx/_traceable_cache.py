@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import torch
 
@@ -19,7 +21,7 @@ class TraceableCache:
         key_states: torch.Tensor,
         value_states: torch.Tensor,
         layer_idx: int,
-        cache_kwargs: Optional[dict[str, Any]] = None,
+        cache_kwargs: dict[str, Any] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Updates the cache with the new `key_states` and `value_states` for the layer `layer_idx`.
 
@@ -39,7 +41,7 @@ class TraceableCache:
         """
         raise NotImplementedError("Make sure to implement `update` in a subclass.")
 
-    def get_seq_length(self, layer_idx: Optional[int] = 0) -> int:
+    def get_seq_length(self, layer_idx: int | None = 0) -> int:
         """Returns the sequence length of the cached states. A layer index can be optionally passed."""
         # TODO: deprecate this function in favor of `cache_position`
         raise NotImplementedError("Make sure to implement `get_seq_length` in a subclass.")
@@ -48,18 +50,18 @@ class TraceableCache:
     # Prev some cache objects didn't have "max_length" (SlidingWindowCache or SinkCache) because the cache object technically handles
     # infinite amount of tokens. In the codebase what we really need to check is the max capacity of certain cache instances, so
     # we change naming to be more explicit
-    def get_max_length(self) -> Optional[int]:
+    def get_max_length(self) -> int | None:
         logger.warning_once(
             "`get_max_cache()` is deprecated for all Cache classes. Use `get_max_cache_shape()` instead. "
             "Calling `get_max_cache()` will raise error from v4.48"
         )
         return self.get_max_cache_shape()
 
-    def get_max_cache_shape(self) -> Optional[int]:
+    def get_max_cache_shape(self) -> int | None:
         """Returns the maximum sequence length (i.e. max capacity) of the cache object."""
         raise NotImplementedError("Make sure to implement `get_max_cache_shape` in a subclass.")
 
-    def get_usable_length(self, new_seq_length: int, layer_idx: Optional[int] = 0) -> int:
+    def get_usable_length(self, new_seq_length: int, layer_idx: int | None = 0) -> int:
         """Given the sequence length of the new inputs, returns the usable length of the cache."""
         # Cache without size limit -> all cache is usable
         # Cache with size limit -> if the length cache plus the length of the new inputs is larger the maximum cache

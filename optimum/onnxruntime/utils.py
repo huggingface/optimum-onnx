@@ -13,13 +13,15 @@
 #  limitations under the License.
 """Utility functions, classes and constants for ONNX Runtime."""
 
+from __future__ import annotations
+
 import importlib
 import os
 import re
 from collections.abc import Sequence
 from enum import Enum
 from inspect import signature
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 import numpy as np
 import torch
@@ -172,7 +174,7 @@ def get_provider_for_device(device: torch.device) -> str:
     return "CPUExecutionProvider"
 
 
-def parse_device(device: Union[torch.device, str, int]) -> tuple[torch.device, dict]:
+def parse_device(device: torch.device | str | int) -> tuple[torch.device, dict]:
     """Gets the relevant torch.device from the passed device, and if relevant the provider options (e.g. to set the GPU id)."""
     if device == -1:
         device = torch.device("cpu")
@@ -240,8 +242,8 @@ def validate_provider_availability(provider: str):
 
 def prepare_providers_and_provider_options(
     provider: str = "CPUExecutionProvider",
-    providers: Optional[Sequence[str]] = None,
-    provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
+    providers: Sequence[str] | None = None,
+    provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
 ):
     """Prepare the providers and provider options for ONNX Runtime.
 
@@ -272,7 +274,7 @@ def prepare_providers_and_provider_options(
     return providers, provider_options
 
 
-def check_io_binding(providers: list[str], use_io_binding: Optional[bool] = None) -> bool:
+def check_io_binding(providers: list[str], use_io_binding: bool | None = None) -> bool:
     """Whether to use IOBinding or not."""
     if use_io_binding is None and providers[0] == "CUDAExecutionProvider":
         use_io_binding = True
@@ -339,10 +341,10 @@ class ORTQuantizableOperator(Enum):
 
 
 def evaluation_loop(
-    model: "ORTModel",
-    dataset: "Dataset",
-    label_names: Optional[list[str]] = None,
-    compute_metrics: Optional[Callable[[EvalPrediction], dict]] = None,
+    model: ORTModel,
+    dataset: Dataset,
+    label_names: list[str] | None = None,
+    compute_metrics: Callable[[EvalPrediction], dict] | None = None,
 ):
     """Run evaluation and returns metrics and predictions.
 

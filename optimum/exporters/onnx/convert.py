@@ -13,6 +13,8 @@
 # limitations under the License.
 """ONNX model check and export functions."""
 
+from __future__ import annotations
+
 import copy
 import gc
 import multiprocessing as mp
@@ -21,7 +23,7 @@ import traceback
 from inspect import signature
 from itertools import chain
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 import numpy as np
 from transformers.generation import GenerationMixin
@@ -80,15 +82,15 @@ class DynamicAxisNameError(ValueError):
 
 
 def validate_models_outputs(
-    models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
     onnx_named_outputs: list[list[str]],
     output_dir: Path,
-    atol: Optional[float] = None,
-    onnx_files_subpaths: Optional[list[str]] = None,
-    input_shapes: Optional[dict] = None,
+    atol: float | None = None,
+    onnx_files_subpaths: list[str] | None = None,
+    input_shapes: dict | None = None,
     device: str = "cpu",
-    use_subprocess: Optional[bool] = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
+    use_subprocess: bool | None = True,
+    model_kwargs: dict[str, Any] | None = None,
 ):
     """Validates the export of several models, by checking that the outputs from both the reference and the exported model match.
     The following method validates the ONNX models exported using the `export_models` method.
@@ -164,14 +166,14 @@ def validate_models_outputs(
 
 def validate_model_outputs(
     config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "ModelMixin"],
+    reference_model: PreTrainedModel | ModelMixin,
     onnx_model: Path,
     onnx_named_outputs: list[str],
-    atol: Optional[float] = None,
-    input_shapes: Optional[dict] = None,
+    atol: float | None = None,
+    input_shapes: dict | None = None,
     device: str = "cpu",
-    use_subprocess: Optional[bool] = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
+    use_subprocess: bool | None = True,
+    model_kwargs: dict[str, Any] | None = None,
 ):
     """Validates the export by checking that the outputs from both the reference and the exported model match.
 
@@ -227,13 +229,13 @@ def validate_model_outputs(
 
 def _run_validation(
     config: OnnxConfig,
-    reference_model: Union["PreTrainedModel", "ModelMixin"],
+    reference_model: PreTrainedModel | ModelMixin,
     onnx_model: Path,
     onnx_named_outputs: list[str],
-    atol: Optional[float] = None,
-    input_shapes: Optional[dict] = None,
+    atol: float | None = None,
+    input_shapes: dict | None = None,
     device: str = "cpu",
-    model_kwargs: Optional[dict[str, Any]] = None,
+    model_kwargs: dict[str, Any] | None = None,
 ):
     from onnxruntime import GraphOptimizationLevel, SessionOptions
 
@@ -416,13 +418,13 @@ class ValidationProcess(mp.Process):
     def __init__(
         self,
         config: OnnxConfig,
-        reference_model: Union["PreTrainedModel", "ModelMixin"],
+        reference_model: PreTrainedModel | ModelMixin,
         onnx_model: Path,
         onnx_named_outputs: list[str],
-        atol: Optional[float] = None,
-        input_shapes: Optional[dict] = None,
+        atol: float | None = None,
+        input_shapes: dict | None = None,
         device: str = "cpu",
-        model_kwargs: Optional[dict[str, Any]] = None,
+        model_kwargs: dict[str, Any] | None = None,
     ):
         super().__init__()
         self._pconn, self._cconn = mp.Pipe()
@@ -461,15 +463,15 @@ class ValidationProcess(mp.Process):
 
 
 def export_pytorch(
-    model: Union["PreTrainedModel", "ModelMixin"],
+    model: PreTrainedModel | ModelMixin,
     config: OnnxConfig,
     opset: int,
     output: Path,
     device: str = "cpu",
-    input_shapes: Optional[dict] = None,
+    input_shapes: dict | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
+    model_kwargs: dict[str, Any] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Exports a PyTorch model to an ONNX Intermediate Representation.
 
@@ -610,17 +612,17 @@ def export_pytorch(
 
 
 def export_models(
-    models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+    models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
     output_dir: Path,
-    opset: Optional[int] = None,
-    output_names: Optional[list[str]] = None,
+    opset: int | None = None,
+    output_names: list[str] | None = None,
     device: str = "cpu",
-    input_shapes: Optional[dict] = None,
-    disable_dynamic_axes_fix: Optional[bool] = False,
-    dtype: Optional[str] = None,
+    input_shapes: dict | None = None,
+    disable_dynamic_axes_fix: bool | None = False,
+    dtype: str | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
+    model_kwargs: dict[str, Any] | None = None,
 ) -> tuple[list[list[str]], list[list[str]]]:
     """Exports a Pytorch encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
@@ -697,17 +699,17 @@ def export_models(
 
 
 def export(
-    model: Union["PreTrainedModel", "ModelMixin"],
+    model: PreTrainedModel | ModelMixin,
     config: OnnxConfig,
     output: Path,
-    opset: Optional[int] = None,
+    opset: int | None = None,
     device: str = "cpu",
-    input_shapes: Optional[dict] = None,
-    disable_dynamic_axes_fix: Optional[bool] = False,
-    dtype: Optional[str] = None,
+    input_shapes: dict | None = None,
+    disable_dynamic_axes_fix: bool | None = False,
+    dtype: str | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
+    model_kwargs: dict[str, Any] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Exports a Pytorch model to an ONNX Intermediate Representation.
 
@@ -800,23 +802,23 @@ def export(
 
 
 def onnx_export_from_model(
-    model: Union["PreTrainedModel", "DiffusionPipeline"],
-    output: Union[str, Path],
-    opset: Optional[int] = None,
-    optimize: Optional[str] = None,
+    model: PreTrainedModel | DiffusionPipeline,
+    output: str | Path,
+    opset: int | None = None,
+    optimize: str | None = None,
     monolith: bool = False,
     no_post_process: bool = False,
-    atol: Optional[float] = None,
+    atol: float | None = None,
     do_validation: bool = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
-    custom_onnx_configs: Optional[dict[str, "OnnxConfig"]] = None,
-    fn_get_submodels: Optional[Callable] = None,
+    model_kwargs: dict[str, Any] | None = None,
+    custom_onnx_configs: dict[str, OnnxConfig] | None = None,
+    fn_get_submodels: Callable | None = None,
     _variant: str = "default",
     legacy: bool = False,
-    preprocessors: Optional[list] = None,
+    preprocessors: list | None = None,
     device: str = "cpu",
     no_dynamic_axes: bool = False,
-    task: Optional[str] = None,
+    task: str | None = None,
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,

@@ -13,10 +13,12 @@
 #  limitations under the License.
 """Defines the base classes that are used to perform inference with ONNX Runtime sessions."""
 
+from __future__ import annotations
+
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -45,7 +47,7 @@ class ORTSessionMixin:
     It also provides methods to prepare the inputs and outputs for ONNX Runtime.
     """
 
-    def initialize_ort_attributes(self, session: InferenceSession, use_io_binding: Optional[bool] = None):
+    def initialize_ort_attributes(self, session: InferenceSession, use_io_binding: bool | None = None):
         """Initializes the ORTSessionMixin class.
 
         Args:
@@ -142,7 +144,7 @@ class ORTSessionMixin:
         return self._dtype
 
     @property
-    def use_io_binding(self) -> Optional[bool]:
+    def use_io_binding(self) -> bool | None:
         """Returns whether IO Binding is used or not."""
         return self._use_io_binding
 
@@ -231,7 +233,7 @@ class ORTSessionMixin:
             )
 
     def _prepare_onnx_inputs(  # noqa: D417
-        self, use_torch: bool, model_inputs: dict[str, Union[torch.Tensor, np.ndarray]]
+        self, use_torch: bool, model_inputs: dict[str, torch.Tensor | np.ndarray]
     ) -> dict[str, np.ndarray]:
         """Prepares the inputs for ONNX Runtime by converting them to numpy arrays with the expected dtype.
 
@@ -264,7 +266,7 @@ class ORTSessionMixin:
 
     def _prepare_onnx_outputs(
         self, use_torch: bool, onnx_outputs: list[np.ndarray]
-    ) -> dict[str, Union[torch.Tensor, np.ndarray]]:
+    ) -> dict[str, torch.Tensor | np.ndarray]:
         """Prepares the outputs from ONNX Runtime by converting them to torch.Tensor if requested.
 
         Args:
@@ -335,7 +337,7 @@ class ORTSessionMixin:
 
         return output_shape
 
-    def _dynamic_axis_inference(self, axis_name: Union[str], known_axes_values: dict[str, int]) -> int:
+    def _dynamic_axis_inference(self, axis_name: str, known_axes_values: dict[str, int]) -> int:
         """Infers the value of a given dynamic axis by using the `known_axes_values` mapping.
 
         For instance, for the following inputs:
@@ -359,9 +361,9 @@ class ORTSessionMixin:
     def _prepare_io_binding(
         self,
         model_inputs: dict[str, torch.Tensor],
-        outputs_to_not_bind: Optional[set[str]] = None,
-        known_output_buffers: Optional[dict[str, str]] = None,
-        known_output_shapes: Optional[dict[str, tuple[int]]] = None,
+        outputs_to_not_bind: set[str] | None = None,
+        known_output_buffers: dict[str, str] | None = None,
+        known_output_shapes: dict[str, tuple[int]] | None = None,
     ) -> tuple[dict[str, tuple[int]], dict[str, torch.Tensor]]:
         """Prepares IO binding for ONNX Runtime.
 
@@ -459,7 +461,7 @@ class ORTSessionMixin:
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-    def save_session(self, save_directory: Union[str, Path]):
+    def save_session(self, save_directory: str | Path):
         """Saves the ONNX Runtime session to the specified directory.
 
         Args:

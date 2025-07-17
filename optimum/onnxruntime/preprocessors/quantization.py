@@ -11,11 +11,12 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from logging import getLogger
 from os import PathLike
 from pathlib import Path
-from typing import Optional, Union
 
 from onnx import ModelProto, load_model
 
@@ -30,7 +31,7 @@ class PreprocessorPass(ABC):
         self._logger = LOGGER
 
     @abstractmethod
-    def __call__(self, graph: ModelProto, model: OnnxModel) -> tuple[Optional[set[str]], Optional[set[str]]]:
+    def __call__(self, graph: ModelProto, model: OnnxModel) -> tuple[set[str] | None, set[str] | None]:
         raise NotImplementedError()
 
 
@@ -47,7 +48,7 @@ class QuantizationPreprocessor:
         if target not in self._passes:
             self._passes.append(target)
 
-    def collect(self, model_or_path: Union[str, PathLike, Path, bytes]) -> tuple[set[str], set[str]]:
+    def collect(self, model_or_path: str | PathLike | Path | bytes) -> tuple[set[str], set[str]]:
         global_nodes_to_quantize, global_nodes_to_exclude = set(), set()
         graph = load_model(model_or_path.as_posix() if isinstance(model_or_path, Path) else model_or_path)
         model = OnnxModel(graph)

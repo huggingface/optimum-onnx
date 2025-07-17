@@ -13,7 +13,9 @@
 # limitations under the License.
 """Utility functions."""
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 from packaging import version
@@ -120,7 +122,7 @@ def check_onnxruntime_requirements(minimum_version: version.Version):
         )
 
 
-def recursive_to_device(value: Union[tuple, list, "torch.Tensor"], device: str):
+def recursive_to_device(value: tuple | list | torch.Tensor, device: str):
     if isinstance(value, tuple):
         value = list(value)
         for i, val in enumerate(value):
@@ -136,7 +138,7 @@ def recursive_to_device(value: Union[tuple, list, "torch.Tensor"], device: str):
 
 
 def recursive_to_dtype(
-    value: Union[tuple, list, "torch.Tensor"], dtype: Optional[torch.dtype], start_dtype: Optional[torch.dtype] = None
+    value: tuple | list | torch.Tensor, dtype: torch.dtype | None, start_dtype: torch.dtype | None = None
 ):
     if dtype is None:
         return value
@@ -186,7 +188,7 @@ class PickableInferenceSession:  # This is a wrapper to make the current Inferen
 
 
 def _get_submodels_and_onnx_configs(
-    model: Union["PreTrainedModel"],
+    model: PreTrainedModel,
     task: str,
     monolith: bool,
     custom_onnx_configs: dict,
@@ -195,10 +197,10 @@ def _get_submodels_and_onnx_configs(
     library_name: str,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
-    fn_get_submodels: Optional[Callable] = None,
-    preprocessors: Optional[list[Any]] = None,
+    fn_get_submodels: Callable | None = None,
+    preprocessors: list[Any] | None = None,
     legacy: bool = False,
-    model_kwargs: Optional[dict] = None,
+    model_kwargs: dict | None = None,
 ):
     return _get_submodels_and_export_configs(
         model,
@@ -222,35 +224,33 @@ DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx
 
 
 def get_diffusion_models_for_export(
-    pipeline: "DiffusionPipeline",
+    pipeline: DiffusionPipeline,
     int_dtype: str = "int64",
     float_dtype: str = "fp32",
-) -> dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "ExporterConfig"]]:
+) -> dict[str, tuple[PreTrainedModel | ModelMixin, ExporterConfig]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
     return _get_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
 
 
-def get_sam_models_for_export(model: Union["PreTrainedModel"], config: "ExporterConfig"):
+def get_sam_models_for_export(model: PreTrainedModel, config: ExporterConfig):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="sam"))
     return _get_sam_models_for_export(model, config)
 
 
-def get_speecht5_models_for_export(
-    model: Union["PreTrainedModel"], config: "ExporterConfig", model_kwargs: Optional[dict]
-):
+def get_speecht5_models_for_export(model: PreTrainedModel, config: ExporterConfig, model_kwargs: dict | None):
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
     return _get_speecht5_models_for_export(model, config)
 
 
 def get_encoder_decoder_models_for_export(
-    model: Union["PreTrainedModel"], config: "ExporterConfig"
-) -> dict[str, tuple[Union["PreTrainedModel"], "ExporterConfig"]]:
+    model: PreTrainedModel, config: ExporterConfig
+) -> dict[str, tuple[PreTrainedModel, ExporterConfig]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder-decoder"))
     return _get_encoder_decoder_models_for_export(model, config)
 
 
 def get_decoder_models_for_export(
-    model: Union["PreTrainedModel"], config: "ExporterConfig", legacy: bool = False
-) -> dict[str, tuple[Union["PreTrainedModel"], "ExporterConfig"]]:
+    model: PreTrainedModel, config: ExporterConfig, legacy: bool = False
+) -> dict[str, tuple[PreTrainedModel, ExporterConfig]]:
     logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="decoder"))
     return _get_decoder_models_for_export(model, config, legacy)

@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from __future__ import annotations
 
 import importlib
 import inspect
@@ -20,7 +21,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -93,26 +94,26 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         self,
         *,
         # pipeline models
-        unet_session: Optional["InferenceSession"] = None,
-        transformer_session: Optional["InferenceSession"] = None,
-        vae_decoder_session: Optional["InferenceSession"] = None,
-        vae_encoder_session: Optional["InferenceSession"] = None,
-        text_encoder_session: Optional["InferenceSession"] = None,
-        text_encoder_2_session: Optional["InferenceSession"] = None,
-        text_encoder_3_session: Optional["InferenceSession"] = None,
+        unet_session: InferenceSession | None = None,
+        transformer_session: InferenceSession | None = None,
+        vae_decoder_session: InferenceSession | None = None,
+        vae_encoder_session: InferenceSession | None = None,
+        text_encoder_session: InferenceSession | None = None,
+        text_encoder_2_session: InferenceSession | None = None,
+        text_encoder_3_session: InferenceSession | None = None,
         # pipeline submodels
-        scheduler: Optional["SchedulerMixin"] = None,
-        tokenizer: Optional["CLIPTokenizer"] = None,
-        tokenizer_2: Optional["CLIPTokenizer"] = None,
-        tokenizer_3: Optional["CLIPTokenizer"] = None,
-        feature_extractor: Optional["CLIPFeatureExtractor"] = None,
+        scheduler: SchedulerMixin | None = None,
+        tokenizer: CLIPTokenizer | None = None,
+        tokenizer_2: CLIPTokenizer | None = None,
+        tokenizer_3: CLIPTokenizer | None = None,
+        feature_extractor: CLIPFeatureExtractor | None = None,
         # stable diffusion xl specific arguments
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetics_score: bool = False,
-        add_watermarker: Optional[bool] = None,
+        add_watermarker: bool | None = None,
         # onnxruntime specific arguments
-        use_io_binding: Optional[bool] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        use_io_binding: bool | None = None,
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
         **kwargs,
     ):
         # We initialize all ort session mixins first
@@ -206,7 +207,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         self.model_save_dir = model_save_dir
 
     @property
-    def components(self) -> dict[str, Optional[Union[ORTSessionMixin, torch.nn.Module]]]:
+    def components(self) -> dict[str, ORTSessionMixin | torch.nn.Module | None]:
         # TODO: all components should be ORTSessionMixin's at some point
         components = {
             "vae": self.vae,
@@ -221,7 +222,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         components = {k: v for k, v in components.items() if v is not None}
         return components
 
-    def to(self, device: Union[torch.device, str, int]):
+    def to(self, device: torch.device | str | int):
         """Changes the device of the pipeline components to the specified device.
 
         Args:
@@ -241,16 +242,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
     @classmethod
     def from_pretrained(
         cls,
-        model_name_or_path: Union[str, Path],
+        model_name_or_path: str | Path,
         # export options
         export: bool = False,
         # session options
         provider: str = "CPUExecutionProvider",
-        providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        providers: Sequence[str] | None = None,
+        provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
+        session_options: SessionOptions | None = None,
         # inference options
-        use_io_binding: Optional[bool] = None,
+        use_io_binding: bool | None = None,
         # hub options and preloaded models
         **kwargs,
     ):
@@ -418,8 +419,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
     def save_pretrained(
         self,
-        save_directory: Union[str, Path],
-        push_to_hub: Optional[bool] = False,
+        save_directory: str | Path,
+        push_to_hub: bool | None = False,
         **kwargs,
     ):
         """Saves a model and its configuration file to a directory, so that it can be re-loaded using the
@@ -519,9 +520,9 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
 
     def __init__(
         self,
-        session: "InferenceSession",
-        parent: "ORTDiffusionPipeline",
-        use_io_binding: Optional[bool] = None,
+        session: InferenceSession,
+        parent: ORTDiffusionPipeline,
+        use_io_binding: bool | None = None,
     ):
         self.initialize_ort_attributes(session, use_io_binding=use_io_binding)
         self.parent = parent
@@ -533,7 +534,7 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
         config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
 
-    def save_pretrained(self, save_directory: Union[str, Path]):
+    def save_pretrained(self, save_directory: str | Path):
         """Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
 
@@ -568,12 +569,12 @@ class ORTUnet(ORTModelMixin):
 
     def forward(
         self,
-        sample: Union[np.ndarray, torch.Tensor],
-        timestep: Union[np.ndarray, torch.Tensor],
-        encoder_hidden_states: Union[np.ndarray, torch.Tensor],
-        timestep_cond: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        cross_attention_kwargs: Optional[dict[str, Any]] = None,
-        added_cond_kwargs: Optional[dict[str, Any]] = None,
+        sample: np.ndarray | torch.Tensor,
+        timestep: np.ndarray | torch.Tensor,
+        encoder_hidden_states: np.ndarray | torch.Tensor,
+        timestep_cond: np.ndarray | torch.Tensor | None = None,
+        cross_attention_kwargs: dict[str, Any] | None = None,
+        added_cond_kwargs: dict[str, Any] | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(sample, torch.Tensor)
@@ -627,14 +628,14 @@ class ORTUnet(ORTModelMixin):
 class ORTTransformer(ORTModelMixin):
     def forward(
         self,
-        hidden_states: Union[np.ndarray, torch.Tensor],
-        encoder_hidden_states: Union[np.ndarray, torch.Tensor],
-        pooled_projections: Union[np.ndarray, torch.Tensor],
-        timestep: Union[np.ndarray, torch.Tensor],
-        guidance: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        txt_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        img_ids: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        joint_attention_kwargs: Optional[dict[str, Any]] = None,
+        hidden_states: np.ndarray | torch.Tensor,
+        encoder_hidden_states: np.ndarray | torch.Tensor,
+        pooled_projections: np.ndarray | torch.Tensor,
+        timestep: np.ndarray | torch.Tensor,
+        guidance: np.ndarray | torch.Tensor | None = None,
+        txt_ids: np.ndarray | torch.Tensor | None = None,
+        img_ids: np.ndarray | torch.Tensor | None = None,
+        joint_attention_kwargs: dict[str, Any] | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
@@ -687,9 +688,9 @@ class ORTTransformer(ORTModelMixin):
 class ORTTextEncoder(ORTModelMixin):
     def forward(
         self,
-        input_ids: Union[np.ndarray, torch.Tensor],
-        attention_mask: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        output_hidden_states: Optional[bool] = None,
+        input_ids: np.ndarray | torch.Tensor,
+        attention_mask: np.ndarray | torch.Tensor | None = None,
+        output_hidden_states: bool | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -745,8 +746,8 @@ class ORTVaeEncoder(ORTModelMixin):
 
     def forward(
         self,
-        sample: Union[np.ndarray, torch.Tensor],
-        generator: Optional[torch.Generator] = None,
+        sample: np.ndarray | torch.Tensor,
+        generator: torch.Generator | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(sample, torch.Tensor)
@@ -799,8 +800,8 @@ class ORTVaeDecoder(ORTModelMixin):
 
     def forward(
         self,
-        latent_sample: Union[np.ndarray, torch.Tensor],
-        generator: Optional[torch.Generator] = None,
+        latent_sample: np.ndarray | torch.Tensor,
+        generator: torch.Generator | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(latent_sample, torch.Tensor)
@@ -835,7 +836,7 @@ class ORTVaeDecoder(ORTModelMixin):
 
 
 class ORTVae(ORTParentMixin):
-    def __init__(self, encoder: Optional[ORTVaeEncoder] = None, decoder: Optional[ORTVaeDecoder] = None):
+    def __init__(self, encoder: ORTVaeEncoder | None = None, decoder: ORTVaeDecoder | None = None):
         self.encoder = encoder
         self.decoder = decoder
 

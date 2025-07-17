@@ -15,6 +15,8 @@
 
 """Finetuning the library models for image classification on beans."""
 
+from __future__ import annotations
+
 # You can also adapt this script on your own image classification task. Pointers for this are left as comments.
 import json
 import logging
@@ -22,7 +24,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Optional
 
 import datasets
 import numpy as np
@@ -62,10 +63,10 @@ class DataTrainingArguments:
     the command line.
     """
 
-    dataset_name: Optional[str] = field(
+    dataset_name: str | None = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
-    dataset_config_name: Optional[str] = field(
+    dataset_config_name: str | None = field(
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
     max_seq_length: int = field(
@@ -78,22 +79,22 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
     )
-    max_eval_samples: Optional[int] = field(
+    max_eval_samples: int | None = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
             "value if set."
         },
     )
-    max_predict_samples: Optional[int] = field(
+    max_predict_samples: int | None = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
             "value if set."
         },
     )
-    train_dir: Optional[str] = field(default=None, metadata={"help": "A directory path for the training data."})
-    validation_dir: Optional[str] = field(default=None, metadata={"help": "A directory path for the validation data."})
+    train_dir: str | None = field(default=None, metadata={"help": "A directory path for the training data."})
+    validation_dir: str | None = field(default=None, metadata={"help": "A directory path for the validation data."})
 
 
 @dataclass
@@ -103,7 +104,7 @@ class ModelArguments:
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-    cache_dir: Optional[str] = field(
+    cache_dir: str | None = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )

@@ -13,12 +13,14 @@
 #  limitations under the License.
 """Classes handling quantization with ONNX Runtime."""
 
+from __future__ import annotations
+
 import logging
 import os
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Union
+from typing import TYPE_CHECKING, Callable
 
 import onnx
 from packaging.version import Version, parse
@@ -48,7 +50,7 @@ LOGGER = logging.getLogger(__name__)
 class ORTCalibrationDataReader(CalibrationDataReader):
     __slots__ = ["_dataset_iter", "batch_size", "dataset"]
 
-    def __init__(self, dataset: "Dataset", batch_size: int = 1):
+    def __init__(self, dataset: Dataset, batch_size: int = 1):
         if dataset is None:
             raise ValueError("Provided dataset is None.")
 
@@ -84,7 +86,7 @@ class ORTCalibrationDataReader(CalibrationDataReader):
 class ORTQuantizer(OptimumQuantizer):
     """Handles the ONNX Runtime quantization process for models shared on huggingface.co/models."""
 
-    def __init__(self, onnx_model_path: Path, config: Optional["PretrainedConfig"] = None):
+    def __init__(self, onnx_model_path: Path, config: PretrainedConfig | None = None):
         """Initializes the `ORTQuantizer`.
 
         Args:
@@ -110,9 +112,9 @@ class ORTQuantizer(OptimumQuantizer):
     @classmethod
     def from_pretrained(
         cls,
-        model_or_path: Union["ORTModel", str, Path],
-        file_name: Optional[str] = None,
-    ) -> "ORTQuantizer":
+        model_or_path: ORTModel | str | Path,
+        file_name: str | None = None,
+    ) -> ORTQuantizer:
         """Instantiates a `ORTQuantizer` from an ONNX model file or an `ORTModel`.
 
         Args:
@@ -157,10 +159,10 @@ class ORTQuantizer(OptimumQuantizer):
 
     def fit(
         self,
-        dataset: "Dataset",
+        dataset: Dataset,
         calibration_config: CalibrationConfig,
-        onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[list[str]] = None,
+        onnx_augmented_model_name: str | Path = "augmented_model.onnx",
+        operators_to_quantize: list[str] | None = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -210,10 +212,10 @@ class ORTQuantizer(OptimumQuantizer):
 
     def partial_fit(
         self,
-        dataset: "Dataset",
+        dataset: Dataset,
         calibration_config: CalibrationConfig,
-        onnx_augmented_model_name: Union[str, Path] = "augmented_model.onnx",
-        operators_to_quantize: Optional[list[str]] = None,
+        onnx_augmented_model_name: str | Path = "augmented_model.onnx",
+        operators_to_quantize: list[str] | None = None,
         batch_size: int = 1,
         use_external_data_format: bool = False,
         use_gpu: bool = False,
@@ -278,11 +280,11 @@ class ORTQuantizer(OptimumQuantizer):
     def quantize(
         self,
         quantization_config: QuantizationConfig,
-        save_dir: Union[str, Path],
-        file_suffix: Optional[str] = "quantized",
-        calibration_tensors_range: Optional[dict[str, tuple[float, float]]] = None,
+        save_dir: str | Path,
+        file_suffix: str | None = "quantized",
+        calibration_tensors_range: dict[str, tuple[float, float]] | None = None,
         use_external_data_format: bool = False,
-        preprocessor: Optional[QuantizationPreprocessor] = None,
+        preprocessor: QuantizationPreprocessor | None = None,
     ) -> Path:
         """Quantizes a model given the optimization specifications defined in `quantization_config`.
 
@@ -416,14 +418,14 @@ class ORTQuantizer(OptimumQuantizer):
         self,
         dataset_name: str,
         num_samples: int = 100,
-        dataset_config_name: Optional[str] = None,
-        dataset_split: Optional[str] = None,
-        preprocess_function: Optional[Callable] = None,
+        dataset_config_name: str | None = None,
+        dataset_split: str | None = None,
+        preprocess_function: Callable | None = None,
         preprocess_batch: bool = True,
         seed: int = 2016,
-        use_auth_token: Optional[Union[bool, str]] = None,
-        token: Optional[Union[bool, str]] = None,
-    ) -> "Dataset":
+        use_auth_token: bool | str | None = None,
+        token: bool | str | None = None,
+    ) -> Dataset:
         """Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
 
         Args:
@@ -490,7 +492,7 @@ class ORTQuantizer(OptimumQuantizer):
 
         return self.clean_calibration_dataset(processed_calib_dataset)
 
-    def clean_calibration_dataset(self, dataset: "Dataset") -> "Dataset":
+    def clean_calibration_dataset(self, dataset: Dataset) -> Dataset:
         model = onnx.load(self.onnx_model_path)
         model_inputs = {input.name for input in model.graph.input}
         ignored_columns = list(set(dataset.column_names) - model_inputs)

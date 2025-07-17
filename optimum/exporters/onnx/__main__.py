@@ -13,6 +13,8 @@
 # limitations under the License.
 """Entry point to the optimum.exporters.onnx command line."""
 
+from __future__ import annotations
+
 import argparse
 from pathlib import Path
 
@@ -39,7 +41,7 @@ from optimum.utils.save_utils import maybe_load_preprocessors
 if is_torch_available():
     import torch
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 
 if TYPE_CHECKING:
@@ -50,18 +52,18 @@ logger = logging.get_logger()
 
 def main_export(
     model_name_or_path: str,
-    output: Union[str, Path],
+    output: str | Path,
     task: str = "auto",
-    opset: Optional[int] = None,
+    opset: int | None = None,
     device: str = "cpu",
-    dtype: Optional[str] = None,
-    fp16: Optional[bool] = False,
-    optimize: Optional[str] = None,
+    dtype: str | None = None,
+    fp16: bool | None = False,
+    optimize: str | None = None,
     monolith: bool = False,
     no_post_process: bool = False,
-    framework: Optional[str] = None,
-    atol: Optional[float] = None,
-    pad_token_id: Optional[int] = None,
+    framework: str | None = None,
+    atol: float | None = None,
+    pad_token_id: int | None = None,
     # hub options
     subfolder: str = "",
     revision: str = "main",
@@ -69,16 +71,16 @@ def main_export(
     local_files_only: bool = False,
     trust_remote_code: bool = False,
     cache_dir: str = HUGGINGFACE_HUB_CACHE,
-    token: Optional[Union[bool, str]] = None,
+    token: bool | str | None = None,
     ########################################
     for_ort: bool = False,
     do_validation: bool = True,
-    model_kwargs: Optional[dict[str, Any]] = None,
-    custom_onnx_configs: Optional[dict[str, "OnnxConfig"]] = None,
-    fn_get_submodels: Optional[Callable] = None,
+    model_kwargs: dict[str, Any] | None = None,
+    custom_onnx_configs: dict[str, OnnxConfig] | None = None,
+    fn_get_submodels: Callable | None = None,
     use_subprocess: bool = False,
     _variant: str = "default",
-    library_name: Optional[str] = None,
+    library_name: str | None = None,
     legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,

@@ -13,11 +13,13 @@
 #  limitations under the License.
 """ORTModelForXXX classes related to seq2seq, allowing to run ONNX Models with ONNX Runtime using the same API as Transformers."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -341,9 +343,9 @@ class ORTEncoder(ORTSessionMixin):
 
     def __init__(
         self,
-        session: "InferenceSession",
-        parent_model: "ORTModelForConditionalGeneration",
-        use_io_binding: Optional[bool] = None,
+        session: InferenceSession,
+        parent_model: ORTModelForConditionalGeneration,
+        use_io_binding: bool | None = None,
     ):
         self.initialize_ort_attributes(session, use_io_binding)
         config = parent_model.config.encoder if hasattr(parent_model.config, "encoder") else parent_model.config
@@ -386,9 +388,9 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
 
     def __init__(
         self,
-        session: "InferenceSession",
-        parent_model: "ORTModelForConditionalGeneration",
-        use_io_binding: Optional[bool] = None,
+        session: InferenceSession,
+        parent_model: ORTModelForConditionalGeneration,
+        use_io_binding: bool | None = None,
     ):
         self.initialize_ort_attributes(session, use_io_binding)
 
@@ -441,8 +443,8 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         self,
         input_ids: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
-        use_cache_branch: Optional[bool],
-        past_key_values: Optional[tuple[tuple[torch.FloatTensor]]] = None,
+        use_cache_branch: bool | None,
+        past_key_values: tuple[tuple[torch.FloatTensor]] | None = None,
     ) -> dict[str, int]:
         batch_size = input_ids.size(0)
 
@@ -486,10 +488,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         self,
         input_ids: torch.LongTensor,
         encoder_hidden_states: torch.FloatTensor,
-        decoder_attention_mask: Optional[torch.LongTensor] = None,
-        encoder_attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[tuple[tuple[torch.FloatTensor]]] = None,
-        cache_position: Optional[torch.Tensor] = None,
+        decoder_attention_mask: torch.LongTensor | None = None,
+        encoder_attention_mask: torch.LongTensor | None = None,
+        past_key_values: tuple[tuple[torch.FloatTensor]] | None = None,
+        cache_position: torch.Tensor | None = None,
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -648,9 +650,9 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
 
     def prepare_inputs_for_merged(
         self,
-        input_ids: Optional[Union[torch.LongTensor, np.ndarray]],
-        past_key_values: Optional[tuple[Union[torch.FloatTensor, np.ndarray]]],
-        cache_position: Optional[Union[torch.LongTensor, np.ndarray]],
+        input_ids: torch.LongTensor | np.ndarray | None,
+        past_key_values: tuple[torch.FloatTensor | np.ndarray] | None,
+        cache_position: torch.LongTensor | np.ndarray | None,
         use_torch: bool,
     ):
         constructor = torch if use_torch is True else np
@@ -864,13 +866,13 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     def __init__(  # noqa: D417
         self,
         *args,
-        config: "PretrainedConfig" = None,
-        encoder_session: "InferenceSession" = None,
-        decoder_session: "InferenceSession" = None,
-        decoder_with_past_session: Optional["InferenceSession"] = None,
-        use_io_binding: Optional[bool] = None,
-        generation_config: Optional["GenerationConfig"] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        config: PretrainedConfig = None,
+        encoder_session: InferenceSession = None,
+        decoder_session: InferenceSession = None,
+        decoder_with_past_session: InferenceSession | None = None,
+        use_io_binding: bool | None = None,
+        generation_config: GenerationConfig | None = None,
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
         **kwargs,
     ):
         """Initialize an `ORTModelForConditionalGeneration` instance.
@@ -1006,7 +1008,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if hasattr(self.auto_model_class, "register"):
             self.auto_model_class.register(AutoConfig, self.__class__)
 
-    def _save_pretrained(self, save_directory: Union[str, Path]):
+    def _save_pretrained(self, save_directory: str | Path):
         """Saves the encoder, decoder and decoder_with_past ONNX files to the save directory.
 
         Args:
@@ -1031,8 +1033,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     @classmethod
     def _from_pretrained(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -1040,23 +1042,23 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # file options
         encoder_file_name: str = ONNX_ENCODER_NAME,
         decoder_file_name: str = ONNX_DECODER_NAME,
         decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
         # session options
         provider: str = "CPUExecutionProvider",
-        providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        providers: Sequence[str] | None = None,
+        provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
+        session_options: SessionOptions | None = None,
         # inference options
         use_cache: bool = True,
-        use_merged: Optional[bool] = None,
-        use_io_binding: Optional[bool] = None,
-        generation_config: Optional[GenerationConfig] = None,
+        use_merged: bool | None = None,
+        use_io_binding: bool | None = None,
+        generation_config: GenerationConfig | None = None,
         # other arguments
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
     ):
         # We do not implement the logic for use_cache=False, use_merged=True
         if use_cache is False:
@@ -1218,8 +1220,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
     @classmethod
     def _export(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -1227,12 +1229,12 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # inference options
         use_cache: bool = True,
         use_merged: bool = False,
         **kwargs,
-    ) -> "ORTModelForConditionalGeneration":
+    ) -> ORTModelForConditionalGeneration:
         # this is garanteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
@@ -1300,10 +1302,10 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
     def forward(
         self,
         input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
+        attention_mask: torch.FloatTensor | None = None,
+        decoder_input_ids: torch.LongTensor | None = None,
+        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1408,12 +1410,12 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
     )
     def forward(
         self,
-        input_features: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
-        cache_position: Optional[torch.Tensor] = None,
+        input_features: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+        decoder_input_ids: torch.LongTensor | None = None,
+        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        cache_position: torch.Tensor | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         # Encode if needed : first prediction pass
@@ -1478,7 +1480,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         return reordered_past
 
     @classmethod
-    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         if config.model_type == "whisper":
             return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
         else:
@@ -1505,7 +1507,7 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
     # this is needed to avoid circular calls
     @classmethod
-    def _from_pretrained(cls, model_id: Union[str, Path], config: "PretrainedConfig", **kwargs):
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
@@ -1529,10 +1531,10 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     )
     def forward(
         self,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        decoder_input_ids: Optional[torch.LongTensor] = None,
-        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
+        pixel_values: torch.FloatTensor | None = None,
+        decoder_input_ids: torch.LongTensor | None = None,
+        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1623,12 +1625,12 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     )
     def forward(
         self,
-        flattened_patches: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        decoder_input_ids: Optional[torch.LongTensor] = None,
-        decoder_attention_mask: Optional[torch.BoolTensor] = None,
-        encoder_outputs: Optional[tuple[tuple[torch.Tensor]]] = None,
-        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
+        flattened_patches: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+        decoder_input_ids: torch.LongTensor | None = None,
+        decoder_attention_mask: torch.BoolTensor | None = None,
+        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
         if encoder_outputs is None:
@@ -1661,9 +1663,9 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
     def prepare_inputs_for_generation(
         self,
         input_ids,
-        flattened_patches: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        decoder_attention_mask: Optional[torch.BoolTensor] = None,
+        flattened_patches: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+        decoder_attention_mask: torch.BoolTensor | None = None,
         past_key_values=None,
         head_mask=None,
         decoder_head_mask=None,
