@@ -42,7 +42,7 @@ from optimum.onnxruntime.constants import (
 )
 from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
-from optimum.utils import NormalizedConfigManager, is_transformers_version
+from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
 from optimum.utils.save_utils import maybe_save_preprocessors
 
