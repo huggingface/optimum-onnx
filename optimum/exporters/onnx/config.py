@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Common ONNX configuration classes that handle most of the features for building model specific configurations."""
+from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable

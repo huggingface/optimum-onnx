@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Defines the command line for the export with ONNX."""
+from __future__ import annotations
 
 import argparse
 import json

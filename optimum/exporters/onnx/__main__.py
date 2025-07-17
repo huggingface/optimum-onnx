@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Entry point to the optimum.exporters.onnx command line."""
+from __future__ import annotations
 
 import argparse
 from pathlib import Path

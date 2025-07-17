@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Fine-tuning the library models for token classification."""
+from __future__ import annotations
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
 
