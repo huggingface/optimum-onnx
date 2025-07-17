@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Model specific ONNX configurations."""
+
 from __future__ import annotations
 
 import math
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal
 
 from packaging import version
 
@@ -620,13 +621,13 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -680,7 +681,7 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
@@ -742,7 +743,7 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
         },
     )
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> list["DummyInputGenerator"]:
+    def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
         dummy_text_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](
             self.task, self._normalized_config, **kwargs
         )
@@ -1596,11 +1597,11 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -1736,11 +1737,11 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -2026,15 +2027,15 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.ENCODER,
-        preprocessors: Optional[list[Any]] = None,
-        model_part: Optional[Literal["text_encoder", "encodec_decode", "decoder", "build_delay_pattern_mask"]] = None,
+        preprocessors: list[Any] | None = None,
+        model_part: Literal["text_encoder", "encodec_decode", "decoder", "build_delay_pattern_mask"] | None = None,
         legacy: bool = False,
         variant: str = "text-conditional-with-past",
     ):
@@ -2212,7 +2213,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
@@ -2262,7 +2263,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths_new
 
     def overwrite_shape_and_generate_input(
-        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
+        self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
         if self.model_part == "build_delay_pattern_mask" and input_name == "input_ids":
             original_batch_size = dummy_input_gen.batch_size
@@ -2313,14 +2314,14 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         is_postnet_and_vocoder: bool = False,
         legacy: bool = False,
     ):
@@ -2395,7 +2396,7 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {"encoder_outputs": "encoder_hidden_states"}
 
     def overwrite_shape_and_generate_input(
-        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
+        self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
         dummy_input_gen.batch_size = 1
         dummy_input = dummy_input_gen.generate(
@@ -2598,13 +2599,13 @@ class SamOnnxConfig(OnnxConfig):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         variant: str = "split",
-        vision_encoder: Optional[bool] = None,
-        preprocessors: Optional[list[Any]] = None,
+        vision_encoder: bool | None = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -2752,7 +2753,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return {}
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
@@ -2771,7 +2772,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> list["DummyInputGenerator"]:
+    def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
         dummy_inputs_generators = []
         dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
 
@@ -2792,7 +2793,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return dummy_inputs_generators
 
     def overwrite_shape_and_generate_input(
-        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
+        self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
         if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
@@ -2874,7 +2875,7 @@ class RTDetrOnnxConfig(ViTOnnxConfig):
             "pixel_values": {0: "batch_size", 2: "height", 3: "width"},
         }
 
-    def _create_dummy_input_generator_classes(self, **kwargs) -> list["DummyInputGenerator"]:
+    def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
         min_image_size = int(math.ceil(self._config.num_queries / 32) * 32)
         if kwargs["height"] < min_image_size:
             warnings.warn(

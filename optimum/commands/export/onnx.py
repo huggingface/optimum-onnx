@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Defines the command line for the export with ONNX."""
+
 from __future__ import annotations
 
 import argparse
@@ -264,7 +265,7 @@ class ONNXExportCommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(name="onnx", help="Export PyTorch to ONNX")
 
     @staticmethod
-    def parse_args(parser: "ArgumentParser"):
+    def parse_args(parser: ArgumentParser):
         return parse_args_onnx(parser)
 
     def run(self):

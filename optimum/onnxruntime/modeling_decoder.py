@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Classes handling causal-lm related architectures in ONNX Runtime."""
+
 from __future__ import annotations
 
 import logging
@@ -20,7 +21,7 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import onnx
 import torch
@@ -131,11 +132,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     def __init__(
         self,
         *args,
-        config: "PretrainedConfig" = None,
-        session: "InferenceSession" = None,
-        use_io_binding: Optional[bool] = None,
-        generation_config: Optional["GenerationConfig"] = None,
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
+        config: PretrainedConfig = None,
+        session: InferenceSession = None,
+        use_io_binding: bool | None = None,
+        generation_config: GenerationConfig | None = None,
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
         **kwargs,
     ):
         # DEPRECATED BEHAVIOR
@@ -256,10 +257,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     def forward(
         self,
         input_ids: torch.LongTensor,
-        attention_mask: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[tuple[tuple[torch.Tensor]]] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
+        attention_mask: torch.LongTensor | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        position_ids: torch.LongTensor | None = None,
+        use_cache: bool | None = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -432,8 +433,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     @classmethod
     def _from_pretrained(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -441,22 +442,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # file options
-        file_name: Optional[str] = None,
+        file_name: str | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
-        providers: Optional[Sequence[str]] = None,
-        provider_options: Optional[Union[Sequence[dict[str, Any]], dict[str, Any]]] = None,
-        session_options: Optional[SessionOptions] = None,
+        providers: Sequence[str] | None = None,
+        provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
+        session_options: SessionOptions | None = None,
         # inference options
         use_cache: bool = True,
-        use_merged: Optional[bool] = None,
-        use_io_binding: Optional[bool] = None,
-        generation_config: Optional[GenerationConfig] = None,
+        use_merged: bool | None = None,
+        use_io_binding: bool | None = None,
+        generation_config: GenerationConfig | None = None,
         # other arguments
-        model_save_dir: Optional[Union[str, Path, TemporaryDirectory]] = None,
-    ) -> "ORTModelForCausalLM":
+        model_save_dir: str | Path | TemporaryDirectory | None = None,
+    ) -> ORTModelForCausalLM:
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
@@ -660,8 +661,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     @classmethod
     def _export(
         cls,
-        model_id: Union[str, Path],
-        config: "PretrainedConfig",
+        model_id: str | Path,
+        config: PretrainedConfig,
         # hub options
         subfolder: str = "",
         revision: str = "main",
@@ -669,11 +670,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         local_files_only: bool = False,
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
-        token: Optional[Union[bool, str]] = None,
+        token: bool | str | None = None,
         # inference options
         use_cache: bool = True,
         **kwargs,
-    ) -> "ORTModelForCausalLM":
+    ) -> ORTModelForCausalLM:
         # this is garanteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)

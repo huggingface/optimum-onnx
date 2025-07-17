@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 """Configuration classes for graph optimization and quantization with ONNX Runtime."""
+
 from __future__ import annotations
 
 import os
@@ -19,7 +20,7 @@ import warnings
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from packaging.version import Version, parse
 
@@ -84,16 +85,16 @@ class CalibrationConfig:
     dataset_split: str
     dataset_num_samples: int
     method: CalibrationMethod
-    num_bins: Optional[int] = None
-    num_quantized_bins: Optional[int] = None
-    percentile: Optional[float] = None
-    moving_average: Optional[bool] = None
-    averaging_constant: Optional[float] = None
+    num_bins: int | None = None
+    num_quantized_bins: int | None = None
+    percentile: float | None = None
+    moving_average: bool | None = None
+    averaging_constant: float | None = None
 
     def create_calibrator(
         self,
-        onnx_model_path: Union[str, os.PathLike, Path],
-        operators_to_quantize: Optional[list[str]],
+        onnx_model_path: str | os.PathLike | Path,
+        operators_to_quantize: list[str] | None,
         use_external_data_format: bool = False,
         force_symmetric_range: bool = False,
         augmented_model_name: str = "augmented_model.onnx",
@@ -119,9 +120,7 @@ class CalibrationConfig:
 
 class AutoCalibrationConfig:
     @staticmethod
-    def minmax(
-        dataset: "Dataset", moving_average: bool = False, averaging_constant: float = 0.01
-    ) -> CalibrationConfig:
+    def minmax(dataset: Dataset, moving_average: bool = False, averaging_constant: float = 0.01) -> CalibrationConfig:
         """Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
@@ -154,7 +153,7 @@ class AutoCalibrationConfig:
 
     @staticmethod
     def entropy(
-        dataset: "Dataset",
+        dataset: Dataset,
         num_bins: int = 128,
         num_quantized_bins: int = 128,
     ) -> CalibrationConfig:
@@ -190,7 +189,7 @@ class AutoCalibrationConfig:
         )
 
     @staticmethod
-    def percentiles(dataset: "Dataset", num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
+    def percentiles(dataset: Dataset, num_bins: int = 2048, percentile: float = 99.999) -> CalibrationConfig:
         """Args:
             dataset (`Dataset`):
                 The dataset to use when performing the calibration step.
@@ -365,9 +364,9 @@ def ensure_valid_data_type_or_raise(
 
 def default_quantization_parameters(
     is_static: bool,
-    format: Optional[QuantFormat] = None,
-    mode: Optional[QuantizationMode] = None,
-    operators_to_quantize: Optional[list[str]] = None,
+    format: QuantFormat | None = None,
+    mode: QuantizationMode | None = None,
+    operators_to_quantize: list[str] | None = None,
 ) -> tuple[QuantFormat, QuantizationMode, list[str]]:
     if format is None:
         format = QuantFormat.QDQ if is_static else QuantFormat.QOperator
@@ -393,9 +392,9 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[list[str]] = None,
-        nodes_to_exclude: Optional[list[str]] = None,
-        operators_to_quantize: Optional[list[str]] = None,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
     ):
         """Creates a [`~onnxruntime.QuantizationConfig`] fit for ARM64.
 
@@ -444,9 +443,9 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[list[str]] = None,
-        nodes_to_exclude: Optional[list[str]] = None,
-        operators_to_quantize: Optional[list[str]] = None,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
         """Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX2 instruction set.
 
@@ -499,9 +498,9 @@ class AutoQuantizationConfig:
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
         reduce_range: bool = False,
-        nodes_to_quantize: Optional[list[str]] = None,
-        nodes_to_exclude: Optional[list[str]] = None,
-        operators_to_quantize: Optional[list[str]] = None,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
         """Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512 instruction set.
 
@@ -553,9 +552,9 @@ class AutoQuantizationConfig:
         use_symmetric_activations: bool = False,
         use_symmetric_weights: bool = True,
         per_channel: bool = True,
-        nodes_to_quantize: Optional[list[str]] = None,
-        nodes_to_exclude: Optional[list[str]] = None,
-        operators_to_quantize: Optional[list[str]] = None,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
         r"""Creates a [`~onnxruntime.QuantizationConfig`] fit for CPU with AVX512-VNNI instruction set.
 
@@ -606,9 +605,9 @@ class AutoQuantizationConfig:
     @staticmethod
     def tensorrt(
         per_channel: bool = True,
-        nodes_to_quantize: Optional[list[str]] = None,
-        nodes_to_exclude: Optional[list[str]] = None,
-        operators_to_quantize: Optional[list[str]] = None,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
         """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
 
@@ -720,28 +719,28 @@ class OptimizationConfig:
 
     fp16: bool = False
 
-    optimize_with_onnxruntime_only: Optional[bool] = None
+    optimize_with_onnxruntime_only: bool | None = None
     enable_transformers_specific_optimizations: bool = True
 
-    disable_gelu: Optional[bool] = None
+    disable_gelu: bool | None = None
     disable_gelu_fusion: bool = False
 
-    disable_layer_norm: Optional[bool] = None
+    disable_layer_norm: bool | None = None
     disable_layer_norm_fusion: bool = False
 
-    disable_attention: Optional[bool] = None
+    disable_attention: bool | None = None
     disable_attention_fusion: bool = False
 
-    disable_skip_layer_norm: Optional[bool] = None
+    disable_skip_layer_norm: bool | None = None
     disable_skip_layer_norm_fusion: bool = False
 
-    disable_bias_skip_layer_norm: Optional[bool] = None
+    disable_bias_skip_layer_norm: bool | None = None
     disable_bias_skip_layer_norm_fusion: bool = False
 
-    disable_bias_gelu: Optional[bool] = None
+    disable_bias_gelu: bool | None = None
     disable_bias_gelu_fusion: bool = False
 
-    disable_embed_layer_norm: Optional[bool] = None
+    disable_embed_layer_norm: bool | None = None
     disable_embed_layer_norm_fusion: bool = True
 
     enable_gelu_approximation: bool = False
@@ -968,11 +967,11 @@ class ORTConfig(BaseConfig):
 
     def __init__(
         self,
-        opset: Optional[int] = None,
+        opset: int | None = None,
         use_external_data_format: bool = False,
         one_external_file: bool = True,
-        optimization: Optional[OptimizationConfig] = None,
-        quantization: Optional[QuantizationConfig] = None,
+        optimization: OptimizationConfig | None = None,
+        quantization: QuantizationConfig | None = None,
         **kwargs,
     ):
         super().__init__()

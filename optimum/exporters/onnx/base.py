@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ONNX configuration base classes."""
+
 from __future__ import annotations
 
 import copy
@@ -25,7 +26,7 @@ from abc import ABC
 from collections import OrderedDict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 from transformers.utils import is_accelerate_available, is_torch_available
@@ -105,7 +106,7 @@ class OnnxConfig(ExporterConfig, ABC):
     DEFAULT_ONNX_OPSET = 11
     VARIANTS: ClassVar[dict[str, str]] = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
-    PATCHING_SPECS: Optional[list["PatchingSpec"]] = None
+    PATCHING_SPECS: list[PatchingSpec] | None = None
     _MODEL_PATCHER = ModelPatcher
 
     _TASK_TO_COMMON_OUTPUTS = {  # noqa: RUF012
@@ -170,9 +171,9 @@ class OnnxConfig(ExporterConfig, ABC):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         legacy: bool = False,
@@ -201,7 +202,7 @@ class OnnxConfig(ExporterConfig, ABC):
         self._variant = value
 
     def fix_dynamic_axes(
-        self, model_path: "Path", device: str = "cpu", dtype: Optional[str] = None, input_shapes: Optional[dict] = None
+        self, model_path: Path, device: str = "cpu", dtype: str | None = None, input_shapes: dict | None = None
     ):
         """Fixes potential issues with dynamic axes.
 
@@ -320,7 +321,7 @@ class OnnxConfig(ExporterConfig, ABC):
         """
         return inputs
 
-    def ordered_inputs(self, model: "PreTrainedModel") -> dict[str, dict[int, str]]:
+    def ordered_inputs(self, model: PreTrainedModel) -> dict[str, dict[int, str]]:
         """Re-orders the inputs using the model forward pass signature.
 
         Args:
@@ -372,7 +373,7 @@ class OnnxConfig(ExporterConfig, ABC):
             return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         """Generates inputs for ONNX Runtime using the reference model inputs.
 
@@ -393,8 +394,8 @@ class OnnxConfig(ExporterConfig, ABC):
 
     def post_process_exported_models(
         self,
-        path: "Path",
-        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+        path: Path,
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         """Performs any model-specific post-processing on the ONNX.
@@ -432,7 +433,7 @@ class OnnxConfig(ExporterConfig, ABC):
         return models_and_onnx_configs, onnx_files_subpaths
 
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel"], model_kwargs: Optional[dict[str, Any]] = None
+        self, model: PreTrainedModel, model_kwargs: dict[str, Any] | None = None
     ) -> ModelPatcher:
         return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
 
@@ -446,13 +447,13 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         self.use_past = use_past
@@ -484,7 +485,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return common_outputs
 
     @property
-    def values_override(self) -> Optional[dict[str, Any]]:
+    def values_override(self) -> dict[str, Any] | None:
         if hasattr(self._config, "use_cache"):
             return {"use_cache": self.use_past}
 
@@ -543,7 +544,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return dummy_inputs
 
     def overwrite_shape_and_generate_input(
-        self, dummy_input_gen: "DummyInputGenerator", input_name: str, framework: str, input_shapes: dict
+        self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
         """The shape passed to the dummy input generator may not always be correct for all of the inputs it manages.
 
@@ -615,7 +616,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
@@ -656,14 +657,14 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
     def __init__(
         self,
-        config: "PretrainedConfig",
+        config: PretrainedConfig,
         task: str = "feature-extraction",
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
-        preprocessors: Optional[list[Any]] = None,
+        preprocessors: list[Any] | None = None,
         legacy: bool = False,
     ):
         super().__init__(
@@ -684,10 +685,10 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
     def with_behavior(
         self,
-        behavior: Union[str, ConfigBehavior],
+        behavior: str | ConfigBehavior,
         use_past: bool = False,
         use_past_in_inputs: bool = False,
-    ) -> "OnnxSeq2SeqConfigWithPast":
+    ) -> OnnxSeq2SeqConfigWithPast:
         """Creates a copy of the current OnnxConfig but with a different `ConfigBehavior` and `use_past` value.
 
         Args:
@@ -787,7 +788,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
@@ -834,7 +835,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return models_and_onnx_configs, onnx_files_subpaths_new
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             if "decoder_input_ids" in reference_model_inputs:
@@ -906,7 +907,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         self.legacy = legacy
 
     @classmethod
-    def from_onnx_config(cls, config: OnnxConfig) -> "OnnxConfigWithLoss":
+    def from_onnx_config(cls, config: OnnxConfig) -> OnnxConfigWithLoss:
         return cls(config)
 
     @property
@@ -965,7 +966,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return dummy_inputs
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: Optional[list[str]] = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
@@ -1008,5 +1009,5 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
         return self._onnx_config.torch_to_onnx_output_map
 
     @property
-    def values_override(self) -> Optional[dict[str, Any]]:
+    def values_override(self) -> dict[str, Any] | None:
         return self._onnx_config.values_override

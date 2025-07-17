@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """optimum.onnxruntime command-line interface base classes."""
+
 from __future__ import annotations
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
