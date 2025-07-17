@@ -179,8 +179,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
         ## END OF DEPRECATED BEHAVIOR
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
-
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
@@ -205,9 +203,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         if self.config.model_type == "gemma":
-            self.embed_size_per_head = self.normalized_config.head_dim
+            self.embed_size_per_head = self.config.head_dim
         else:
-            self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
+            self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
 
         if self.config.model_type in {
             "gemma",
@@ -219,7 +217,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "granite",
             "smollm3",
         }:
-            self.num_key_value_heads = self.normalized_config.num_key_value_heads
+            self.num_key_value_heads = self.config.num_key_value_heads
         elif self.config.model_type == "falcon":
             self.num_key_value_heads = (
                 self.config.num_kv_heads
@@ -227,7 +225,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 else 1
             )
         else:
-            self.num_key_value_heads = self.normalized_config.num_attention_heads
+            self.num_key_value_heads = self.config.num_attention_heads
 
     @property
     def use_cache(self):
