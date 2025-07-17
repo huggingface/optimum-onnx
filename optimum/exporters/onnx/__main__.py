@@ -333,6 +333,14 @@ def main_export(
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version("<", "4.42"):
             loading_kwargs["attn_implementation"] = "eager"
 
+        # Only eager attention implementation returns attentions
+        if model_kwargs is not None and model_kwargs.get("output_attentions", False):
+            logger.warning(
+                "The model is exported with `output_attentions=True`, which requires the attention implementation to be set to `eager`. "
+                "Setting `attn_implementation='eager'` at loading time to ensure the attentions are returned by the model."
+            )
+            loading_kwargs["attn_implementation"] = "eager"
+
     with DisableCompileContextManager():
         model = TasksManager.get_model_from_task(
             task,

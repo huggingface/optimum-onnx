@@ -39,13 +39,13 @@ from optimum.exporters.onnx.model_patcher import (
     MgpstrModelPatcher,
     MistralModelPatcher,
     MusicgenModelPatcher,
+    Qwen3MoeModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
     VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
-    WavLMModelPatcher,
 )
 from optimum.exporters.tasks import TasksManager
 from optimum.utils import (
@@ -455,6 +455,11 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+@register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+class SmolLM3OnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
 class OlmoOnnxConfig(LlamaOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
@@ -481,6 +486,7 @@ class Qwen3OnnxConfig(LlamaOnnxConfig):
 )
 class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    _MODEL_PATCHER = Qwen3MoeModelPatcher
 
 
 @register_tasks_manager_onnx("gemma", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
@@ -1169,10 +1175,7 @@ class EfficientNetOnnxConfig(ViTOnnxConfig):
 )
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
+    DEFAULT_ONNX_OPSET = 14
     _MODEL_PATCHER = SentenceTransformersTransformerPatcher
 
     @property
@@ -1867,11 +1870,7 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
     ],
 )
 class WavLMOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
-    # we need to set output_attentions=True in the model input to avoid calling
-    # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
-    # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
-    _MODEL_PATCHER = WavLMModelPatcher
+    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("audio-spectrogram-transformer", *["feature-extraction", "audio-classification"])

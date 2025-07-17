@@ -593,7 +593,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model fxmarty/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --model optimum-internal-testing/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
                 shell=True,
                 capture_output=True,
             )
@@ -602,7 +602,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
 
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(
-                f"python3 -m optimum.exporters.onnx --trust-remote-code --model fxmarty/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
+                f"python3 -m optimum.exporters.onnx --trust-remote-code --model optimum-internal-testing/tiny-testing-gpt2-remote-code --task text-generation {tmpdirname}",
                 shell=True,
                 check=True,
             )

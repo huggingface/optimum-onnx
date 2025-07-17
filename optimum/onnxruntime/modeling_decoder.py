@@ -42,7 +42,7 @@ from optimum.onnxruntime.constants import (
 )
 from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
-from optimum.utils import NormalizedConfigManager, is_transformers_version
+from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
 from optimum.utils.save_utils import maybe_save_preprocessors
 
@@ -179,8 +179,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
         ## END OF DEPRECATED BEHAVIOR
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
-
-        self.normalized_config = NormalizedConfigManager.get_normalized_config_class(config.model_type)(config)
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
@@ -205,11 +203,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         if self.config.model_type == "gemma":
-            self.embed_size_per_head = self.normalized_config.head_dim
+            self.embed_size_per_head = self.config.head_dim
         else:
-            self.embed_size_per_head = self.normalized_config.hidden_size // self.normalized_config.num_attention_heads
-        if self.config.model_type in {"gemma", "mistral", "llama", "qwen2", "qwen3", "qwen3_moe", "granite"}:
-            self.num_key_value_heads = self.normalized_config.num_key_value_heads
+            self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
+
+        if self.config.model_type in {
+            "gemma",
+            "mistral",
+            "llama",
+            "qwen2",
+            "qwen3",
+            "qwen3_moe",
+            "granite",
+            "smollm3",
+        }:
+            self.num_key_value_heads = self.config.num_key_value_heads
         elif self.config.model_type == "falcon":
             self.num_key_value_heads = (
                 self.config.num_kv_heads
@@ -217,7 +225,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 else 1
             )
         else:
-            self.num_key_value_heads = self.normalized_config.num_attention_heads
+            self.num_key_value_heads = self.config.num_attention_heads
 
     @property
     def use_cache(self):

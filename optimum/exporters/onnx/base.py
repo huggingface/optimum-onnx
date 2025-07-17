@@ -58,7 +58,7 @@ if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
 
 if TYPE_CHECKING:
-    from transformers import PretrainedConfig, PreTrainedModel, TFPreTrainedModel
+    from transformers import PretrainedConfig, PreTrainedModel
 
     from .model_patcher import PatchingSpec
 
@@ -319,11 +319,11 @@ class OnnxConfig(ExporterConfig, ABC):
         """
         return inputs
 
-    def ordered_inputs(self, model: Union["PreTrainedModel", "TFPreTrainedModel"]) -> dict[str, dict[int, str]]:
+    def ordered_inputs(self, model: "PreTrainedModel") -> dict[str, dict[int, str]]:
         """Re-orders the inputs using the model forward pass signature.
 
         Args:
-            model ([`transformers.PreTrainedModel`] or [`transformers.TFPreTrainedModel`]):
+            model ([`transformers.PreTrainedModel`]):
                 The model for which we will use the OnnxConfig.
 
         Returns:
@@ -393,9 +393,7 @@ class OnnxConfig(ExporterConfig, ABC):
     def post_process_exported_models(
         self,
         path: "Path",
-        models_and_onnx_configs: dict[
-            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
-        ],
+        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
         onnx_files_subpaths: list[str],
     ):
         """Performs any model-specific post-processing on the ONNX.
@@ -403,7 +401,7 @@ class OnnxConfig(ExporterConfig, ABC):
         Args:
             path (`Path`):
                 Path to the directory of the stored ONNX model.
-            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]]`):
+            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel",  "ModelMixin"], "OnnxConfig"]]`):
                 A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
             onnx_files_subpaths (`List[str]`):
                 The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as
@@ -433,7 +431,7 @@ class OnnxConfig(ExporterConfig, ABC):
         return models_and_onnx_configs, onnx_files_subpaths
 
     def patch_model_for_export(
-        self, model: Union["PreTrainedModel", "TFPreTrainedModel"], model_kwargs: Optional[dict[str, Any]] = None
+        self, model: Union["PreTrainedModel"], model_kwargs: Optional[dict[str, Any]] = None
     ) -> ModelPatcher:
         return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
 
@@ -788,9 +786,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[
-            str, tuple[Union["PreTrainedModel", "TFPreTrainedModel", "ModelMixin"], "OnnxConfig"]
-        ],
+        models_and_onnx_configs: dict[str, tuple[Union["PreTrainedModel", "ModelMixin"], "OnnxConfig"]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
