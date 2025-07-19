@@ -949,6 +949,7 @@ class PvtOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("vit_mae", *["feature-extraction"])
 class VitMAEOnnxConfig(ViTOnnxConfig):
+    pass
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
 
