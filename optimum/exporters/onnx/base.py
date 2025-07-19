@@ -101,7 +101,7 @@ GENERATE_DUMMY_DOCSTRING = r"""
 
 
 class OnnxConfig(ExporterConfig, ABC):
-    DEFAULT_ONNX_OPSET = 11
+    DEFAULT_ONNX_OPSET = 18
     VARIANTS: ClassVar[dict[str, str]] = {"default": "The default ONNX variant."}
     DEFAULT_VARIANT = "default"
     PATCHING_SPECS: Optional[list["PatchingSpec"]] = None
