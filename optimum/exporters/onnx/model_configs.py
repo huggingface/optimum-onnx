@@ -1306,8 +1306,7 @@ class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
 
 @register_tasks_manager_onnx("siglip_vision_model", *["feature-extraction"])
 class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
-    # Support for this operator was added in version 14, try exporting with this version.
+    pass
 
 
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
