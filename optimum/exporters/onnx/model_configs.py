@@ -147,7 +147,6 @@ register_tasks_manager_onnx = TasksManager.create_register("onnx")
 class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -165,7 +164,6 @@ class BertOnnxConfig(TextEncoderOnnxConfig):
 @register_tasks_manager_onnx("visual_bert", *["feature-extraction"])
 class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DEFAULT_ONNX_OPSET = 11
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummyVisionInputGenerator,
@@ -190,58 +188,47 @@ class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
 
 @register_tasks_manager_onnx("albert", *COMMON_TEXT_TASKS)
 class AlbertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("convbert", *COMMON_TEXT_TASKS)
 class ConvBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("electra", *COMMON_TEXT_TASKS)
 class ElectraOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("roformer", *COMMON_TEXT_TASKS)
 class RoFormerOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("squeezebert", *COMMON_TEXT_TASKS)
 class SqueezeBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("mobilebert", *COMMON_TEXT_TASKS)
 class MobileBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("nystromformer", *COMMON_TEXT_TASKS)
 class NystromformerOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("xlm", *COMMON_TEXT_TASKS)
 class XLMOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("splinter", *["feature-extraction", "question-answering"])
 class SplinterOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("rembert", *COMMON_TEXT_TASKS)
 class RemBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("longformer", *COMMON_TEXT_TASKS)
 class LongformerOnnxConfig(BertOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (LongformerDummyTextInputGenerator,)
-    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -254,12 +241,10 @@ class LongformerOnnxConfig(BertOnnxConfig):
 
 @register_tasks_manager_onnx("megatron-bert", *COMMON_TEXT_TASKS)
 class MegatronBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("distilbert", *COMMON_TEXT_TASKS)
 class DistilBertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for transformers>=4.46.0
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -285,22 +270,18 @@ class ModernBertOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("mpnet", *COMMON_TEXT_TASKS)
 class MPNetOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12  # For lower opsets, results in: Type 'tensor(int64)' of input parameter (/0/auto_model/encoder/Add_1_output_0) of operator (Min) in node (/0/auto_model/encoder/Min) is invalid.
 
 
 @register_tasks_manager_onnx("roberta", *COMMON_TEXT_TASKS)
 class RobertaOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("camembert", *COMMON_TEXT_TASKS)
 class CamembertOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("flaubert", *COMMON_TEXT_TASKS)
 class FlaubertOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("ibert", *COMMON_TEXT_TASKS)
@@ -310,7 +291,6 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("xlm-roberta", *COMMON_TEXT_TASKS)
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -318,7 +298,6 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     *["feature-extraction", "fill-mask", "text-classification", "token-classification", "question-answering"],
 )
 class DebertaOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -332,7 +311,6 @@ class DebertaOnnxConfig(BertOnnxConfig):
     "markuplm", *["feature-extraction", "text-classification", "token-classification", "question-answering"]
 )
 class MarkupLMOnnxConfig(BertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
         DummyXPathSeqInputGenerator,
@@ -362,7 +340,6 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
 class EsmOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 12
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -375,7 +352,6 @@ class EsmOnnxConfig(TextEncoderOnnxConfig):
 
 @register_tasks_manager_onnx("gpt2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class GPT2OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
 
 
@@ -421,13 +397,11 @@ class DecisionTransformerOnnxConfig(OnnxConfig):
 
 @register_tasks_manager_onnx("gpt_neo", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class GPTNeoOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_attention_heads="num_heads")
 
 
 @register_tasks_manager_onnx("gpt_neox", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class GPTNeoXOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -436,20 +410,19 @@ if is_transformers_version(">=", "4.46.0"):
 
     @register_tasks_manager_onnx("opt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "question-answering"])
     class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 else:
 
     @register_tasks_manager_onnx("opt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "question-answering"])
     class OPTOnnxConfig(TextDecoderOnnxConfig):
-        DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
+
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
 @register_tasks_manager_onnx("llama", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Llama now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
@@ -498,7 +471,6 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("phi", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")
 
@@ -525,7 +497,6 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
 
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
     DUMMY_INPUT_GENERATOR_CLASSES = (
         MistralDummyPastKeyValuesGenerator,
         *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
@@ -538,7 +509,6 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 @register_tasks_manager_onnx("mpt", *["text-generation", "text-generation-with-past", "text-classification"])
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
-    DEFAULT_ONNX_OPSET = 13
     # TODO: fix inference for transformers < v4.41 for beam_search > 1
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
@@ -554,7 +524,6 @@ class BloomOnnxConfig(TextDecoderOnnxConfig):
         *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
     )
 
-    DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
     MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
@@ -568,7 +537,6 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         GPTBigCodeDummyPastKeyValuesGenerator,
         *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
     )
-    DEFAULT_ONNX_OPSET = 14  # GPT BigCode now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedConfigManager.get_normalized_config_class("gpt_bigcode")
 
@@ -603,7 +571,6 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
         FalconDummyPastKeyValuesGenerator,
         *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
     )
-    DEFAULT_ONNX_OPSET = 14  # Falcon uses aten::triu that requires opset>=14, and F.scaled_dot_product_attention
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_PKV_GENERATOR_CLASS = FalconDummyPastKeyValuesGenerator
 
@@ -657,7 +624,6 @@ class FalconOnnxConfig(TextDecoderOnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class T5OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # T5 uses aten::triu that requires opset>=14
     DUMMY_INPUT_GENERATOR_CLASSES = (
         *TextSeq2SeqOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[:-1],
         T5DummySeq2SeqPastKeyValuesGenerator,
@@ -706,7 +672,6 @@ class MT5OnnxConfig(T5OnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class LongT5OnnxConfig(T5OnnxConfig):
-    DEFAULT_ONNX_OPSET = 14
 
 
 @register_tasks_manager_onnx(
@@ -714,7 +679,6 @@ class LongT5OnnxConfig(T5OnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -846,7 +810,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
     "bart", *[*COMMON_TEXT2TEXT_GENERATION_TASKS, "text-classification", "question-answering"]
 )
 class BartOnnxConfig(M2M100OnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Bart now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     MIN_TORCH_VERSION = version.parse("2.1.2")
 
 
@@ -900,7 +863,6 @@ class MarianOnnxConfig(BartOnnxConfig):
 class ViTOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     MIN_TORCH_VERSION = version.parse("1.11")
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -930,57 +892,47 @@ class VitPoseOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("cvt", *["feature-extraction", "image-classification"])
 class CvTOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 13
     ATOL_FOR_VALIDATION = 1e-2
 
 
 @register_tasks_manager_onnx("levit", *["feature-extraction", "image-classification"])
 class LevitOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("deit", *["feature-extraction", "image-classification", "masked-im"])
 class DeiTOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("beit", *["feature-extraction", "image-classification"])
 class BeitOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("convnext", *["feature-extraction", "image-classification"])
 class ConvNextOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("convnextv2", *["feature-extraction", "image-classification"])
 class ConvNextV2OnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("hiera", *["feature-extraction", "image-classification"])
 class HieraOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("pvt", *["feature-extraction", "image-classification"])
 class PvtOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("vit_mae", *["feature-extraction"])
 class VitMAEOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14
 
 
 @register_tasks_manager_onnx("vit_msn", *["feature-extraction", "image-classification"])
 class VitMSNOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14
 
 
 @register_tasks_manager_onnx("dinov2", *["feature-extraction", "image-classification"])
@@ -991,24 +943,20 @@ class Dinov2OnnxConfig(ViTOnnxConfig):
 @register_tasks_manager_onnx("mobilevit", *["feature-extraction", "image-classification", "image-segmentation"])
 class MobileViTOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("regnet", *["feature-extraction", "image-classification"])
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("resnet", *["feature-extraction", "image-classification"])
 class ResNetOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("detr", *["feature-extraction", "object-detection", "image-segmentation"])
 class DetrOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
@@ -1028,12 +976,10 @@ class TableTransformerOnnxConfig(DetrOnnxConfig):
 
 @register_tasks_manager_onnx("yolos", *["feature-extraction", "object-detection"])
 class YolosOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("swin", *["feature-extraction", "image-classification", "masked-im"])
 class SwinOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("swinv2", *["feature-extraction", "image-classification", "masked-im"])
@@ -1050,19 +996,16 @@ class Swin2srOnnxConfig(SwinOnnxConfig):
     "dpt", *["feature-extraction", "depth-estimation", "image-segmentation", "semantic-segmentation"]
 )
 class DptOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14
 
 
 @register_tasks_manager_onnx("glpn", *["feature-extraction", "depth-estimation"])
 class GlpnOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("poolformer", *["feature-extraction", "image-classification"])
 class PoolFormerOnnxConfig(ViTOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     ATOL_FOR_VALIDATION = 2e-3
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx(
@@ -1082,7 +1025,6 @@ class SegformerOnnxConfig(YolosOnnxConfig):
 @register_tasks_manager_onnx("mobilenet_v1", *["feature-extraction", "image-classification"])
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 11
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1098,7 +1040,6 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 class MaskFormerOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 12, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 12
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
@@ -1119,13 +1060,11 @@ class MaskFormerOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("donut-swin", *["feature-extraction"])
 class DonutSwinOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("default-timm-config", *["image-classification"], library_name="timm")
 class TimmDefaultOnnxConfig(ViTOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
-    DEFAULT_ONNX_OPSET = 12
 
     def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
@@ -1169,7 +1108,6 @@ class EfficientNetOnnxConfig(ViTOnnxConfig):
 )
 class SentenceTransformersTransformerOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    DEFAULT_ONNX_OPSET = 14  # Some bottleneck transformers models require a specific ONNX opset to be successfully exported. We put a rather high opset here for the export to work for all architectures.
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
@@ -1199,7 +1137,6 @@ class CLIPNormalizedConfig(NormalizedTextAndVisionConfig):
 class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
     _MODEL_PATCHER = CLIPModelPatcher
-    DEFAULT_ONNX_OPSET = 14  # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1218,7 +1155,6 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
     _MODEL_PATCHER = CLIPModelPatcher
-    DEFAULT_ONNX_OPSET = 14  # scaled_dot_product_attention support was added in opset 14
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1256,7 +1192,6 @@ class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
     # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
@@ -1317,7 +1252,6 @@ class SiglipOnnxConfig(CLIPOnnxConfig):
     NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1342,7 +1276,6 @@ class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
 class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14
 
 
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
@@ -1350,7 +1283,6 @@ class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         image_size="sample_size",
@@ -1425,7 +1357,6 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 3e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="in_channels", image_size="sample_size", allow_new=True
@@ -1454,7 +1385,6 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 3e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_channels="latent_channels", allow_new=True)
 
@@ -1481,7 +1411,6 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
 class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 12  # int64 was supported since opset 12
 
     @property
     def inputs(self):
@@ -1501,7 +1430,6 @@ class SD3TransformerOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
     # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
     # operator support, available since opset 14
-    DEFAULT_ONNX_OPSET = 14
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTransformerTimestepInputGenerator,
@@ -1588,7 +1516,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     MIN_TORCH_VERSION = version.parse("2.1")
 
     # needs einsum operator support, available since opset 12
-    DEFAULT_ONNX_OPSET = 12
 
     def __init__(
         self,
@@ -1663,7 +1590,6 @@ class LayoutLMv3OnnxConfig(TextAndVisionOnnxConfig):
         MAX_2D_POSITION_EMBEDDINGS="max_2d_position_embeddings",
         image_size="input_size",
     )
-    DEFAULT_ONNX_OPSET = 12
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1704,7 +1630,6 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("data2vec-vision", *["feature-extraction", "image-classification"])
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -1718,7 +1643,6 @@ class Data2VecVisionOnnxConfig(ViTOnnxConfig):
     ],
 )
 class Data2VecAudioOnnxConfig(AudioOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
 
 
@@ -1794,7 +1718,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 @register_tasks_manager_onnx("hubert", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -1808,7 +1731,6 @@ class HubertOnnxConfig(AudioOnnxConfig):
     ],
 )
 class Wav2Vec2OnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -1822,24 +1744,20 @@ class Wav2Vec2OnnxConfig(HubertOnnxConfig):
     ],
 )
 class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 11
 
 
 @register_tasks_manager_onnx("sew", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class SEWOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx("sew-d", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class SEWDOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
 
 
 @register_tasks_manager_onnx(
     "unispeech", *["feature-extraction", "automatic-speech-recognition", "audio-classification"]
 )
 class UniSpeechOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -1853,7 +1771,6 @@ class UniSpeechOnnxConfig(HubertOnnxConfig):
     ],
 )
 class UniSpeechSATOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
 
 @register_tasks_manager_onnx(
@@ -1867,7 +1784,6 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
     ],
 )
 class WavLMOnnxConfig(HubertOnnxConfig):
-    DEFAULT_ONNX_OPSET = 12
     # we need to set output_attentions=True in the model input to avoid calling
     # torch.nn.functional.scaled_dot_product_attention that is not supported by the ONNX export
     # due to the op torch.nn.functional.multi_head_attention_forward used for WavLM
@@ -1881,7 +1797,6 @@ class ASTOnnxConfig(OnnxConfig):
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (ASTDummyAudioInputGenerator,)
     ATOL_FOR_VALIDATION = 1e-4
-    DEFAULT_ONNX_OPSET = 14  # now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1894,7 +1809,6 @@ class MCTCTOnnxConfig(OnnxConfig):
         input_features_per_channel="input_feat_per_channel", allow_new=True
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
-    DEFAULT_ONNX_OPSET = 13
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1915,7 +1829,6 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
 
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::triu' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
-    DEFAULT_ONNX_OPSET = 14
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1948,7 +1861,6 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     ],
 )
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
-    DEFAULT_ONNX_OPSET = 14  # Whisper now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
 
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
@@ -1995,7 +1907,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     # opset>=13 needed to avoid a bug in T5 encoder SelfAttention.
     # opset>=14 needed for torch.tril export.
-    DEFAULT_ONNX_OPSET = 14
 
     VARIANTS = {  # noqa: RUF012
         "text-conditional-with-past": """Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation).
@@ -2543,7 +2454,6 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     ATOL_FOR_VALIDATION = 1e-3
-    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
     _MODEL_PATCHER = VisionEncoderDecoderPatcher
@@ -2588,7 +2498,6 @@ class SamOnnxConfig(OnnxConfig):
     MIN_TORCH_VERSION = version.parse("2.0.99")
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyPointsGenerator, DummyVisionEmbeddingsGenerator)
-    DEFAULT_ONNX_OPSET = 13  # Opset 12 for repeat_interleave falls back on the opset 9 implem, that raises Unsupported: ONNX export of repeat_interleave in opset 9.
     VARIANTS = {  # noqa: RUF012
         "monolith": "All the SAM model components are exported as a single model.onnx.",
         "split": "The vision encoder is exported as a separate vision_encoder.onnx, and the prompt encoder and mask decoder are exported as a prompt_encoder_mask_decoder.onnx. This allows to encoder the image only once for multiple point queries.",
@@ -2672,7 +2581,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummyPix2StructInputGenerator,
     )
 
-    DEFAULT_ONNX_OPSET = 14  # use 'aten::triu' now which is opset 14
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -2835,7 +2743,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
 class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
-    DEFAULT_ONNX_OPSET = 14  # uses SDPA in Transformers, hence opset>=14.
 
 
 @register_tasks_manager_onnx("patchtst", *["feature-extraction", "time-series-forecasting"])
@@ -2865,7 +2772,6 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
 class RTDetrOnnxConfig(ViTOnnxConfig):
     # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
     # Support for this operator was added in version 16.
-    DEFAULT_ONNX_OPSET = 16
     ATOL_FOR_VALIDATION = 1e-5
 
     @property
