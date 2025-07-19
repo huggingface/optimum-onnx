@@ -188,42 +188,52 @@ class VisualBertOnnxConfig(TextAndVisionOnnxConfig):
 
 @register_tasks_manager_onnx("albert", *COMMON_TEXT_TASKS)
 class AlbertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("convbert", *COMMON_TEXT_TASKS)
 class ConvBertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("electra", *COMMON_TEXT_TASKS)
 class ElectraOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("roformer", *COMMON_TEXT_TASKS)
 class RoFormerOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("squeezebert", *COMMON_TEXT_TASKS)
 class SqueezeBertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("mobilebert", *COMMON_TEXT_TASKS)
 class MobileBertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("nystromformer", *COMMON_TEXT_TASKS)
 class NystromformerOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("xlm", *COMMON_TEXT_TASKS)
 class XLMOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("splinter", *["feature-extraction", "question-answering"])
 class SplinterOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("rembert", *COMMON_TEXT_TASKS)
 class RemBertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("longformer", *COMMON_TEXT_TASKS)
@@ -241,6 +251,7 @@ class LongformerOnnxConfig(BertOnnxConfig):
 
 @register_tasks_manager_onnx("megatron-bert", *COMMON_TEXT_TASKS)
 class MegatronBertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("distilbert", *COMMON_TEXT_TASKS)
@@ -270,18 +281,22 @@ class ModernBertOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("mpnet", *COMMON_TEXT_TASKS)
 class MPNetOnnxConfig(DistilBertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("roberta", *COMMON_TEXT_TASKS)
 class RobertaOnnxConfig(DistilBertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("camembert", *COMMON_TEXT_TASKS)
 class CamembertOnnxConfig(DistilBertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("flaubert", *COMMON_TEXT_TASKS)
 class FlaubertOnnxConfig(BertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("ibert", *COMMON_TEXT_TASKS)
@@ -291,6 +306,7 @@ class IBertOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("xlm-roberta", *COMMON_TEXT_TASKS)
 class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -672,6 +688,7 @@ class MT5OnnxConfig(T5OnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class LongT5OnnxConfig(T5OnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -897,30 +914,37 @@ class CvTOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("levit", *["feature-extraction", "image-classification"])
 class LevitOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("deit", *["feature-extraction", "image-classification", "masked-im"])
 class DeiTOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("beit", *["feature-extraction", "image-classification"])
 class BeitOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("convnext", *["feature-extraction", "image-classification"])
 class ConvNextOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("convnextv2", *["feature-extraction", "image-classification"])
 class ConvNextV2OnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("hiera", *["feature-extraction", "image-classification"])
 class HieraOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("pvt", *["feature-extraction", "image-classification"])
 class PvtOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("vit_mae", *["feature-extraction"])
@@ -976,10 +1000,12 @@ class TableTransformerOnnxConfig(DetrOnnxConfig):
 
 @register_tasks_manager_onnx("yolos", *["feature-extraction", "object-detection"])
 class YolosOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("swin", *["feature-extraction", "image-classification", "masked-im"])
 class SwinOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("swinv2", *["feature-extraction", "image-classification", "masked-im"])
@@ -996,10 +1022,12 @@ class Swin2srOnnxConfig(SwinOnnxConfig):
     "dpt", *["feature-extraction", "depth-estimation", "image-segmentation", "semantic-segmentation"]
 )
 class DptOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("glpn", *["feature-extraction", "depth-estimation"])
 class GlpnOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("poolformer", *["feature-extraction", "image-classification"])
@@ -1060,6 +1088,7 @@ class MaskFormerOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("donut-swin", *["feature-extraction"])
 class DonutSwinOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("default-timm-config", *["image-classification"], library_name="timm")
@@ -1630,6 +1659,7 @@ class Data2VecTextOnnxConfig(DistilBertOnnxConfig):
 
 @register_tasks_manager_onnx("data2vec-vision", *["feature-extraction", "image-classification"])
 class Data2VecVisionOnnxConfig(ViTOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -1731,6 +1761,7 @@ class HubertOnnxConfig(AudioOnnxConfig):
     ],
 )
 class Wav2Vec2OnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -1744,20 +1775,24 @@ class Wav2Vec2OnnxConfig(HubertOnnxConfig):
     ],
 )
 class Wav2Vec2ConformerOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("sew", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class SEWOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx("sew-d", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class SEWDOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
     "unispeech", *["feature-extraction", "automatic-speech-recognition", "audio-classification"]
 )
 class UniSpeechOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -1771,6 +1806,7 @@ class UniSpeechOnnxConfig(HubertOnnxConfig):
     ],
 )
 class UniSpeechSATOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
