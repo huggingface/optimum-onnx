@@ -958,6 +958,7 @@ class VitMAEOnnxConfig(ViTOnnxConfig):
 class VitMSNOnnxConfig(ViTOnnxConfig):
     # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
     # Support for this operator was added in version 14, try exporting with this version.
+    pass
 
 
 @register_tasks_manager_onnx("dinov2", *["feature-extraction", "image-classification"])
@@ -973,6 +974,7 @@ class MobileViTOnnxConfig(ViTOnnxConfig):
 @register_tasks_manager_onnx("regnet", *["feature-extraction", "image-classification"])
 class RegNetOnnxConfig(ViTOnnxConfig):
     # This config has the same inputs as ViTOnnxConfig
+    pass
 
 
 @register_tasks_manager_onnx("resnet", *["feature-extraction", "image-classification"])
