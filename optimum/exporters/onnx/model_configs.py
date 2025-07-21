@@ -256,7 +256,6 @@ class MegatronBertOnnxConfig(BertOnnxConfig):
 
 @register_tasks_manager_onnx("distilbert", *COMMON_TEXT_TASKS)
 class DistilBertOnnxConfig(BertOnnxConfig):
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         if self.task == "multiple-choice":
@@ -314,7 +313,6 @@ class XLMRobertaOnnxConfig(DistilBertOnnxConfig):
     *["feature-extraction", "fill-mask", "text-classification", "token-classification", "question-answering"],
 )
 class DebertaOnnxConfig(BertOnnxConfig):
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = super().inputs
@@ -426,14 +424,12 @@ if is_transformers_version(">=", "4.46.0"):
 
     @register_tasks_manager_onnx("opt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "question-answering"])
     class OPTOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 else:
 
     @register_tasks_manager_onnx("opt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "question-answering"])
     class OPTOnnxConfig(TextDecoderOnnxConfig):
-
         NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
@@ -512,7 +508,6 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
     MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
 
-    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DUMMY_INPUT_GENERATOR_CLASSES = (
         MistralDummyPastKeyValuesGenerator,
         *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
@@ -950,14 +945,10 @@ class PvtOnnxConfig(ViTOnnxConfig):
 @register_tasks_manager_onnx("vit_mae", *["feature-extraction"])
 class VitMAEOnnxConfig(ViTOnnxConfig):
     pass
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
-    # Support for this operator was added in version 14, try exporting with this version.
 
 
 @register_tasks_manager_onnx("vit_msn", *["feature-extraction", "image-classification"])
 class VitMSNOnnxConfig(ViTOnnxConfig):
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 11 is not supported.
-    # Support for this operator was added in version 14, try exporting with this version.
     pass
 
 
@@ -984,7 +975,6 @@ class ResNetOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("detr", *["feature-extraction", "object-detection", "image-segmentation"])
 class DetrOnnxConfig(ViTOnnxConfig):
-
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         if self.task == "image-segmentation":
@@ -1069,9 +1059,6 @@ class MobileNetV2OnnxConfig(MobileNetV1OnnxConfig):
 
 @register_tasks_manager_onnx("maskformer", *["feature-extraction", "image-segmentation"])
 class MaskFormerOnnxConfig(ViTOnnxConfig):
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::einsum' to ONNX opset version 11 is not supported.
-    # Support for this operator was added in version 12, try exporting with this version.
-
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         if self.task == "image-segmentation":
@@ -1223,7 +1210,6 @@ class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
 @register_tasks_manager_onnx("clip-text-with-projection", *["feature-extraction"], library_name="diffusers")
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-3
-    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
@@ -1282,8 +1268,6 @@ class ChineseCLIPOnnxConfig(CLIPOnnxConfig):
 @register_tasks_manager_onnx("siglip", *["feature-extraction", "zero-shot-image-classification"])
 class SiglipOnnxConfig(CLIPOnnxConfig):
     NORMALIZED_CONFIG_CLASS = SiglipNormalizedConfig
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::scaled_dot_product_attention' to ONNX opset version 13 is not supported.
-    # Support for this operator was added in version 14, try exporting with this version.
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1312,8 +1296,6 @@ class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
 class UNetOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
-    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
-    # operator support, available since opset 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         image_size="sample_size",
@@ -1386,8 +1368,6 @@ class UNetOnnxConfig(VisionOnnxConfig):
 @register_tasks_manager_onnx("vae-encoder", *["semantic-segmentation"], library_name="diffusers")
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 3e-4
-    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
-    # operator support, available since opset 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="in_channels", image_size="sample_size", allow_new=True
@@ -1414,8 +1394,6 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
 @register_tasks_manager_onnx("vae-decoder", *["semantic-segmentation"], library_name="diffusers")
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 3e-4
-    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
-    # operator support, available since opset 14
 
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_channels="latent_channels", allow_new=True)
 
@@ -1459,8 +1437,6 @@ class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
 @register_tasks_manager_onnx("sd3-transformer-2d", *["semantic-segmentation"], library_name="diffusers")
 class SD3TransformerOnnxConfig(VisionOnnxConfig):
     ATOL_FOR_VALIDATION = 1e-4
-    # The ONNX export of a CLIPText architecture, an other Stable Diffusion component, needs the Trilu
-    # operator support, available since opset 14
 
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTransformerTimestepInputGenerator,
@@ -1545,8 +1521,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
     # reference model.
     ATOL_FOR_VALIDATION = 1e-4
     MIN_TORCH_VERSION = version.parse("2.1")
-
-    # needs einsum operator support, available since opset 12
 
     def __init__(
         self,
@@ -1865,9 +1839,6 @@ class MCTCTOnnxConfig(OnnxConfig):
 class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
 
-    # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::triu' to ONNX opset version 11 is not supported.
-    # Support for this operator was added in version 14, try exporting with this version.
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
@@ -1899,7 +1870,6 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     ],
 )
 class WhisperOnnxConfig(AudioToTextOnnxConfig):
-
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -1942,9 +1912,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
     # * for i, indices in enumerate(codes): --> can be unrolled, fixed length (num_quantizers).
     # * max_pad = max(padding_left, padding_right) --> does not impact later controlflows.
     # if length <= max_pad:  --> appears to be always False for Musicgen.
-
-    # opset>=13 needed to avoid a bug in T5 encoder SelfAttention.
-    # opset>=14 needed for torch.tril export.
 
     VARIANTS = {  # noqa: RUF012
         "text-conditional-with-past": """Exports Musicgen to ONNX to generate audio samples conditioned on a text prompt (Reference: https://huggingface.co/docs/transformers/model_doc/musicgen#text-conditional-generation).
@@ -2619,7 +2586,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummyPix2StructInputGenerator,
     )
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if is_transformers_version("==", "4.46.0") and self._behavior is ConfigBehavior.DECODER:
@@ -2782,7 +2748,6 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
 
 
-
 @register_tasks_manager_onnx("patchtst", *["feature-extraction", "time-series-forecasting"])
 class PatchTSTOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
@@ -2808,8 +2773,6 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
 
 @register_tasks_manager_onnx("rt_detr", *["object-detection"])
 class RTDetrOnnxConfig(ViTOnnxConfig):
-    # Export the operator 'aten::grid_sampler' to ONNX fails under opset 16.
-    # Support for this operator was added in version 16.
     ATOL_FOR_VALIDATION = 1e-5
 
     @property
