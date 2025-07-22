@@ -43,6 +43,7 @@ from optimum.onnxruntime import (
 from optimum.onnxruntime.configuration import OptimizationConfig
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq
+from optimum.utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters
 
 
@@ -89,16 +90,20 @@ class ORTOptimizerTestMixin(unittest.TestCase):
 class ORTOptimizerTest(unittest.TestCase):
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
+        (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-electra"),
-        (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-ModernBertForSequenceClassification"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
     )
+
+    if is_transformers_version(">=", "4.48"):
+        SUPPORTED_ARCHITECTURES_WITH_MODEL_ID += (
+            (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-ModernBertForSequenceClassification"),
+        )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_model_with_optimized_model(self, model_cls, model_name):
