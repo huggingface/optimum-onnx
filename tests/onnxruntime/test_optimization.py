@@ -216,7 +216,7 @@ class ORTOptimizerTest(unittest.TestCase):
             fused_operator = optimizer.get_fused_operators(model_path)
             sorted_operators_difference = optimizer.get_operators_difference(model_path, optimized_model_path)
             self.assertEqual(difference_nodes_number, 0)
-            self.assertEqual(len(fused_operator), 1)
+            self.assertEqual(len(fused_operator), 1)  # One operator was not fused but present in the exported model
             self.assertEqual(len(sorted_operators_difference), 0)
             gc.collect()
 
