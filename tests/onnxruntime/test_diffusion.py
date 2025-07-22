@@ -31,8 +31,7 @@ from diffusers.utils import load_image
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
-from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
-from transformers.testing_utils import TemporaryHubRepo
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
