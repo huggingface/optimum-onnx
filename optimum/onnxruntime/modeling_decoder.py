@@ -310,7 +310,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             elif self.old_bloom_modeling:
                 k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
                 v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
-                k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
 
@@ -431,7 +430,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @staticmethod
     def _reorder_cache(
-        past_key_values: tuple[tuple[torch.Tensor]], beam_idx: torch.Tensor
+        past_key_values: Union[tuple[tuple[torch.Tensor]], tuple[torch.Tensor]],
+        beam_idx: torch.Tensor,
     ) -> tuple[tuple[torch.Tensor]]:
         if (
             isinstance(past_key_values, tuple)
@@ -467,7 +467,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
                 for layer_past in past_key_values
             )
-        elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], torch.Tensor):
+        elif (
+            isinstance(past_key_values, tuple)
+            and isinstance(past_key_values[0], torch.Tensor)
+            and past_key_values[0].ndim == 3
+        ):
             # GPT BigCode style
             return tuple(layer_past.index_select(0, beam_idx.to(layer_past.device)) for layer_past in past_key_values)
         else:
