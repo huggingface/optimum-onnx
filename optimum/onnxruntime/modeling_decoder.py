@@ -432,7 +432,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
     @staticmethod
     def _reorder_cache(
-        past_key_values: Union[tuple[tuple[torch.Tensor]], tuple[torch.Tensor]],
+        past_key_values: tuple[tuple[torch.Tensor]] | tuple[torch.Tensor],
         beam_idx: torch.Tensor,
     ) -> tuple[tuple[torch.Tensor]]:
         if (
