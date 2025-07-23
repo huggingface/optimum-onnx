@@ -506,15 +506,12 @@ class GraniteOnnxConfig(LlamaOnnxConfig):
 class PhiOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DEFAULT_ONNX_OPSET = 14  # Phi now uses F.scaled_dot_product_attention by default for torch>=2.1.1.
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
 
 
 @register_tasks_manager_onnx("phi3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class Phi3OnnxConfig(PhiOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MistralDummyPastKeyValuesGenerator,
-        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
-    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
@@ -527,26 +524,20 @@ class InternLM2OnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("mistral", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
-    # This is because of the patching of torch.triu in AttentionMaskConverter, that exists from transformers>=4.35
-    MIN_TRANSFORMERS_VERSION = version.parse("4.34.99")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.35.0")
 
-    # The ONNX export of this architecture needs the Trilu operator support, available since opset 14
     DEFAULT_ONNX_OPSET = 14
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MistralDummyPastKeyValuesGenerator,
-        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
-    )
-    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     _MODEL_PATCHER = MistralModelPatcher
 
 
-@register_tasks_manager_onnx("mpt", *["text-generation", "text-generation-with-past", "text-classification"])
+@register_tasks_manager_onnx("mpt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class MPTOnnxConfig(TextDecoderOnnxConfig):
     # MPT does not require position_ids input.
     DEFAULT_ONNX_OPSET = 13
-    # TODO: fix inference for transformers < v4.41 for beam_search > 1
-    MIN_TRANSFORMERS_VERSION = version.parse("4.41.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         num_attention_heads="n_heads", hidden_size="d_model", num_layers="n_layers"
     )
@@ -555,15 +546,29 @@ class MPTOnnxConfig(TextDecoderOnnxConfig):
 @register_tasks_manager_onnx("bloom", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class BloomOnnxConfig(TextDecoderOnnxConfig):
     # Bloom does not require position_ids input.
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        BloomDummyPastKeyValuesGenerator,
-        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
-    )
-
     DEFAULT_ONNX_OPSET = 14  # Bloom uses F.scaled_dot_product_attention
-    MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.36.0")
     DUMMY_PKV_GENERATOR_CLASS = BloomDummyPastKeyValuesGenerator
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, BloomDummyPastKeyValuesGenerator)
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="n_layer", num_attention_heads="n_head")
+
+    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
+        if is_transformers_version(">=", "4.44"):
+            super().add_past_key_values(inputs_or_outputs, direction)
+        else:
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
+
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + 1"
+                name = "present"
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key"] = {0: "batch_size * num_heads", 2: decoder_sequence_name}
+                inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size * num_heads", 1: decoder_sequence_name}
 
 
 @register_tasks_manager_onnx(
@@ -591,10 +596,7 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 
         for i in range(self._normalized_config.num_layers):
             # No dim for `n_head` when using multi-query attention
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {
-                0: "batch_size",
-                1: decoder_sequence_name,
-            }
+            inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", 1: decoder_sequence_name}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key_value"] = t

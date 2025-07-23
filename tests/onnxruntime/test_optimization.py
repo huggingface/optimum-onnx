@@ -32,6 +32,7 @@ from transformers.testing_utils import require_torch_gpu
 
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS
+from optimum.exporters.onnx.model_configs import ModernBertOnnxConfig
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
@@ -99,8 +100,7 @@ class ORTOptimizerTest(unittest.TestCase):
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-xlm-roberta"),
     )
-
-    if is_transformers_version(">=", "4.48"):
+    if is_transformers_version(">=", str(ModernBertOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES_WITH_MODEL_ID += (
             (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-ModernBertForSequenceClassification"),
         )
