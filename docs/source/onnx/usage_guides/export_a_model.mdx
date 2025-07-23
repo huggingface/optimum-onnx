@@ -363,7 +363,7 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (MPTDummyPastKeyValuesGenerator,) + TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
     DUMMY_PKV_GENERATOR_CLASS = MPTDummyPastKeyValuesGenerator
 
-    DEFAULT_ONNX_OPSET = 14  # aten::tril operator requires opset>=14
+    DEFAULT_ONNX_OPSET = 18
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         hidden_size="d_model",
         num_layers="n_layers",

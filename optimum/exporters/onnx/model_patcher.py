@@ -42,8 +42,20 @@ if is_transformers_version(">=", "4.48"):
     from transformers.integrations.sdpa_attention import repeat_kv, sdpa_attention_forward
     from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 if is_transformers_version(">=", "4.53"):
-    from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS, _ignore_causal_mask_sdpa, prepare_padding_mask
+    from transformers.masking_utils import (
+        ALL_MASK_ATTENTION_FUNCTIONS,
+        _ignore_causal_mask_sdpa,
+        and_masks,
+        causal_mask_function,
+        eager_mask,
+        padding_mask_function,
+        prepare_padding_mask,
+        sdpa_mask,
+    )
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
+if is_transformers_version(">=", "4.53.1"):
+    from transformers.masking_utils import find_packed_sequence_indices
+
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
@@ -192,25 +204,81 @@ def onnx_compatible_repeat_interleave(input_tensor, repeats, dim=None, output_si
     return result
 
 
-original_linal_norm = torch.linalg.norm
-
-
 # Custom implementation of torch.linalg.matrix_norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
 def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None, out=None) -> torch.Tensor:
-    """Custom implementation of torch.linalg.norm not using torch.linalg.matrix_norm, torch.norm or torch.linalg.norm.
-    It only handles the case of matrix norm with ord=2, otherwise it uses the original implementation.
-    """
-    if ord == 2:
-        if dim is None:
-            dim = (-2, -1)
-        norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
-        if dtype is not None:
-            norm = norm.to(dtype)
-        if out is not None:
-            out.copy_(norm)
-        return norm
+    if ord != 2:
+        raise ValueError(
+            f"Only ord=2 is supported by onnx_compatible_linalg_norm, but got ord={ord}. "
+            "Please extend this function to support other norms."
+        )
 
-    return original_linal_norm(x, ord=ord, dim=dim, keepdim=keepdim, dtype=dtype, out=out)
+    if dim is None:
+        dim = (-2, -1)
+
+    norm = torch.sqrt(torch.sum(torch.square(x), dim=dim, keepdim=keepdim))
+
+    if dtype is not None:
+        norm = norm.to(dtype)
+    if out is not None:
+        out.copy_(norm)
+
+    return norm
+
+
+# A patched version of https://github.com/huggingface/transformers/blob/v4.53.2/src/transformers/masking_utils.py#L602
+# That returns a tensor of zeros with the same shape as position_ids indicating no packed sequence indices.
+def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Tensor:
+    return torch.zeros_like(position_ids)
+
+
+# Custom vectorized implementation of sdpa_mask without using vmap
+def sdpa_mask_without_vmap(
+    batch_size: int,
+    cache_position: torch.Tensor,
+    kv_length: int,
+    kv_offset: int = 0,
+    mask_function: Optional[Callable] = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    local_size: Optional[int] = None,
+    allow_is_causal_skip: bool = True,
+    **kwargs,
+) -> Optional[torch.Tensor]:
+    if mask_function is None:
+        mask_function = causal_mask_function
+
+    q_length = cache_position.shape[0]
+    # Potentially pad the 2D mask, and slice it correctly
+    padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+
+    # Under specific conditions, we can avoid materializing the mask, instead relying on the `is_causal` argument
+    if allow_is_causal_skip and _ignore_causal_mask_sdpa(padding_mask, q_length, kv_length, kv_offset, local_size):
+        return None
+
+    # Potentially add the padding 2D mask
+    if padding_mask is not None:
+        mask_function = and_masks(mask_function, padding_mask_function(padding_mask))
+
+    # Create broadcatable indices
+    device = cache_position.device
+    batch_indices = torch.arange(batch_size, device=device)[:, None, None, None]  # [batch_size, 1, 1, 1]
+    head_indices = torch.zeros(1, 1, 1, 1, device=device, dtype=torch.long)  # [1, 1, 1, 1] (head_idx=0)
+    q_indices = cache_position[None, None, :, None]  # [1, 1, q_length, 1]
+    kv_indices = torch.arange(kv_length, device=device)[None, None, None, :] + kv_offset  # [1, 1, 1, kv_length]
+    # Apply mask function element-wise through broadcasting
+    causal_mask = mask_function(batch_indices, head_indices, q_indices, kv_indices)
+    # Expand the mask to match batch size and query length if they weren't used in the mask function
+    causal_mask = causal_mask.expand(batch_size, 1, q_length, kv_length)
+
+    return causal_mask
+
+
+# Adapted from https://github.com/huggingface/transformers/blob/v4.53.0/src/transformers/masking_utils.py#L433
+def eager_mask_without_vmap(*args, **kwargs) -> Optional[torch.Tensor]:
+    kwargs.pop("allow_is_causal_skip", None)
+    dtype = kwargs.get("dtype", torch.float32)
+    mask = sdpa_mask_without_vmap(*args, allow_is_causal_skip=False, **kwargs)
+    mask = torch.where(mask, torch.tensor(0.0, device=mask.device, dtype=dtype), torch.finfo(dtype).min)
+    return mask
 
 
 def sdpa_mask_without_vmap(
@@ -281,7 +349,7 @@ def eager_mask_without_vmap(*args, **kwargs) -> torch.Tensor | None:
 
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
-    PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, original_linal_norm),
+    PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, torch.linalg.norm),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),
@@ -414,30 +482,39 @@ class ModelPatcher:
         self.patch_ops()
         setattr(self._model, self.orig_forward_name, self.patched_forward)
 
-        # This is a workaround for the Cache class in transformers
-        # The traceable cache is because the original one used in transformers
-        # inherited from nn.Module (for a couple versions)
-        # TODO: specify the version range where this is needed
-        self.original_cache_class = transformers.cache_utils.Cache
-        transformers.cache_utils.Cache = TraceableCache
+        # This is a workaround for the Cache class in transformers, we replace it
+        # with traceable cache is because the original one used in transformers
+        # inherited from nn.Module (for a couple versions), which can't be traced as input.
+        if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
+            self.original_cache_class = transformers.cache_utils.Cache
+            transformers.cache_utils.Cache = TraceableCache
 
-        # This is a workaround for mask generation in transformers < 4.53.
+        # This is a workaround for mask generation in transformers >= 4.53.
         # The masking process uses vmap which is not traceable by TorchScript.
         if is_transformers_version(">=", "4.53"):
-            self.original_sdpa_mask = ALL_MASK_ATTENTION_FUNCTIONS["sdpa"]
-            self.original_eager_mask = ALL_MASK_ATTENTION_FUNCTIONS["eager"]
             ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask_without_vmap)
             ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask_without_vmap)
+
+        # This is a workaround for the find_packed_sequence_indices function in transformers which
+        # should only return a tensor of zeros with the same shape as position_ids indicating no packed sequence indices.
+        # The function uses torch.diff which is not traceable by TorchScript.
+        if is_transformers_version(">=", "4.53.1"):
+            self.original_find_packed_sequence_indices = find_packed_sequence_indices
+            transformers.masking_utils.find_packed_sequence_indices = find_packed_sequence_indices_patched
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
 
-        transformers.cache_utils.Cache = self.original_cache_class
+        if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
+            transformers.cache_utils.Cache = self.original_cache_class
 
         if is_transformers_version(">=", "4.53"):
-            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", self.original_sdpa_mask)
-            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", self.original_eager_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("sdpa", sdpa_mask)
+            ALL_MASK_ATTENTION_FUNCTIONS.register("eager", eager_mask)
+
+        if is_transformers_version(">=", "4.53.1"):
+            transformers.masking_utils.find_packed_sequence_indices = self.original_find_packed_sequence_indices
 
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:

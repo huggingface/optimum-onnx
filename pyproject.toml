@@ -57,7 +57,7 @@ tests = [
     # not sure they are necessary
     "rjieba",
     "sacremoses",
-    "onnxslim>=0.1.53",
+    "onnxslim>=0.1.60",
 ]
 quality = ["ruff==0.12.3"]
 
