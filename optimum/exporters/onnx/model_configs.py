@@ -1801,7 +1801,7 @@ class UniSpeechSATOnnxConfig(HubertOnnxConfig):
     ],
 )
 class WavLMOnnxConfig(HubertOnnxConfig):
-  pass
+    pass
 
 
 @register_tasks_manager_onnx("audio-spectrogram-transformer", *["feature-extraction", "audio-classification"])
