@@ -5,10 +5,9 @@ import re
 from collections.abc import Generator
 from typing import Any, Callable
 
-import _patch_torch
-import _patch_transformers
-import _treenode_registry
 import torch
+
+from optimum.torch_export_patches import _patch_torch, _patch_transformers, _treenode_registry
 
 
 def patched_function(name: str) -> tuple[type, Callable]:
@@ -289,6 +288,7 @@ def torch_export_patches(
         # patch sympy
         #############
 
+        # TODO (anyone): Is this still needed?
         if patch_sympy:
             import sympy
 
@@ -415,6 +415,8 @@ def torch_export_patches(
         # export
         ########
 
+        fct_callable = _replacement_before_exporting if patch_transformers else (lambda x: x)
+
         if verbose:
             print("[torch_export_patches] done patching")
 
@@ -525,3 +527,22 @@ def torch_export_patches(
             ########
 
             _treenode_registry.unregister_cache_serialization(cache_done, verbose=verbose)
+
+
+def _replacement_before_exporting(args: Any) -> Any:
+    """Does replacements on the given inputs if needed."""
+    if args is None:
+        return None
+    if isinstance(args, (int, float)):
+        return args
+    if type(args) not in {dict, tuple, list}:
+        # BaseModelOutput is a dict
+        return args
+    if isinstance(args, dict):
+        return {k: _replacement_before_exporting(v) for k, v in args.items()}
+    if isinstance(args, tuple):
+        return tuple(_replacement_before_exporting(v) for v in args)
+    if isinstance(args, list):
+        return [_replacement_before_exporting(v) for v in args]
+
+    return args

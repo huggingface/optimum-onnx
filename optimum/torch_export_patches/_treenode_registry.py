@@ -4,16 +4,17 @@ from typing import Any, Callable
 import optree
 import torch
 import transformers
+from diffusers.models.unets import unet_2d_condition
 from packaging import version as pv
-from transformers import cache_utils
+from transformers import cache_utils, modeling_outputs
+
+from optimum.torch_export_patches import _treenode
 
 
 try:
     from transformers.models.mamba.modeling_mamba import MambaCache
 except ImportError:
     from transformers.cache_utils import MambaCache
-
-from .serialization import _lower_name_with_
 
 
 PATCH_OF_PATCHES: set[Any] = set()
@@ -95,13 +96,22 @@ def register_cache_serialization(
     """
     wrong: dict[type, str | None] = {}
     if patch_transformers:
-        from .serialization.transformers_impl import WRONG_REGISTRATIONS
+        WRONG_REGISTRATIONS = {
+            cache_utils.DynamicCache: "4.50",
+            modeling_outputs.BaseModelOutput: None,
+        }
 
         wrong |= WRONG_REGISTRATIONS
     if patch_diffusers:
-        from .serialization.diffusers_impl import WRONG_REGISTRATIONS
 
-        wrong |= WRONG_REGISTRATIONS
+        def _make_wrong_registrations() -> dict[type, str | None]:
+            res: dict[type, str | None] = {}
+            for c in [unet_2d_condition.UNet2DConditionOutput]:
+                if c is not None:
+                    res[c] = None
+            return res
+
+        wrong |= _make_wrong_registrations()
 
     registration_functions = serialization_functions(
         patch_transformers=patch_transformers, patch_diffusers=patch_diffusers, verbose=verbose
@@ -153,7 +163,7 @@ def serialization_functions(
     all_functions: dict[type, str | None] = {}
 
     if patch_transformers:
-        from .serialization.transformers_impl import (
+        from optimum.torch_export_patches._treenode import (
             SUPPORTED_DATACLASSES,
             flatten_dynamic_cache,
             flatten_encoder_decoder_cache,
@@ -171,6 +181,7 @@ def serialization_functions(
             unflatten_sliding_window_cache,
             unflatten_static_cache,
         )
+
         from .serialization.transformers_impl import (
             __dict__ as dtr,
         )
@@ -226,7 +237,7 @@ def serialization_functions(
         supported_classes |= SUPPORTED_DATACLASSES
 
     for cls in supported_classes:
-        lname = _lower_name_with_(cls.__name__)
+        lname = _treenode._lower_name_with_(cls.__name__)
         assert f"flatten_{lname}" in all_functions, (
             f"Unable to find function 'flatten_{lname}' in {list(all_functions)}"
         )

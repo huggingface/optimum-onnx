@@ -15,9 +15,27 @@ try:
 except ImportError:
     patch_masking_utils = False
 
-from ...ext_test_case import has_transformers
-from ...helpers.torch_helper import is_torchdynamo_exporting
 
+def _has_transformers(version: str) -> bool:
+    "Returns True if transformers version is higher."
+    return pv.Version(transformers.__version__) >= pv.Version(version)
+
+def _is_torchdynamo_exporting() -> bool:
+    """Tells if :epkg:`torch` is exporting a model. Relies on ``torch.compiler.is_exporting()``."""
+
+    if not hasattr(torch.compiler, "is_exporting"):
+        # torch.compiler.is_exporting requires torch>=2.7
+        return False
+
+    try:
+        return torch.compiler.is_exporting()
+    except Exception:
+        try:
+            import torch._dynamo as dynamo
+
+            return dynamo.is_exporting()  # type: ignore
+        except Exception:
+            return False
 
 if patch_masking_utils:
     # Introduced in 4.52
@@ -153,7 +171,7 @@ class patched_AttentionMaskConverter:
     """
 
     # This method was fixed in 4.51 at least.
-    _PATCHES_ = ["_make_causal_mask"] if not has_transformers("4.48.3") else []
+    _PATCHES_ = ["_make_causal_mask"] if not _has_transformers("4.48.3") else []
     _PATCHED_CLASS_ = AttentionMaskConverter
 
     @staticmethod
@@ -364,7 +382,7 @@ class patched_GenerationMixin:
         The current implementation does not rely on ``self`` and could be
         a class method. It is left as a standard method to be easily rewritten.
         """
-        if is_torchdynamo_exporting():
+        if _is_torchdynamo_exporting():
             return self._cache_dependant_input_preparation_exporting(
                 input_ids, inputs_embeds, cache_position
             )
