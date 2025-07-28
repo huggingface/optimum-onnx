@@ -140,8 +140,6 @@ def torch_export_patches(
     patch_torch: bool = True,
     patch_transformers: bool = False,
     patch_diffusers: bool = False,
-    catch_constraints: bool = True,
-    stop_if_static: int = 0,
     verbose: int = 0,
     patch: bool = True,
     custom_patches: type["torch.nn.Module"] | None = None,
@@ -157,15 +155,6 @@ def torch_export_patches(
         patch_torch: patches :epkg:`torch` with supported implementation
         patch_transformers: patches :epkg:`transformers` with supported implementation
         patch_diffusers: patches :epkg:`diffusers` with supported implementation
-        catch_constraints: catch constraints related to dynamic shapes,
-            as a result, some dynamic dimension may turn into static ones,
-            the environment variable ``SKIP_SOLVE_CONSTRAINTS=0``
-            can be put to stop at that stage.
-        stop_if_static: see example :ref:`l-plot-export-locale-issue`,
-            to stop the export as soon as an issue is detected with dynamic shapes
-            and show a stack trace indicating the exact location of the issue,
-            ``if stop_if_static > 1``, more methods are replace to catch more
-            issues
         patch: if False, disable all patches but keeps the registration of
             serialization functions if other patch functions are enabled
         custom_patches: to apply custom patches,
@@ -231,7 +220,7 @@ def torch_export_patches(
         may appear ``AssertionError: Mutating module attribute _seen_tokens during export.``.
         It can be avoided by setting ``strict=False`` when call :func:`torch.export.export`.
     """
-    if rewrite:
+    if rewrite is not None or dump_rewriting is not None:
         raise ValueError(
             "The argument `rewrite` is not supported at the moment, as the automatic rewriting is not implemented yet."
         )
@@ -256,6 +245,10 @@ def torch_export_patches(
         #         pass
     # elif not patch:
     if not patch:
+        # NOTE: registering caches serialization is not recognized as patches
+        # It's needed to successfully export the models through torch.export,
+        # as the serialization functions are not registered by default.
+
         fct_callable = lambda x: x  # noqa: E731
         done = _treenode_registry.register_cache_serialization(
             patch_transformers=patch_transformers,
@@ -307,71 +300,23 @@ def torch_export_patches(
         if patch_torch:
             if verbose:
                 print(f"[torch_export_patches] torch.__version__={torch.__version__!r}")
-                print(f"[torch_export_patches] stop_if_static={stop_if_static!r}")
                 print("[torch_export_patches] patch pytorch")
 
             # torch.vmap
             f_vmap = torch.vmap
             torch.vmap = _patch_torch.patched_vmap
 
-            # torch.jit.isinstance
-            f_jit_isinstance = torch.jit.isinstance
-            torch.jit.isinstance = isinstance
-
+            # TODO(anyone): Test these to see if they are still needed
             # torch._dynamo.mark_static_address
             f_mark_static_address = torch._dynamo.mark_static_address
             torch._dynamo.mark_static_address = lambda *_, **y_: None
-
             # torch._subclasses.fake_impls.infer_size
             f_infer_size = torch._subclasses.fake_impls.infer_size
             torch._subclasses.fake_impls.infer_size = _patch_torch.patched_infer_size
-
             # torch._refs._broadcast_shapes
             f__broadcast_shapes = torch._refs._broadcast_shapes
             torch._refs._broadcast_shapes = _patch_torch.patched__broadcast_shapes
             torch._meta_registrations._broadcast_shapes = _patch_torch.patched__broadcast_shapes
-
-        # torch._export.non_strict_utils.produce_guards_and_solve_constraints
-        if catch_constraints:
-            if verbose:
-                print("[torch_export_patches] modifies shape constraints")
-            f_produce_guards_and_solve_constraints = (
-                torch._export.non_strict_utils.produce_guards_and_solve_constraints
-            )
-            f__check_input_constraints_for_graph = torch._export.utils._check_input_constraints_for_graph
-            torch._export.non_strict_utils.produce_guards_and_solve_constraints = (
-                lambda *args, **kwargs: _patch_torch.catch_produce_guards_and_solve_constraints(
-                    f_produce_guards_and_solve_constraints, *args, verbose=verbose, **kwargs
-                )
-            )
-            torch._export.utils._check_input_constraints_for_graph = (
-                lambda *args, **kwargs: _patch_torch.patch__check_input_constraints_for_graph(
-                    f__check_input_constraints_for_graph, *args, verbose=verbose, **kwargs
-                )
-            )
-
-        if stop_if_static:
-            from torch.fx.experimental.symbolic_shapes import ShapeEnv
-
-            ShapeEnv._log_guard_remember = ShapeEnv._log_guard
-
-            if verbose:
-                print("[torch_export_patches] assert when a dynamic dimension turns static")
-                print("[torch_export_patches] replaces ShapeEnv._set_replacement")
-
-            f_shape_env__set_replacement = ShapeEnv._set_replacement
-            ShapeEnv._set_replacement = _patch_torch.patched_ShapeEnv._set_replacement
-
-            if verbose:
-                print("[torch_export_patches] replaces ShapeEnv._log_guard")
-            f_shape_env__log_guard = ShapeEnv._log_guard
-            ShapeEnv._log_guard = _patch_torch.patched_ShapeEnv._log_guard
-
-            if stop_if_static > 1:
-                if verbose:
-                    print("[torch_export_patches] replaces ShapeEnv._check_frozen")
-                f_shape_env__check_frozen = ShapeEnv._check_frozen
-                ShapeEnv._check_frozen = _patch_torch.patched_ShapeEnv._check_frozen
 
         ####################
         # patch transformers
@@ -415,7 +360,8 @@ def torch_export_patches(
         # export
         ########
 
-        fct_callable = _replacement_before_exporting if patch_transformers else (lambda x: x)
+        def fct_callable(x):
+            return x
 
         if verbose:
             print("[torch_export_patches] done patching")
@@ -447,7 +393,6 @@ def torch_export_patches(
             if patch_torch:
                 # this should disappear when torch.jit is removed
                 torch.vmap = f_vmap
-                torch.jit.isinstance = f_jit_isinstance
                 torch._dynamo.mark_static_address = f_mark_static_address
                 # tracked by https://github.com/pytorch/pytorch/issues/143495
                 torch._subclasses.fake_impls.infer_size = f_infer_size
@@ -456,31 +401,6 @@ def torch_export_patches(
 
                 if verbose:
                     print("[torch_export_patches] restored pytorch functions")
-
-            if stop_if_static:
-                if verbose:
-                    print("[torch_export_patches] restored ShapeEnv._set_replacement")
-
-                ShapeEnv._set_replacement = f_shape_env__set_replacement
-
-                if verbose:
-                    print("[torch_export_patches] restored ShapeEnv._log_guard")
-
-                ShapeEnv._log_guard = f_shape_env__log_guard
-
-                if stop_if_static > 1:
-                    if verbose:
-                        print("[torch_export_patches] restored ShapeEnv._check_frozen")
-                    ShapeEnv._check_frozen = f_shape_env__check_frozen
-
-            if catch_constraints:
-                # to catch or skip dynamic_shapes issues
-                torch._export.non_strict_utils.produce_guards_and_solve_constraints = (
-                    f_produce_guards_and_solve_constraints
-                )
-                torch._export.utils._check_input_constraints_for_graph = f__check_input_constraints_for_graph
-                if verbose:
-                    print("[torch_export_patches] restored shape constraints")
 
             if custom_patches:
                 if verbose:
@@ -527,22 +447,3 @@ def torch_export_patches(
             ########
 
             _treenode_registry.unregister_cache_serialization(cache_done, verbose=verbose)
-
-
-def _replacement_before_exporting(args: Any) -> Any:
-    """Does replacements on the given inputs if needed."""
-    if args is None:
-        return None
-    if isinstance(args, (int, float)):
-        return args
-    if type(args) not in {dict, tuple, list}:
-        # BaseModelOutput is a dict
-        return args
-    if isinstance(args, dict):
-        return {k: _replacement_before_exporting(v) for k, v in args.items()}
-    if isinstance(args, tuple):
-        return tuple(_replacement_before_exporting(v) for v in args)
-    if isinstance(args, list):
-        return [_replacement_before_exporting(v) for v in args]
-
-    return args
