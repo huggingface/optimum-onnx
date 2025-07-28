@@ -68,7 +68,7 @@ def patch_module_or_class(mod, verbose: int = 0) -> dict[type, dict[type, Callab
         to_patch = mod
         name = "list"
     else:
-        name, to_patch = get_patches(mod, verbose)
+        name, to_patch = get_patches(mod)
 
     res = {}
     for cls in to_patch:
@@ -108,7 +108,7 @@ def unpatch_module_or_class(mod, info: dict[type, dict[type, Callable]], verbose
         to_patch = mod
         name = "list"
     else:
-        name, to_patch = get_patches(mod, verbose)
+        name, to_patch = get_patches(mod)
 
     set_patch_cls = {i for i in to_patch if not isinstance(i, dict)}
     dict_patch_fct = {i["function"]: i for i in to_patch if isinstance(i, dict)}
@@ -171,7 +171,6 @@ def torch_export_patches(
 
     The list of available patches:
 
-    * ``torch.jit.isinstance``
     * ``torch._dynamo.mark_static_address``
     * ``torch._subclasses.fake_impls.infer_size``
     * ``torch.vmap``
@@ -180,8 +179,7 @@ def torch_export_patches(
     * Serialization of ``MambaCache`` (in :epkg:`transformers`)
     * Serialization of ``DynamicCache`` (in :epkg:`transformers`)
     * reduce errors due to shape inference
-    * fixes some transformers classes,
-      see :mod:`onnx_diagnostic.torch_export_patches.patches.patch_transformers`
+    * fixes some transformers classes
 
     Serialization issues happen when a module takes one input or output
     has a type :func:`torch.export.export` cannot serialize.
@@ -204,15 +202,6 @@ def torch_export_patches(
         .. code-block:: python
 
             with torch_export_patches(patch_transformers=True) as modificator:
-                inputs = modificator(inputs)
-                ep = torch.export.export(..., inputs, ...)
-
-        When running the model through the exported program, only the
-        serialization functions need to be restored:
-
-        .. code-block:: python
-
-            with register_additional_serialization_functions() as modificator:
                 inputs = modificator(inputs)
                 ep = torch.export.export(..., inputs, ...)
 
@@ -324,7 +313,7 @@ def torch_export_patches(
 
         if patch_transformers:
             try:
-                import transformers.masking_utils as masking_utils
+                from transformers import masking_utils
             except ImportError:
                 masking_utils = None
 
@@ -414,7 +403,7 @@ def torch_export_patches(
             if patch_transformers:
                 try:
                     # masking_utils is available only if transformers==4.53.0 or later
-                    import transformers.masking_utils as masking_utils
+                    from transformers import masking_utils
                 except ImportError:
                     masking_utils = None
                 if verbose:

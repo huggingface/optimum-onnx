@@ -1,9 +1,118 @@
 import unittest
+from typing import Any
+
+import numpy as np
 
 from optimum.torch_export_patches._core import torch_export_patches
 
 
 class TestOnnxExportErrors(unittest.TestCase):
+    def assertEqualArrayAny(self, expected: Any, value: Any, atol: float = 0, rtol: float = 0, msg: str = ""):  # noqa: N802
+        if isinstance(expected, (tuple, list, dict)):
+            self.assertIsInstance(value, type(expected), msg=msg)
+            self.assertEqual(len(expected), len(value), msg=msg)
+            if isinstance(expected, dict):
+                for k in expected:
+                    self.assertIn(k, value, msg=msg)
+                    self.assertEqualArrayAny(expected[k], value[k], msg=msg, atol=atol, rtol=rtol)
+            else:
+                excs = []
+                for i, (e, g) in enumerate(zip(expected, value)):
+                    try:
+                        self.assertEqualArrayAny(e, g, msg=msg, atol=atol, rtol=rtol)
+                    except AssertionError as e:
+                        excs.append(f"Error at position {i} due to {e}")
+                if excs:
+                    msg_ = "\n".join(excs)
+                    msg = f"{msg}\n{msg_}" if msg else msg_
+                    raise AssertionError(f"Found {len(excs)} discrepancies\n{msg}")
+        elif expected.__class__.__name__ in ("DynamicCache", "StaticCache"):
+            atts = {"key_cache", "value_cache"}
+            self.assertEqualArrayAny(
+                {k: expected.__dict__.get(k, None) for k in atts},
+                {k: value.__dict__.get(k, None) for k in atts},
+                atol=atol,
+                rtol=rtol,
+            )
+        elif isinstance(expected, (int, float, str)):
+            self.assertEqual(expected, value, msg=msg)
+        elif hasattr(expected, "shape"):
+            self.assertEqual(type(expected), type(value), msg=msg)
+            self.assertEqualArray(expected, value, msg=msg, atol=atol, rtol=rtol)
+        elif expected is None:
+            assert value is None, f"Expected is None but value is of type {type(value)}"
+        else:
+            raise AssertionError(f"Comparison not implemented for types {type(expected)} and {type(value)}")
+
+    def assertEqualArray(  # noqa: N802
+        self,
+        expected: Any,
+        value: Any,
+        atol: float = 0,
+        rtol: float = 0,
+        msg: str | None = None,
+    ):
+        if hasattr(expected, "detach") and hasattr(value, "detach"):
+            if msg:
+                try:
+                    self.assertEqual(expected.dtype, value.dtype)
+                except AssertionError as e:
+                    raise AssertionError(msg) from e
+                try:
+                    self.assertEqual(expected.shape, value.shape)
+                except AssertionError as e:
+                    raise AssertionError(msg) from e
+            else:
+                self.assertEqual(expected.dtype, value.dtype)
+                self.assertEqual(expected.shape, value.shape)
+
+            import torch
+
+            try:
+                torch.testing.assert_close(value, expected, atol=atol, rtol=rtol)
+            except AssertionError as e:
+                expected_max = torch.abs(expected).max()
+                expected_value = torch.abs(value).max()
+                rows = [
+                    f"{msg}\n{e}" if msg else str(e),
+                    f"expected max value={expected_max}",
+                    f"expected computed value={expected_value}",
+                ]
+                raise AssertionError("\n".join(rows))
+            return
+
+        if hasattr(expected, "detach"):
+            expected = expected.detach().cpu().numpy()
+        if hasattr(value, "detach"):
+            value = value.detach().cpu().numpy()
+        if msg:
+            try:
+                self.assertEqual(expected.dtype, value.dtype)
+            except AssertionError as e:
+                raise AssertionError(msg) from e
+            try:
+                self.assertEqual(expected.shape, value.shape)
+            except AssertionError as e:
+                raise AssertionError(msg) from e
+        else:
+            self.assertEqual(expected.dtype, value.dtype)
+            self.assertEqual(expected.shape, value.shape)
+
+        try:
+            np.testing.assert_allclose(desired=expected, actual=value, atol=atol, rtol=rtol)
+        except AssertionError as e:
+            expected_max = np.abs(expected).max()
+            expected_value = np.abs(value).max()
+            te = expected.astype(int) if expected.dtype == np.bool_ else expected
+            tv = value.astype(int) if value.dtype == np.bool_ else value
+            rows = [
+                f"{msg}\n{e}" if msg else str(e),
+                f"expected max value={expected_max}",
+                f"expected computed value={expected_value}\n",
+                f"ratio={te / tv}\ndiff={te - tv}",
+            ]
+            raise AssertionError("\n".join(rows))
+
     # @skipif_ci_windows("not working on Windows")
     def test_pytree_flatten_mamba_cache(self):
         import torch

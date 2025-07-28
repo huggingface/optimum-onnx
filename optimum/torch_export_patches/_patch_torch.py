@@ -1,6 +1,6 @@
 import inspect
 import os
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 import torch
 
 

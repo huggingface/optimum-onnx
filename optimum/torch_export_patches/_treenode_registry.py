@@ -8,7 +8,7 @@ from diffusers.models.unets import unet_2d_condition
 from packaging import version as pv
 from transformers import cache_utils, modeling_outputs
 
-from optimum.torch_export_patches import _treenode
+from optimum.torch_export_patches import _treenode_transformers
 
 
 try:
@@ -96,12 +96,12 @@ def register_cache_serialization(
     """
     wrong: dict[type, str | None] = {}
     if patch_transformers:
-        WRONG_REGISTRATIONS = {
+        _wrong_registration = {
             cache_utils.DynamicCache: "4.50",
             modeling_outputs.BaseModelOutput: None,
         }
 
-        wrong |= WRONG_REGISTRATIONS
+        wrong |= _wrong_registration
     if patch_diffusers:
 
         def _make_wrong_registrations() -> dict[type, str | None]:
@@ -163,26 +163,28 @@ def serialization_functions(
     all_functions: dict[type, str | None] = {}
 
     if patch_transformers:
-        from optimum.torch_export_patches._treenode import (
+        from optimum.torch_export_patches._treenode_transformers import (
             SUPPORTED_DATACLASSES,
             flatten_dynamic_cache,
             flatten_encoder_decoder_cache,
+            flatten_hybrid_cache,
             flatten_mamba_cache,
             flatten_sliding_window_cache,
             flatten_static_cache,
             flatten_with_keys_dynamic_cache,
             flatten_with_keys_encoder_decoder_cache,
+            flatten_with_keys_hybrid_cache,
             flatten_with_keys_mamba_cache,
             flatten_with_keys_sliding_window_cache,
             flatten_with_keys_static_cache,
             unflatten_dynamic_cache,
             unflatten_encoder_decoder_cache,
+            unflatten_hybrid_cache,
             unflatten_mamba_cache,
             unflatten_sliding_window_cache,
             unflatten_static_cache,
         )
-
-        from .serialization.transformers_impl import (
+        from optimum.torch_export_patches._treenode_transformers import (
             __dict__ as dtr,
         )
 
@@ -195,6 +197,14 @@ def serialization_functions(
                 flatten_dynamic_cache,
                 unflatten_dynamic_cache,
                 flatten_with_keys_dynamic_cache,
+                # f_check=make_dynamic_cache([(torch.rand((4, 4, 4)), torch.rand((4, 4, 4)))]),
+                verbose=verbose,
+            ),
+            cache_utils.HybridCache: lambda verbose=verbose: register_class_serialization(
+                cache_utils.HybridCache,
+                flatten_hybrid_cache,
+                unflatten_hybrid_cache,
+                flatten_with_keys_hybrid_cache,
                 # f_check=make_dynamic_cache([(torch.rand((4, 4, 4)), torch.rand((4, 4, 4)))]),
                 verbose=verbose,
             ),
@@ -230,14 +240,14 @@ def serialization_functions(
         classes.update(transformers_classes)
 
     if patch_diffusers:
-        from .serialization.diffusers_impl import SUPPORTED_DATACLASSES
-        from .serialization.diffusers_impl import __dict__ as dfu
+        from optimum.torch_export_patches._treenode_diffusers import SUPPORTED_DATACLASSES
+        from optimum.torch_export_patches._treenode_diffusers import __dict__ as dfu
 
         all_functions.update(dfu)
         supported_classes |= SUPPORTED_DATACLASSES
 
     for cls in supported_classes:
-        lname = _treenode._lower_name_with_(cls.__name__)
+        lname = _treenode_transformers.lower_name_with_(cls.__name__)
         assert f"flatten_{lname}" in all_functions, (
             f"Unable to find function 'flatten_{lname}' in {list(all_functions)}"
         )
