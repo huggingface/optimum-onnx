@@ -35,10 +35,10 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install .[tests,onnxruntime] diffusers
         pip install optree
-          
+
     - name: Test with pytest
       run: |
         pytest tests/patch/test_torch_export_patches.py -n auto -vvvv --durations=0
