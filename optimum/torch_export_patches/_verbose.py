@@ -10,7 +10,7 @@ from optimum.torch_export_patches import _cache_creator, _type_utils
 
 
 @functools.cache
-def onnx_dtype_name(itype: int, exc: bool = True) -> str:
+def onnx_dtype_name(itype: int) -> str:
     """Returns the ONNX name for a specific element type.
 
     .. runpython::
@@ -28,8 +28,7 @@ def onnx_dtype_name(itype: int, exc: bool = True) -> str:
             v = getattr(onnx.TensorProto, k)
             if v == itype:
                 return k
-    if exc:
-        raise ValueError(f"Unexpected value itype: {itype}")
+
     if itype == 0:
         return "UNDEFINED"
     return "UNEXPECTED"
