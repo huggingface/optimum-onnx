@@ -6,7 +6,7 @@ import numpy as np
 import onnx
 from transformers import cache_utils, configuration_utils
 
-from optimum.torch_export_patches import _cache_creater, _type_utils
+from optimum.torch_export_patches import _cache_creator, _type_utils
 
 
 @functools.cache
@@ -66,7 +66,7 @@ def string_type(
 
     The element types for a tensor are displayed as integer to shorten the message.
     The semantic is defined by :class:`onnx.TensorProto` and can be obtained
-    by :func:`onnx_diagnostic.helpers.onnx_helper.onnx_dtype_name`.
+    by :func:`optimum.torch_export_patches._verbose.onnx_dtype_name`.
 
     Examples:
         Basic usage:
@@ -492,7 +492,7 @@ def string_type(
         "StaticCache",
         "HybridCache",
     }:
-        ca = _cache_creater.CacheKeyValue(obj)
+        ca = _cache_creator.CacheKeyValue(obj)
         kc = string_type(
             ca.key_cache,
             with_shape=with_shape,
@@ -556,7 +556,7 @@ def string_type(
         return f"{obj.__class__.__name__}(self_attention_cache={att}, cross_attention_cache={cross})"
 
     if obj.__class__ in torch.utils._pytree.SUPPORTED_NODES:
-        args = _cache_creater.flatten_unflatten_for_dynamic_shapes(obj)
+        args = _cache_creator.flatten_unflatten_for_dynamic_shapes(obj)
         att = string_type(
             args,
             with_shape=with_shape,

@@ -31,7 +31,7 @@ def register_class_serialization(
     """Registers a class.
 
     It can be undone with
-    :func:`onnx_diagnostic.torch_export_patches.onnx_export_serialization.unregister_class_serialization`.
+    :func:`optimum.torch_export_patches._treenode_registry.unregister_class_serialization`.
 
     Args:
         cls: class to register

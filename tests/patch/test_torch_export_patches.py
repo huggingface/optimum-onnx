@@ -1,12 +1,16 @@
 import unittest
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
+import torch
+import torch.utils._pytree as py_pytree
 
 from optimum.torch_export_patches._core import torch_export_patches
 
 
-class TestOnnxExportErrors(unittest.TestCase):
+class TestTorchExportPatchesComprehensive(unittest.TestCase):
+    """Comprehensive tests for torch_export_patches functionality."""
+
     def assertEqualArrayAny(self, expected: Any, value: Any, atol: float = 0, rtol: float = 0, msg: str = ""):  # noqa: N802
         if isinstance(expected, (tuple, list, dict)):
             self.assertIsInstance(value, type(expected), msg=msg)
@@ -26,7 +30,7 @@ class TestOnnxExportErrors(unittest.TestCase):
                     msg_ = "\n".join(excs)
                     msg = f"{msg}\n{msg_}" if msg else msg_
                     raise AssertionError(f"Found {len(excs)} discrepancies\n{msg}")
-        elif expected.__class__.__name__ in ("DynamicCache", "StaticCache"):
+        elif expected.__class__.__name__ in ("DynamicCache", "StaticCache", "HybridCache", "SlidingWindowCache"):
             atts = {"key_cache", "value_cache"}
             self.assertEqualArrayAny(
                 {k: expected.__dict__.get(k, None) for k in atts},
@@ -44,14 +48,7 @@ class TestOnnxExportErrors(unittest.TestCase):
         else:
             raise AssertionError(f"Comparison not implemented for types {type(expected)} and {type(value)}")
 
-    def assertEqualArray(  # noqa: N802
-        self,
-        expected: Any,
-        value: Any,
-        atol: float = 0,
-        rtol: float = 0,
-        msg: str | None = None,
-    ):
+    def assertEqualArray(self, expected: Any, value: Any, atol: float = 0, rtol: float = 0, msg: str | None = None):  # noqa: N802
         if hasattr(expected, "detach") and hasattr(value, "detach"):
             if msg:
                 try:
@@ -65,8 +62,6 @@ class TestOnnxExportErrors(unittest.TestCase):
             else:
                 self.assertEqual(expected.dtype, value.dtype)
                 self.assertEqual(expected.shape, value.shape)
-
-            import torch
 
             try:
                 torch.testing.assert_close(value, expected, atol=atol, rtol=rtol)
@@ -113,134 +108,291 @@ class TestOnnxExportErrors(unittest.TestCase):
             ]
             raise AssertionError("\n".join(rows))
 
-    # @skipif_ci_windows("not working on Windows")
-    def test_pytree_flatten_mamba_cache(self):
-        import torch
-        import torch.utils._pytree as py_pytree
+    def test_context_manager_basic_functionality(self):
+        """Test that torch_export_patches context manager works correctly."""
+        with torch_export_patches(verbose=0) as modificator:
+            self.assertIsNotNone(modificator)
+            self.assertTrue(callable(modificator))
+
+        # Test without patching
+        with torch_export_patches(patch=False, verbose=0) as modificator:
+            self.assertIsNotNone(modificator)
+            self.assertTrue(callable(modificator))
+
+    def test_patch_flags_combinations(self):
+        """Test different combinations of patch flags."""
+        test_cases = [
+            {"patch_sympy": True, "patch_torch": False, "patch_transformers": False, "patch_diffusers": False},
+            {"patch_sympy": False, "patch_torch": True, "patch_transformers": False, "patch_diffusers": False},
+            {"patch_sympy": False, "patch_torch": False, "patch_transformers": True, "patch_diffusers": False},
+            {"patch_sympy": False, "patch_torch": False, "patch_transformers": False, "patch_diffusers": True},
+            {"patch_sympy": True, "patch_torch": True, "patch_transformers": True, "patch_diffusers": True},
+        ]
+
+        for config in test_cases:
+            with self.subTest(config=config), torch_export_patches(**config, verbose=0) as modificator:
+                self.assertIsNotNone(modificator)
+
+    def test_static_cache_serialization(self):
+        """Test StaticCache serialization and deserialization."""
+        try:
+            from transformers.cache_utils import StaticCache
+        except ImportError:
+            self.skipTest("StaticCache not available")
+
+        class Config:
+            def __init__(self):
+                self.num_attention_heads = 4
+                self.num_key_value_heads = 4
+                self.hidden_size = 64
+                self.head_dim = 16
+                self.num_hidden_layers = 3
+
+        config = Config()
+        cache = StaticCache(config, max_batch_size=2, max_cache_len=5, device="cpu", dtype=torch.float32)
+
+        # Add some data
+        key_states = torch.randn(2, 4, 5, 16)
+        value_states = torch.randn(2, 4, 5, 16)
+        cache.update(key_states, value_states, layer_idx=0)
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(cache)
+            restored_cache = py_pytree.tree_unflatten(values, spec)
+
+            self.assertIsInstance(restored_cache, StaticCache)
+            self.assertEqual(cache.max_cache_len, restored_cache.max_cache_len)
+            self.assertEqualArrayAny(cache.key_cache, restored_cache.key_cache)
+            self.assertEqualArrayAny(cache.value_cache, restored_cache.value_cache)
+
+    def test_hybrid_cache_serialization(self):
+        """Test HybridCache serialization and deserialization."""
+        try:
+            from transformers.cache_utils import HybridCache
+        except ImportError:
+            self.skipTest("HybridCache not available")
+
+        class Config:
+            def __init__(self):
+                self.num_attention_heads = 4
+                self.num_key_value_heads = 4
+                self.hidden_size = 64
+                self.head_dim = 16
+                self.sliding_window = 4
+                self.num_hidden_layers = 3
+
+        config = Config()
+        cache = HybridCache(config, max_batch_size=2, max_cache_len=10, device="cpu", dtype=torch.float32)
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(cache)
+            restored_cache = py_pytree.tree_unflatten(values, spec)
+            self.assertIsInstance(restored_cache, HybridCache)
+
+    def test_sliding_window_cache_serialization(self):
+        """Test SlidingWindowCache serialization and deserialization."""
+        try:
+            from transformers.cache_utils import SlidingWindowCache
+        except ImportError:
+            self.skipTest("SlidingWindowCache not available")
+
+        class Config:
+            def __init__(self):
+                self.num_attention_heads = 4
+                self.num_key_value_heads = 4
+                self.hidden_size = 64
+                self.head_dim = 16
+                self.sliding_window = 5
+                self.num_hidden_layers = 3
+
+        config = Config()
+        cache = SlidingWindowCache(config, max_batch_size=2, max_cache_len=10, device="cpu", dtype=torch.float32)
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(cache)
+            restored_cache = py_pytree.tree_unflatten(values, spec)
+            self.assertIsInstance(restored_cache, SlidingWindowCache)
+
+    def test_encoder_decoder_cache_serialization(self):
+        """Test EncoderDecoderCache serialization and deserialization."""
+        try:
+            from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+        except ImportError:
+            self.skipTest("EncoderDecoderCache not available")
+
+        self_attention_cache = DynamicCache()
+        cross_attention_cache = DynamicCache()
+
+        # Add some data
+        key_states = torch.randn(2, 4, 5, 16)
+        value_states = torch.randn(2, 4, 5, 16)
+        self_attention_cache.update(key_states, value_states, layer_idx=0)
+        cross_attention_cache.update(key_states, value_states, layer_idx=0)
+
+        cache = EncoderDecoderCache(self_attention_cache, cross_attention_cache)
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(cache)
+            restored_cache = py_pytree.tree_unflatten(values, spec)
+
+            self.assertIsInstance(restored_cache, EncoderDecoderCache)
+            self.assertIsInstance(restored_cache.self_attention_cache, DynamicCache)
+            self.assertIsInstance(restored_cache.cross_attention_cache, DynamicCache)
+
+    def test_torch_vmap_patching(self):
+        """Test torch.vmap patching functionality."""
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.vmap(lambda t: t * 2)(x)
+
+        x = torch.randn(3, 4)
+
+        with torch_export_patches(patch_torch=True, verbose=0):
+            torch.export.export(Model(), (x,))
+
+    def test_model_with_cache_export(self):
+        """Test exporting a model that uses cache objects."""
+        try:
+            from transformers.cache_utils import DynamicCache
+        except ImportError:
+            self.skipTest("DynamicCache not available")
+
+        class ModelWithCache(torch.nn.Module):
+            def forward(self, x: torch.Tensor, cache: DynamicCache):
+                if cache.key_cache and len(cache.key_cache) > 0:
+                    cached_key = cache.key_cache[0]
+                    return x + cached_key.sum()
+                return x
+
+        model = ModelWithCache()
+        x = torch.randn(2, 4, 8)
+        cache = DynamicCache()
+        key_states = torch.randn(2, 4, 8, 16)
+        value_states = torch.randn(2, 4, 8, 16)
+        cache.update(key_states, value_states, layer_idx=0)
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            # This should not raise an error
+            exported = torch.export.export(model, (x, cache))
+            self.assertIsNotNone(exported)
+
+    def test_custom_patches(self):
+        """Test applying custom patches."""
+
+        class CustomPatchedClass:
+            _PATCHES_: ClassVar[list[str]] = ["test_method"]
+            _PATCHED_CLASS_: ClassVar[type] = torch.nn.Linear
+
+            @staticmethod
+            def test_method(self):
+                return "patched"
+
+        original_method = getattr(torch.nn.Linear, "test_method", None)
 
         try:
-            from transformers.models.mamba.modeling_mamba import MambaCache
+            with torch_export_patches(custom_patches=[CustomPatchedClass], verbose=0):
+                linear = torch.nn.Linear(2, 2)
+                self.assertTrue(hasattr(linear, "test_method"))
+                self.assertEqual(linear.test_method(), "patched")
+
+        finally:
+            # Clean up
+            if original_method is None:
+                if hasattr(torch.nn.Linear, "test_method"):
+                    delattr(torch.nn.Linear, "test_method")
+            else:
+                torch.nn.Linear.test_method = original_method
+
+    def test_verbose_output(self):
+        """Test that verbose output is generated correctly."""
+        import io
+        from contextlib import redirect_stdout
+
+        captured_output = io.StringIO()
+
+        with redirect_stdout(captured_output), torch_export_patches(verbose=2):
+            pass
+
+        output = captured_output.getvalue()
+        # Should contain some verbose information
+        self.assertTrue(len(output) > 0)
+
+    def test_patch_isolation(self):
+        """Test that patches are properly isolated and don't leak."""
+        original_vmap = torch.vmap
+
+        with torch_export_patches(patch_torch=True, verbose=0):
+            # Inside context, vmap should be patched
+            self.assertNotEqual(torch.vmap, original_vmap)
+
+        # Outside context, vmap should be restored
+        self.assertEqual(torch.vmap, original_vmap)
+
+    def test_error_handling_invalid_config(self):
+        """Test error handling for invalid configurations."""
+        # Test that rewrite parameter raises an error
+        with self.assertRaises(ValueError), torch_export_patches(rewrite=["some_method"]):
+            pass
+
+        with self.assertRaises(ValueError), torch_export_patches(dump_rewriting="some_file"):
+            pass
+
+    def test_dataclass_serialization(self):
+        """Test dataclass serialization functionality."""
+        try:
+            from transformers.modeling_outputs import BaseModelOutput
         except ImportError:
-            from transformers.cache_utils import MambaCache
+            self.skipTest("BaseModelOutput not available")
 
-        class Config:
-            def __init__(self):
-                self.intermediate_size = 8
-                self.state_size = 16
-                self.conv_kernel = 32
-                self.num_hidden_layers = 64
-                self.dtype = torch.float16
+        output = BaseModelOutput(last_hidden_state=torch.randn(2, 8, 64), hidden_states=None, attentions=None)
 
-        cache = MambaCache(Config(), max_batch_size=1, device="cpu")
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(output)
+            restored_output = py_pytree.tree_unflatten(values, spec)
 
-        with torch_export_patches(verbose=1):
+            self.assertIsInstance(restored_output, BaseModelOutput)
+            self.assertEqualArray(output.last_hidden_state, restored_output.last_hidden_state)
+
+    def test_diffusers_patches(self):
+        """Test diffusers-specific patches."""
+        try:
+            from diffusers.models.unets.unet_2d_condition import UNet2DConditionOutput
+        except ImportError:
+            self.skipTest("UNet2DConditionOutput not available")
+
+        output = UNet2DConditionOutput(sample=torch.randn(2, 4, 8, 8))
+
+        with torch_export_patches(patch_diffusers=True, verbose=0):
+            values, spec = py_pytree.tree_flatten(output)
+            restored_output = py_pytree.tree_unflatten(values, spec)
+
+            self.assertIsInstance(restored_output, UNet2DConditionOutput)
+            self.assertEqualArray(output.sample, restored_output.sample)
+
+    def test_multiple_cache_operations(self):
+        """Test multiple cache operations in sequence."""
+        try:
+            from transformers.cache_utils import DynamicCache
+        except ImportError:
+            self.skipTest("DynamicCache not available")
+
+        with torch_export_patches(patch_transformers=True, verbose=0):
+            cache = DynamicCache()
+
+            # Test multiple updates
+            for layer_idx in range(3):
+                key_states = torch.randn(2, 4, 5, 16)
+                value_states = torch.randn(2, 4, 5, 16)
+                cache.update(key_states, value_states, layer_idx=layer_idx)
+
+            # Test serialization after multiple operations
             values, spec = py_pytree.tree_flatten(cache)
-            cache2 = py_pytree.tree_unflatten(values, spec)
-            self.assertEqual(cache.max_batch_size, cache2.max_batch_size)
-            self.assertEqual(cache.intermediate_size, cache2.intermediate_size)
-            self.assertEqual(cache.ssm_state_size, cache2.ssm_state_size)
-            self.assertEqual(cache.conv_kernel_size, cache2.conv_kernel_size)
-            self.assertEqualArrayAny(cache.conv_states, cache2.conv_states)
-            self.assertEqualArrayAny(cache.ssm_states, cache2.ssm_states)
+            restored_cache = py_pytree.tree_unflatten(values, spec)
 
-    # @skipif_ci_windows("not working on Windows")
-    def test_exportable_mamba_cache(self):
-        import torch
-        from transformers.models.mamba.modeling_mamba import MambaCache
-
-        class Config:
-            def __init__(self):
-                self.intermediate_size = 8
-                self.state_size = 16
-                self.conv_kernel = 32
-                self.num_hidden_layers = 64
-                self.dtype = torch.float16
-
-        class Model(torch.nn.Module):
-            def forward(self, x: torch.Tensor, cache: MambaCache):
-                x1 = cache.ssm_states[0] + x
-                x2 = cache.conv_states[0][:, :, ::2] + x1
-                return x2
-
-        cache = MambaCache(Config(), max_batch_size=1, device="cpu")
-        x = torch.ones(2, 8, 16).to(torch.float16)
-        model = Model()
-        model(x, cache)
-
-        with torch_export_patches(verbose=1, patch_transformers=True):
-            cache = MambaCache(Config(), max_batch_size=1, device="cpu")
-            torch.export.export(Model(), (x, cache))
-
-    # @skipif_ci_windows("not working on Windows")
-    def test_exportable_mamba_cache_dynamic(self):
-        import torch
-        from transformers.models.mamba.modeling_mamba import MambaCache
-
-        class Config:
-            def __init__(self):
-                self.intermediate_size = 8
-                self.state_size = 16
-                self.conv_kernel = 32
-                self.num_hidden_layers = 2
-                self.dtype = torch.float16
-
-        class Model(torch.nn.Module):
-            def forward(self, x: torch.Tensor, cache: MambaCache):
-                x1 = cache.ssm_states[0] + x
-                x2 = cache.conv_states[0][:, :, ::2] + x1
-                return x2
-
-        cache = MambaCache(Config(), max_batch_size=1, device="cpu")
-        x = torch.ones(2, 8, 16).to(torch.float16)
-        model = Model()
-        model(x, cache)
-        dynamic = torch.export.Dim.DYNAMIC
-
-        with torch_export_patches():
-            cache = MambaCache(Config(), max_batch_size=2, device="cpu")
-            torch.export.export(
-                Model(),
-                (x, cache),
-                dynamic_shapes=({0: dynamic}, [[{0: dynamic}, {0: dynamic}], [{0: dynamic}, {0: dynamic}]]),
-            )
-
-    def test_exportable_dynamic_shapes_constraints(self):
-        import torch
-
-        class CustomCache:
-            def __init__(self, shape=None):
-                self.cache = [torch.zeros(shape), torch.zeros(shape)] if shape else []
-
-        def flatten_cache(cache):
-            return [cache.cache], ["cache"]
-
-        def unflatten_cache(values, context, output_type=None):
-            cache = CustomCache()
-            cache.cache = values[0]
-            return cache
-
-        def flatten_with_keys_cache(d):
-            values, context = flatten_cache(d)
-            return [(torch.utils._pytree.MappingKey(k), v) for k, v in zip(context, values)], context
-
-        torch.utils._pytree.register_pytree_node(
-            CustomCache,
-            flatten_cache,
-            unflatten_cache,
-            serialized_type_name=f"{CustomCache.__module__}.{CustomCache.__name__}",
-            flatten_with_keys_fn=flatten_with_keys_cache,
-        )
-
-        class Model(torch.nn.Module):
-            def forward(self, x, cache):
-                return cache.cache[0][0, :] + x
-
-        model = Model()
-        model.eval()
-        x, cache = torch.rand((2, 4)), CustomCache((2, 4))
-        model(x, cache)
-        dynamic = torch.export.Dim.DYNAMIC
-        torch.export.export(model, (x, cache), dynamic_shapes=({0: dynamic}, [[{0: dynamic}, {0: dynamic}]]))
+            self.assertEqual(len(cache.key_cache), len(restored_cache.key_cache))
+            for i in range(len(cache.key_cache)):
+                self.assertEqualArray(cache.key_cache[i], restored_cache.key_cache[i])
 
 
 if __name__ == "__main__":

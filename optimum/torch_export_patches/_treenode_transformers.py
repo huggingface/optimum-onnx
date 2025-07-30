@@ -17,7 +17,7 @@ except ImportError:
     from transformers.cache_utils import MambaCache
 from transformers.modeling_outputs import BaseModelOutput
 
-from optimum.torch_export_patches import _cache_creater
+from optimum.torch_export_patches import _cache_creator
 
 
 SUPPORTED_DATACLASSES: set[type] = set()
@@ -92,7 +92,7 @@ def flatten_dynamic_cache(
     dynamic_cache: DynamicCache,
 ) -> tuple[list[Any], torch.utils._pytree.Context]:
     """Serializes a :class:`transformers.cache_utils.DynamicCache` with python objects."""
-    ca = _cache_creater.CacheKeyValue(dynamic_cache)
+    ca = _cache_creator.CacheKeyValue(dynamic_cache)
     flat = [("key_cache", ca.key_cache), ("value_cache", ca.value_cache)]
     return [f[1] for f in flat], [f[0] for f in flat]
 
@@ -107,7 +107,7 @@ def flatten_with_keys_dynamic_cache(
 
 def unflatten_dynamic_cache(values: list[Any], context: torch.utils._pytree.Context, output_type=None) -> DynamicCache:
     """Restores a :class:`transformers.cache_utils.DynamicCache` from python objects."""
-    return _cache_creater.make_dynamic_cache(list(zip(values[0], values[1])))
+    return _cache_creator.make_dynamic_cache(list(zip(values[0], values[1])))
 
 
 #############
@@ -119,7 +119,7 @@ def flatten_hybrid_cache(
     cache: HybridCache,
 ) -> tuple[list[Any], torch.utils._pytree.Context]:
     """Serializes a :class:`transformers.cache_utils.HybridCache` with python objects."""
-    ca = _cache_creater.CacheKeyValue(cache)
+    ca = _cache_creator.CacheKeyValue(cache)
     flat = [("key_cache", ca.key_cache), ("value_cache", ca.value_cache)]
     return [f[1] for f in flat], [f[0] for f in flat]
 
@@ -134,7 +134,7 @@ def flatten_with_keys_hybrid_cache(
 
 def unflatten_hybrid_cache(values: list[Any], context: torch.utils._pytree.Context, output_type=None) -> HybridCache:
     """Restores a :class:`transformers.cache_utils.HybridCache` from python objects."""
-    return _cache_creater.make_hybrid_cache(list(zip(values[0], values[1])))
+    return _cache_creator.make_hybrid_cache(list(zip(values[0], values[1])))
 
 
 #############
@@ -146,7 +146,7 @@ def flatten_static_cache(
     cache: StaticCache,
 ) -> tuple[list[Any], torch.utils._pytree.Context]:
     """Serializes a :class:`transformers.cache_utils.StaticCache` with python objects."""
-    ca = _cache_creater.CacheKeyValue(cache)
+    ca = _cache_creator.CacheKeyValue(cache)
     assert not ca.key_cache or cache.max_cache_len == ca.key_cache[0].shape[2], (
         f"Serialization doet not work when "
         f"cache.max_cache_len={cache.max_cache_len} != "
@@ -166,7 +166,7 @@ def flatten_with_keys_static_cache(
 
 def unflatten_static_cache(values: list[Any], context: torch.utils._pytree.Context, output_type=None) -> StaticCache:
     """Restores a :class:`transformers.cache_utils.StaticCache` from python objects."""
-    return _cache_creater.make_static_cache(list(zip(values[0], values[1])), max_cache_len=values[0][0].shape[2])
+    return _cache_creator.make_static_cache(list(zip(values[0], values[1])), max_cache_len=values[0][0].shape[2])
 
 
 ####################
@@ -180,7 +180,7 @@ def flatten_sliding_window_cache(
     """Serializes a :class:`transformers.cache_utils.SlidingWindowCache`
     with python objects.
     """
-    ca = _cache_creater.CacheKeyValue(cache)
+    ca = _cache_creator.CacheKeyValue(cache)
     flat = [("key_cache", ca.key_cache), ("value_cache", ca.value_cache)]
     return [f[1] for f in flat], [f[0] for f in flat]
 
@@ -200,7 +200,7 @@ def unflatten_sliding_window_cache(
 ) -> SlidingWindowCache:
     """Restores a :class:`transformers.cache_utils.SlidingWindowCache` from python objects."""
     key_cache, value_cache = values
-    return _cache_creater.make_sliding_window_cache(list(zip(values[0], values[1])))
+    return _cache_creator.make_sliding_window_cache(list(zip(values[0], values[1])))
 
 
 #####################

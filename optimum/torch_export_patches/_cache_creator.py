@@ -78,8 +78,8 @@ if pv.Version(transformers.__version__) > pv.Version("4.49.99999"):
                 :showcode:
 
                 import torch
-                from onnx_diagnostic.helpers import string_type
-                from onnx_diagnostic.helpers.cache_helper import make_dynamic_cache
+                from optimum.torch_export_patches._verbose import string_type
+                from optimum.torch_export_patches._cache_creator import make_dynamic_cache
 
                 n_layers = 2
                 bsize, nheads, slen, dim = 2, 4, 3, 7
@@ -128,8 +128,8 @@ else:
                 :showcode:
 
                 import torch
-                from onnx_diagnostic.helpers import string_type
-                from onnx_diagnostic.helpers.cache_helper import make_dynamic_cache
+                from optimum.torch_export_patches._verbose import string_type
+                from optimum.torch_export_patches._cache_creator import make_dynamic_cache
 
                 n_layers = 2
                 bsize, nheads, slen, dim = 2, 4, 3, 7
@@ -169,8 +169,8 @@ def make_static_cache(
             :showcode:
 
             import torch
-            from onnx_diagnostic.helpers import string_type
-            from onnx_diagnostic.helpers.cache_helper import make_static_cache
+            from optimum.torch_export_patches._verbose import string_type
+            from optimum.torch_export_patches._cache_creator import make_static_cache
 
             n_layers = 2
             bsize, nheads, slen, dim = 2, 4, 3, 7
@@ -367,8 +367,8 @@ def make_hybrid_cache(
             :showcode:
 
             import torch
-            from onnx_diagnostic.helpers import string_type
-            from onnx_diagnostic.helpers.cache_helper import make_hybrid_cache
+            from optimum.torch_export_patches._verbose import string_type
+            from optimum.torch_export_patches._cache_creator import make_hybrid_cache
 
             n_layers = 2
             bsize, nheads, slen, dim = 2, 4, 3, 7
