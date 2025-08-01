@@ -1341,7 +1341,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         model_id = "sparse-encoder-testing/splade-bert-tiny-nq"
         onnx_model = ORTModelForMaskedLM.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
-        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer, device=0)
+        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
         text = f"The capital of France is {tokenizer.mask_token}."
         outputs = pipe(text)
 
