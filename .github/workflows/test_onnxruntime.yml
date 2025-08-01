@@ -59,7 +59,7 @@ jobs:
           if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
             pip install "transformers==4.36.*" "diffusers<0.32.0" "pytest<8.0.0"
           elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
-            pip install "transformers==4.45.*" "diffusers<0.33.0" "pytest<8.0.0"
+            pip install "transformers==4.45.*" "diffusers<0.33.0"
           fi
 
       - name: Test with pytest
