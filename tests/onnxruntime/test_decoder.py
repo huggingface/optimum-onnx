@@ -127,8 +127,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def get_batched_inputs(self):
         return ["This is me", "Today is a nice day and I am longer"]
 
-    def get_tokenizer(self, model_id: str, model_arch: str | None = None):
-        trust_remote_code = model_arch is not None and model_arch in self.TRUST_REMOTE_CODE_MODELS
+    def get_tokenizer(self, model_id: str, trust_remote_code: bool = False):
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         if tokenizer.pad_token is None:
             if tokenizer.eos_token is not None:
@@ -267,7 +266,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, "gpt2")
+        tokenizer = self.get_tokenizer(model_id)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
@@ -318,15 +317,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
-            "model_arch": model_arch,
             "use_cache": use_cache,
+            "model_arch": model_arch,
             "trust_remote_code": trust_remote_code,
         }
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
         texts = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(texts, return_tensors="pt", padding=True)
 
         set_seed(SEED)
@@ -387,7 +386,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         set_seed(SEED)
@@ -419,7 +418,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         set_seed(SEED)
@@ -474,7 +473,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         with_pkv_dir = self.onnx_model_dirs[model_arch + "_True"]
@@ -508,7 +507,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model_dir = self.onnx_model_dirs[test_name]
@@ -561,7 +560,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, model_arch)
+        tokenizer = self.get_tokenizer(model_id, trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model_dir = self.onnx_model_dirs[test_name]
@@ -679,7 +678,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             inputs = self.get_simple_inputs()  # legacy models can't handle batched inputs (missing position_ids)
             model_id = MODEL_NAMES[model_arch]
             task = "text-generation-with-past"
-            tokenizer = self.get_tokenizer(model_id, model_arch)
+            tokenizer = self.get_tokenizer(model_id, trust_remote_code)
             tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
             set_seed(SEED)

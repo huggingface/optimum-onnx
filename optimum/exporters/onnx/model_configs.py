@@ -2556,7 +2556,10 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["encoder_outputs"] = {0: "batch_size"}
 
             # Contrary to other seq2seq archs as t5 and bart, Pix2Struct DO make use of the decoder_attention_mask input.
-            common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: "past_sequence_length + decoder_sequence_length"}
+            common_inputs["decoder_attention_mask"] = {
+                0: "batch_size",
+                1: "past_sequence_length + decoder_sequence_length",
+            }
 
         return common_inputs
 
