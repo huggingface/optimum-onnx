@@ -26,6 +26,7 @@ from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.model_configs import (
+    ArceeOnnxConfig,
     BloomOnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
@@ -79,6 +80,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "mbart",
     ]
 
+    if is_transformers_version(">=", str(ArceeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("arcee")
     if is_transformers_version(">=", str(OPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("opt")
     if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):

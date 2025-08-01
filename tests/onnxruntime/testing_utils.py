@@ -28,6 +28,7 @@ SEED = 42
 
 MODEL_NAMES = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "arcee": "onnx-internal-testing/tiny-random-ArceeForCausalLM",
     "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
@@ -151,7 +152,7 @@ class ORTModelTestMixin(unittest.TestCase):
         "np": np.ndarray,
     }
 
-    ATOL = 1e-4
+    an = 1e-4
     RTOL = 1e-4
 
     TASK = None
