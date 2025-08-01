@@ -192,7 +192,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 f"tested: {untested_architectures}.\n"
             )
 
-    def test_all_models_requiring_postion_ids(self):
+    def test_all_models_requiring_position_ids(self):
         for model_type in TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"):
             model_type_requires_position_ids = model_type in MODEL_TYPES_REQUIRING_POSITION_IDS
             onnx_config_class = TasksManager._SUPPORTED_MODEL_TYPE[model_type]["onnx"][self.TASK].func
