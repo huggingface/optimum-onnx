@@ -950,7 +950,11 @@ def onnx_export_from_model(
             f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
         )
 
-    if legacy and model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and task.startswith("text-generation"):
+    if (
+        legacy
+        and (model_type in MODEL_TYPES_REQUIRING_POSITION_IDS)
+        and (task.startswith(("text-generation", "feature-extraction")))
+    ):
         logger.warning(
             f"legacy=True was specified in the ONNX export, although the model {model_type} requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
