@@ -445,8 +445,6 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 @register_tasks_manager_onnx("arcee", *COMMON_TEXT_GENERATION_TASKS)
 class ArceeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
-    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
