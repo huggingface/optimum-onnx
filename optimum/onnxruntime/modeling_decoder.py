@@ -212,6 +212,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
 
         if self.config.model_type in {
+            "arcee",
             "gemma",
             "mistral",
             "llama",

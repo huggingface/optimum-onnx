@@ -433,6 +433,12 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
 
 
+@register_tasks_manager_onnx("arcee", *COMMON_TEXT_GENERATION_TASKS)
+class ArceeOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+
+
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class SmolLM3OnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")

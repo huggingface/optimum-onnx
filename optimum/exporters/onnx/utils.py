@@ -69,6 +69,7 @@ if TYPE_CHECKING:
 
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
+    "arcee",
     "codegen",
     "falcon",
     "gemma",
