@@ -346,7 +346,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
             v_tensor = torch.zeros(v_shape, dtype=self.dtype, device=self.device)
             past_key_values = tuple(k_tensor if ".key" in name else v_tensor for name in self.key_value_input_names)
-        elif isinstance(past_key_values[0], tuple):
+        elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
             # Flattens the past_key_values to a single tuple if it is a tuple of tuples
             past_key_values = sum(past_key_values, ())
 

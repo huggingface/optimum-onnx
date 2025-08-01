@@ -114,8 +114,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("smollm3")
 
     # base generation kwargs
-    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 2, "do_sample": False}  # noqa: RUF012
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
+    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 2, "do_sample": False}  # noqa: RUF012
+
+    if is_transformers_version(">=", "4.51.0"):
+        GEN_KWARGS["use_model_defaults"] = False
 
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
@@ -421,6 +424,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
+        gen_kwargs = {}
+        if is_transformers_version(">=", "4.51.0"):
+            gen_kwargs["use_model_defaults"] = False
+
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
             model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
@@ -435,9 +442,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         # beam search with random sampling
         gen_config = GenerationConfig(num_beams=4, max_new_tokens=10, min_new_tokens=10, do_sample=True)
         set_seed(SEED)
-        outputs = model.generate(**inputs, generation_config=gen_config, use_model_defaults=False)
+        outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config, use_model_defaults=False)
+        onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
         # group beam search with diversity penalty
@@ -449,8 +456,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             num_beam_groups=2,
             do_sample=False,
         )
-        outputs = model.generate(**inputs, generation_config=gen_config, use_model_defaults=False)
-        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config, use_model_defaults=False)
+        outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
+        onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
