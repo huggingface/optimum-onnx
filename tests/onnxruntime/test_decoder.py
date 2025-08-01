@@ -28,6 +28,7 @@ from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.model_configs import (
     BloomOnnxConfig,
     GemmaOnnxConfig,
+    Gemma2OnnxConfig,
     GraniteOnnxConfig,
     InternLM2OnnxConfig,
     MPTOnnxConfig,
@@ -93,6 +94,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen2")
     if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("gemma")
+    if is_transformers_version(">=", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("gemma2")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
     if is_transformers_version(">=", str(GraniteOnnxConfig.MIN_TRANSFORMERS_VERSION)):

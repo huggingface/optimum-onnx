@@ -64,6 +64,7 @@ MODEL_NAMES = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-GPT2LMHeadModel",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",

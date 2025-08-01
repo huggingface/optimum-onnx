@@ -483,6 +483,11 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
+@register_tasks_manager_onnx("gemma2", *COMMON_TEXT_GENERATION_TASKS + ["text-classification"])
+class Gemma2OnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+
+
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
 class GraniteOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
