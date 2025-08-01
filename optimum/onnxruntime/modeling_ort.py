@@ -149,7 +149,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     model_type = "onnx_model"
     auto_model_class = AutoModel
-    _library_name :  str | None = None
+    _library_name: str | None = None
 
     def __init__(
         self,
@@ -624,7 +624,7 @@ class ORTModelForFeatureExtraction(ORTModel):
     """ONNX Model for feature-extraction task."""
 
     auto_model_class = AutoModel
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -757,7 +757,7 @@ class ORTModelForMaskedLM(ORTModel):
     """ONNX Model with a MaskedLMOutput for masked language modeling tasks. This class officially supports albert, bert, camembert, convbert, data2vec-text, deberta, deberta_v2, distilbert, electra, flaubert, ibert, mobilebert, roberta, roformer, squeezebert, xlm, xlm_roberta."""
 
     auto_model_class = AutoModelForMaskedLM
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -858,7 +858,7 @@ class ORTModelForQuestionAnswering(ORTModel):
     """ONNX Model with a QuestionAnsweringModelOutput for extractive question-answering tasks like SQuAD. This class officially supports albert, bart, bert, camembert, convbert, data2vec-text, deberta, deberta_v2, distilbert, electra, flaubert, gptj, ibert, mbart, mobilebert, nystromformer, roberta, roformer, squeezebert, xlm, xlm_roberta."""
 
     auto_model_class = AutoModelForQuestionAnswering
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -977,7 +977,7 @@ class ORTModelForSequenceClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForSequenceClassification
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1080,7 +1080,7 @@ class ORTModelForTokenClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForTokenClassification
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1176,7 +1176,7 @@ class ORTModelForMultipleChoice(ORTModel):
     """
 
     auto_model_class = AutoModelForMultipleChoice
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1478,7 +1478,7 @@ class ORTModelForAudioClassification(ORTModel):
     """
 
     auto_model_class = AutoModelForAudioClassification
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1575,7 +1575,7 @@ class ORTModelForCTC(ORTModel):
     """ONNX Model with a language modeling head on top for Connectionist Temporal Classification (CTC). This class officially supports data2vec-audio, hubert, sew, sew-d, unispeech, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer."""
 
     auto_model_class = AutoModelForCTC
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1678,7 +1678,7 @@ class ORTModelForAudioXVector(ORTModel):
     """ONNX Model with an XVector feature extraction head on top for tasks like Speaker Verification. This class officially supports data2vec-audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer."""
 
     auto_model_class = AutoModelForAudioXVector
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1766,7 +1766,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
     """ONNX Model with a frame classification head on top for tasks like Speaker Diarization. This class officially supports data2vec-audio, unispeech_sat, wavlm, wav2vec2, wav2vec2-conformer."""
 
     auto_model_class = AutoModelForAudioFrameClassification
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_AUDIO_INPUTS_DOCSTRING.format("batch_size, sequence_length")
@@ -1845,7 +1845,7 @@ class ORTModelForImageToImage(ORTModel):
     """ONNX Model for image-to-image tasks. This class officially supports pix2pix, cyclegan, wav2vec2, wav2vec2-conformer."""
 
     auto_model_class = AutoModelForImageToImage
-    _library_name :  str | None = "transformers"
+    _library_name: str | None = "transformers"
 
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
