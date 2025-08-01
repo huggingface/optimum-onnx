@@ -594,7 +594,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             decoder_sequence_name = "past_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
+            decoder_sequence_name = "past_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
@@ -755,7 +755,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             decoder_sequence_name = "past_decoder_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_decoder_sequence_length + 1"
+            decoder_sequence_name = "past_decoder_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.decoder_num_layers):

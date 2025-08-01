@@ -417,13 +417,8 @@ class MPTDummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
 
 
 class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (
-        MPTDummyPastKeyValuesGenerator,
-        *TextDecoderOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
-    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MPTDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MPTDummyPastKeyValuesGenerator
-
-    DEFAULT_ONNX_OPSET = 14  # aten::tril operator requires opset>=14
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
         hidden_size="d_model", num_layers="n_layers", num_attention_heads="n_heads"
     )
@@ -437,7 +432,7 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             decoder_sequence_name = "past_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_sequence_length + 1"
+            decoder_sequence_name = "past_sequence_length + sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.num_layers):
