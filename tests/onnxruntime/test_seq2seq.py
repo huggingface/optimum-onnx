@@ -612,16 +612,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             "use_merged": use_merged,
         }
         self._setup(model_args)
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
 
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
+            self.onnx_model_dirs[test_name], use_io_binding=False, use_cache=use_cache, use_merged=use_merged
         )
         self.check_onnx_model(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
         io_model = self.ORTMODEL_CLASS.from_pretrained(
