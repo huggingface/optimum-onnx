@@ -433,9 +433,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(onnx_model, use_cache=use_cache)
 
         set_seed(SEED)
-        outputs = model.generate(**inputs, **self.GEN_KWARGS)
+        outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
+        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
@@ -524,9 +524,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(model_with_pkv, use_cache=True)
 
         set_seed(SEED)
-        outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS)
+        outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
         set_seed(SEED)
-        outputs_model_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS)
+        outputs_model_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=False)
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
@@ -556,9 +556,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
 
         set_seed(SEED)
-        io_outputs = io_model(**inputs, **self.GEN_KWARGS)
+        io_outputs = io_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model(**inputs, **self.GEN_KWARGS)
+        onnx_outputs = onnx_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         self.compare_logits(io_outputs, onnx_outputs, use_cache=use_cache)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
@@ -594,9 +594,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
 
         set_seed(SEED)
-        io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS)
+        io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
+        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # PIPELINE TESTS
@@ -690,9 +690,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
 
         set_seed(SEED)
-        outputs = model.generate(**inputs, **self.GEN_KWARGS)
+        outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
+        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -747,6 +747,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             outputs = model.generate(**tokens, **self.GEN_KWARGS)
             set_seed(SEED)
             merged_outputs = merged_model.generate(**tokens, **self.GEN_KWARGS)
+            set_seed(SEED)
             not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**tokens, **self.GEN_KWARGS)
 
             # compare merged to transformers

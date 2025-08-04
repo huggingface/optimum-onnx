@@ -364,9 +364,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 # The encoder-decoder-bert-bert model does not support using pkv cache, so we test it with use_cache=False.
                 use_cache = False
 
-        if model_arch == "m2m_100":
-            pytest.skip("TODO: Investigate what's wrong with m2m_100")
-
         model_args = {
             "test_name": test_name,
             "use_cache": use_cache,
