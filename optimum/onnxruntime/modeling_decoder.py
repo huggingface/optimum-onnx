@@ -222,11 +222,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         input_ids: torch.LongTensor,
         attention_mask: torch.LongTensor | None = None,
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        input_embeds: torch.FloatTensor | None = None,
         position_ids: torch.LongTensor | None = None,
         use_cache: bool | None = None,
         **kwargs,
     ) -> CausalLMOutputWithPast:
-        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
         use_cache = use_cache if use_cache is not None else self.config.use_cache
