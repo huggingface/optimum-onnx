@@ -1054,7 +1054,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: bool | str | None = None,
         # inference options
-        use_merged: bool = False,
+        use_merged: bool = False,  # why defaulting to False here ?
         use_cache: bool = True,
         **kwargs,
     ) -> ORTModelForConditionalGeneration:

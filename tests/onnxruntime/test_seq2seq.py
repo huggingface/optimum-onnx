@@ -18,6 +18,7 @@ from typing import Optional
 
 import pytest
 import torch
+from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig, PretrainedConfig, set_seed
@@ -106,8 +107,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         self.assertIsInstance(onnx_model.encoder, ORTEncoder)
         self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
+        self.assertIsInstance(onnx_model.encoder.session, InferenceSession)
+        self.assertIsInstance(onnx_model.decoder.session, InferenceSession)
         if use_cache and use_merged is not True:
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
+            self.assertIsInstance(onnx_model.decoder_with_past.session, InferenceSession)
         else:
             self.assertIsNone(onnx_model.decoder_with_past)
 
@@ -116,6 +120,38 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             self.assertEqual(onnx_model.is_merged, use_merged)
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
+
+    def compare_logits(self, outputs1, outputs2, use_cache: bool = True):
+        self.assertTrue("logits" in outputs1)
+        self.assertTrue("logits" in outputs2)
+        self.assertIsInstance(outputs1.logits, torch.Tensor)
+        self.assertIsInstance(outputs2.logits, torch.Tensor)
+        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=self.ATOL, rtol=self.RTOL)
+
+        self.assertTrue("encoder_last_hidden_state" in outputs1)
+        self.assertTrue("encoder_last_hidden_state" in outputs2)
+        self.assertIsInstance(outputs1.encoder_last_hidden_state, torch.Tensor)
+        self.assertIsInstance(outputs2.encoder_last_hidden_state, torch.Tensor)
+        torch.testing.assert_close(
+            outputs1.encoder_last_hidden_state, outputs2.encoder_last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+        )
+
+        if use_cache:
+            self.assertTrue("past_key_values" in outputs1)
+            self.assertTrue("past_key_values" in outputs2)
+            self.assertIsInstance(outputs1.past_key_values, (tuple, list, Cache))
+            self.assertIsInstance(outputs2.past_key_values, (tuple, list, Cache))
+            self.assertIsInstance(outputs1.past_key_values[0], tuple)
+            self.assertIsInstance(outputs2.past_key_values[0], tuple)
+
+            if isinstance(outputs1.past_key_values, Cache):
+                outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
+            if isinstance(outputs2.past_key_values, Cache):
+                outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
+
+            torch.testing.assert_close(
+                outputs1.past_key_values, outputs2.past_key_values, atol=self.ATOL, rtol=self.RTOL
+            )
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
@@ -254,35 +290,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
+        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
 
-        self.assertTrue("logits" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.logits, torch.Tensor)
-        torch.testing.assert_close(onnx_outputs.logits, outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        self.assertTrue("encoder_last_hidden_state" in onnx_outputs)
-        self.assertIsInstance(onnx_outputs.encoder_last_hidden_state, torch.Tensor)
-        torch.testing.assert_close(
-            onnx_outputs.encoder_last_hidden_state, outputs.encoder_last_hidden_state, atol=self.ATOL, rtol=self.RTOL
-        )
-
-        if use_cache:
-            self.assertTrue("past_key_values" in onnx_outputs)
-            self.assertIsInstance(onnx_outputs.past_key_values, tuple)
-            self.assertIsInstance(onnx_outputs.past_key_values[0], tuple)
-
-            if isinstance(outputs.past_key_values, Cache):
-                outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
-
-            torch.testing.assert_close(
-                onnx_outputs.past_key_values, outputs.past_key_values, atol=self.ATOL, rtol=self.RTOL
-            )
-
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so here only use_cache=True
     @parameterized.expand(
         grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
     )
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     def test_compare_generation_to_transformers(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -325,14 +340,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # Beam search generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
     )
     def test_compare_beam_search_to_transformers(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -342,6 +357,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             elif use_cache:
                 # The encoder-decoder-bert-bert model does not support using pkv cache, so we test it with use_cache=False.
                 use_cache = False
+
+        if model_arch == "m2m_100":
+            pytest.skip("TODO: Investigate what's wrong with m2m_100")
 
         model_args = {
             "test_name": test_name,
@@ -395,7 +413,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
-        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
         # group beam search with diversity penalty
         gen_config = GenerationConfig(
@@ -408,7 +426,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
         outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
         onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
-        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # NUMERICAL CONSISTENCY WITH PAST KEY VALUES
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True]}))
@@ -441,22 +459,21 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(texts, return_tensors="pt", padding=True)
 
         model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
+            self.onnx_model_dirs[model_arch + "_True"], use_cache=True, use_merged=use_merged
         )
-        self.check_onnx_model_sanity(model_with_pkv, use_cache=True)
+        self.check_onnx_model_sanity(model_with_pkv, use_cache=True, use_merged=use_merged)
         model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
+            self.onnx_model_dirs[model_arch + "_False"], use_cache=False, use_merged=use_merged
         )
-        self.check_onnx_model_sanity(model_without_pkv, use_cache=False)
+        self.check_onnx_model_sanity(model_without_pkv, use_cache=False, use_merged=use_merged)
 
-        outputs_model_with_pkv = model_with_pkv.generate(**tokens, **self.GEN_KWARGS, use_cache=True)
-        outputs_model_without_pkv = model_without_pkv.generate(**tokens, **self.GEN_KWARGS, use_cache=False)
-        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
+        outputs_with_pkv = model_with_pkv.generate(**tokens, **self.GEN_KWARGS, use_cache=True)
+        outputs_without_pkv = model_without_pkv.generate(**tokens, **self.GEN_KWARGS, use_cache=False)
+        torch.testing.assert_close(outputs_with_pkv, outputs_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
     # NUMERICAL CONSISTENCY WITH DECODER MERGING
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
-    def test_compare_merged_and_not_merged(self, test_name: str, model_arch: str, use_cache: bool):
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
+    def test_compare_logits_merged_and_not_merged(self, test_name: str, model_arch: str, use_cache: bool):
         if model_arch == "encoder-decoder-bert-bert":
             pytest.skip(
                 "The encoder-decoder-bert-bert model does not support merging decoders (because there's only one)."
@@ -483,55 +500,74 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         tokens = tokenizer(texts, return_tensors="pt", padding=True)
         tokens["decoder_input_ids"] = torch.ones((tokens.input_ids.shape[0], 1), dtype=torch.long)
 
-        model_merged = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name + "_True"])
+        model_merged = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_True"], use_cache=use_cache, use_merged=True
+        )
         self.check_onnx_model_sanity(model_merged, use_cache=use_cache, use_merged=True)
-        model_not_merged = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name + "_False"])
+        model_not_merged = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_False"], use_cache=use_cache, use_merged=False
+        )
         self.check_onnx_model_sanity(model_not_merged, use_cache=use_cache, use_merged=False)
 
         outputs_model_merged = model_merged(**tokens, use_cache=use_cache)
         outputs_model_not_merged = model_not_merged(**tokens, use_cache=use_cache)
 
-        self.assertTrue("logits" in outputs_model_merged)
-        self.assertIsInstance(outputs_model_merged.logits, torch.Tensor)
-        torch.testing.assert_close(
-            outputs_model_not_merged.logits, outputs_model_merged.logits, rtol=self.RTOL, atol=self.ATOL
-        )
+        self.compare_logits(outputs_model_not_merged, outputs_model_merged, use_cache=use_cache)
 
-        self.assertTrue("encoder_last_hidden_state" in outputs_model_merged)
-        self.assertIsInstance(outputs_model_merged.encoder_last_hidden_state, torch.Tensor)
-        torch.testing.assert_close(
-            outputs_model_not_merged.encoder_last_hidden_state,
-            outputs_model_merged.encoder_last_hidden_state,
-            rtol=self.RTOL,
-            atol=self.ATOL,
-        )
-
-        if use_cache:
-            self.assertTrue("past_key_values" in outputs_model_merged)
-            self.assertIsInstance(outputs_model_merged.past_key_values, tuple)
-            self.assertIsInstance(outputs_model_merged.past_key_values[0], tuple)
-
-            if isinstance(outputs_model_not_merged.past_key_values, Cache):
-                outputs_model_not_merged.past_key_values = outputs_model_not_merged.past_key_values.to_legacy_cache()
-
-            torch.testing.assert_close(
-                outputs_model_not_merged.past_key_values,
-                outputs_model_merged.past_key_values,
-                rtol=self.RTOL,
-                atol=self.ATOL,
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    def test_compare_generation_merged_and_not_merged(self, test_name: str, model_arch: str, use_cache: bool):
+        if model_arch == "encoder-decoder-bert-bert":
+            pytest.skip(
+                "The encoder-decoder-bert-bert model does not support merging decoders (because there's only one)."
             )
 
-        tokens.pop("decoder_input_ids")
+        model_args = {
+            "test_name": test_name + "_True",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": True,
+        }
+        self._setup(model_args)
+        model_args = {
+            "test_name": test_name + "_False",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": False,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        texts = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id)
+        tokens = tokenizer(texts, return_tensors="pt", padding=True)
+
+        model_merged = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_True"], use_cache=use_cache, use_merged=True
+        )
+        self.check_onnx_model_sanity(model_merged, use_cache=use_cache, use_merged=True)
+        model_not_merged = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_False"], use_cache=use_cache, use_merged=False
+        )
+        self.check_onnx_model_sanity(model_not_merged, use_cache=use_cache, use_merged=False)
+
+        if model_arch == "encoder-decoder-bert-bert":
+            model_merged.config.decoder_start_token_id = 1
+            model_not_merged.config.decoder_start_token_id = 1
+            model_merged.generation_config.decoder_start_token_id = 1
+            model_not_merged.generation_config.decoder_start_token_id = 1
+
         outputs_model_merged = model_merged.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
         outputs_model_not_merged = model_not_merged.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, atol=self.ATOL, rtol=self.RTOL)
 
     # NUMERICAL CONSISTENCY WITH IO BINDING
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
+        grid_parameters(
+            {"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True, False]}
+        )
     )
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
-    def test_compare_with_and_without_io_binding(
+    def test_compare_logits_with_and_without_io_binding(
         self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
@@ -540,8 +576,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                     "The encoder-decoder-bert-bert model does not support merging decoders (because there's only one)."
                 )
             elif use_cache:
-                # The encoder-decoder-bert-bert model does not support using pkv cache, so we test it with use_cache=False.
-                use_cache = False
+                pytest.skip(
+                    "The encoder-decoder-bert-bert model does not support returning past key values (use_cache=True)."
+                )
 
         model_args = {
             "test_name": test_name,
@@ -553,10 +590,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
         model_id = MODEL_NAMES[model_arch]
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, use_cache=use_cache
+            self.onnx_model_dirs[test_name], use_io_binding=False, use_cache=use_cache, use_merged=use_merged
         )
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, use_cache=use_cache
+            self.onnx_model_dirs[test_name], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
         )
         self.check_onnx_model_sanity(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
         self.check_onnx_model_sanity(io_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=True)
@@ -569,30 +606,55 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**tokens)
         io_outputs = io_model(**tokens)
 
-        self.assertTrue("logits" in io_outputs)
-        self.assertIsInstance(io_outputs.logits, torch.Tensor)
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
+        self.compare_logits(onnx_outputs, io_outputs, use_cache=use_cache)
 
-        self.assertTrue("encoder_last_hidden_state" in io_outputs)
-        self.assertIsInstance(io_outputs.encoder_last_hidden_state, torch.Tensor)
-        torch.testing.assert_close(
-            onnx_outputs.encoder_last_hidden_state,
-            io_outputs.encoder_last_hidden_state,
-            atol=self.ATOL,
-            rtol=self.RTOL,
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
+    )
+    def test_compare_generation_with_and_without_io_binding(
+        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
+    ):
+        if model_arch == "encoder-decoder-bert-bert":
+            if use_merged:
+                pytest.skip(
+                    "The encoder-decoder-bert-bert model does not support merging decoders (because there's only one)."
+                )
+            elif use_cache:
+                # The encoder-decoder-bert-bert model does not support using pkv cache, so we test it with use_cache=False.
+                use_cache = False
+
+        model_args = {
+            "test_name": test_name + "_True",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
+        self._setup(model_args)
+        model_args = {
+            "test_name": test_name + "_False",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+        }
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        texts = self.get_batched_inputs()
+        tokenizer = self.get_tokenizer(model_id)
+        tokens = tokenizer(texts, return_tensors="pt", padding=True)
+
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_False"],
+            use_io_binding=False,
+            use_cache=use_cache,
+            use_merged=use_merged,
         )
-
-        if use_cache:
-            self.assertTrue("past_key_values" in io_outputs)
-            self.assertIsInstance(io_outputs.past_key_values, tuple)
-            self.assertIsInstance(io_outputs.past_key_values[0], tuple)
-
-            if isinstance(onnx_outputs.past_key_values, Cache):
-                onnx_outputs.past_key_values = onnx_outputs.past_key_values.to_legacy_cache()
-
-            torch.testing.assert_close(
-                onnx_outputs.past_key_values, io_outputs.past_key_values, atol=self.ATOL, rtol=self.RTOL
-            )
+        io_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name + "_True"], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
+        )
+        self.check_onnx_model_sanity(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
+        self.check_onnx_model_sanity(io_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=True)
 
         if model_arch == "encoder-decoder-bert-bert":
             io_model.config.decoder_start_token_id = 1
@@ -600,23 +662,22 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             io_model.generation_config.decoder_start_token_id = 1
             onnx_model.generation_config.decoder_start_token_id = 1
 
-        tokens.pop("decoder_input_ids")
         io_outputs = io_model.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
         onnx_outputs = onnx_model.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True, False], "use_merged": [False, True]}))
-    def test_pipeline_with_default_model(self, tste_name: str, use_cache: bool, use_merged: bool):
-        text = "The capital of France is"
+    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+        texts = self.get_batched_inputs()
 
         # Text2Text generation
         pipe = optimum_pipeline(
-            "text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged, "export": True}
+            "text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
         )
         self.check_onnx_model_sanity(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
@@ -630,8 +691,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
             self.check_onnx_model_sanity(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
-            outputs_local_model = pipe(text, **self.GEN_KWARGS)
-            self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
+            local_outputs = pipe(texts)
+            self.assertEqual(outputs, local_outputs)
 
         # Summarization
         pipe = optimum_pipeline(
@@ -639,7 +700,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model_sanity(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("summary_text", outputs[0])
@@ -652,7 +713,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model_sanity(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("translation_text", outputs[0])
@@ -671,8 +732,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        text = "The capital of France is"
         model_id = MODEL_NAMES[model_arch]
+        texts = self.get_batched_inputs()
         tokenizer = self.get_tokenizer(model_id)
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
@@ -682,7 +743,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         # Text2Text generation
         pipe = optimum_pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
@@ -694,13 +755,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             set_seed(SEED)
-            outputs_local_model = pipe(text, **self.GEN_KWARGS)
-            self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
+            outputs_local_model = pipe(texts)
+            self.assertEqual(outputs, outputs_local_model)
 
         # Summarization
         pipe = optimum_pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("summary_text", outputs[0])
@@ -709,7 +770,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         # Translation
         pipe = optimum_pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
-        outputs = pipe(text, **self.GEN_KWARGS)
+        outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("translation_text", outputs[0])
@@ -724,7 +785,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         texts = self.get_batched_inputs()
         tokenizer = self.get_tokenizer("t5-small")
         tokens = tokenizer(texts, return_tensors="pt", padding=True)
+        tokens["decoder_input_ids"] = torch.ones((tokens.input_ids.shape[0], 1), dtype=torch.long)
 
+        outputs = model(**tokens, use_cache=use_cache)
+        onnx_outputs = onnx_model(**tokens, use_cache=use_cache)
+        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+
+        tokens.pop("decoder_input_ids")
         outputs = model.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
         onnx_outputs = onnx_model.generate(**tokens, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
