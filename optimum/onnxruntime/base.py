@@ -384,6 +384,8 @@ class ORTSessionMixin:
             the output buffers.
         """
         known_axes_values = {}
+        self._io_binding.clear_binding_inputs()
+        self._io_binding.clear_binding_outputs()
 
         for input_name in self.input_names:
             input_shape = model_inputs[input_name].shape
