@@ -24,7 +24,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig, 
 from transformers.cache_utils import Cache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
-from transformers.onnx.utils import get_preprocessor
 
 from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
