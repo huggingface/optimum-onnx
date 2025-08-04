@@ -176,6 +176,7 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
+                "decoder_attention_mask": "attention_mask",
                 "encoder_outputs": "encoder_hidden_states",
                 "attention_mask": "encoder_attention_mask",
             }
@@ -186,20 +187,16 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                # TODO: validate the axis name for attention_mask
-                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-                self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
 
@@ -381,29 +378,27 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
+        # TODO: again it makes more sense for me if we just separated the model into encoder and decoder parts
+        # and exported them with different ONNX configs. the config behaviors paradigm is still confuses me
+        # even after years of fixing it, so it's probably more confusing for external developers.
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
-        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+            common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            # TODO: it is likely this pop() is unwanted as we then always hit
-            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
-            common_inputs.pop("attention_mask")
-
             if self.use_past_in_inputs:
-                # TODO: validate the axis name for attention_mask
-                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
+                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+                common_inputs["attention_mask"] = {
+                    0: "batch_size",
+                    1: "past_sequence_length + decoder_sequence_length",
+                }
+                self.add_past_key_values(common_inputs, direction="inputs")
             else:
                 common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-            if self.use_past_in_inputs:
-                self.add_past_key_values(common_inputs, direction="inputs")
-
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+                common_inputs["attention_mask"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
         return common_inputs
 

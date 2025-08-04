@@ -36,6 +36,7 @@ from optimum.exporters.onnx.config import (
 )
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import (
+    BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
     MgpstrModelPatcher,
     MusicgenModelPatcher,
@@ -807,14 +808,7 @@ class BigBirdOnnxConfig(DistilBertOnnxConfig):
     "bigbird_pegasus", *[*COMMON_TEXT2TEXT_GENERATION_TASKS, "text-classification", "question-answering"]
 )
 class BigBirdPegasusOnnxConfig(BartOnnxConfig):
-    @property
-    def inputs(self) -> dict[str, dict[int, str]]:
-        inputs = super().inputs
-        if self._config.attention_type == "block_sparse" and self.task != "text-generation":
-            # BigBirdPegasusEncoder creates its own attention_mask internally (but not when used as a decoder).
-            # https://github.com/huggingface/transformers/blob/v4.48.0/src/transformers/models/bigbird_pegasus/modeling_bigbird_pegasus.py#L1875
-            inputs.pop("attention_mask", None)
-        return inputs
+    _MODEL_PATCHER = BigBirdPegasusModelPatcher
 
 
 @register_tasks_manager_onnx("pegasus", *COMMON_TEXT2TEXT_GENERATION_TASKS)
@@ -963,7 +957,20 @@ class SwinV2OnnxConfig(SwinOnnxConfig):
 
 @register_tasks_manager_onnx("swin2sr", *["feature-extraction", "image-to-image"])
 class Swin2srOnnxConfig(SwinOnnxConfig):
-    pass
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        outputs = super().outputs
+
+        if self.task == "image-to-image":
+            scale_factor = self._config.upscale
+            outputs["reconstruction"] = {
+                0: "batch_size",
+                1: "num_channels",
+                2: f"height  * {scale_factor}",
+                3: f"width * {scale_factor}",
+            }
+
+        return outputs
 
 
 @register_tasks_manager_onnx(
@@ -1768,7 +1775,22 @@ class MCTCTOnnxConfig(OnnxConfig):
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        return {"input_features": {0: "batch_size", 1: "sequence_classification"}}
+        return {"input_features": {0: "batch_size", 1: "sequenece_length"}}
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        outputs = super().outputs
+
+        if self.task == "automatic-speech-recognition":
+            sum_conv_kernel = sum(self._config.conv_kernel)
+            len_conv_kernel = len(self._config.conv_kernel)
+            sum_conv_stride = sum(self._config.conv_stride)
+            outputs["logits"] = {
+                0: "batch_size",
+                1: f"(sequenece_length - {sum_conv_kernel} + {len_conv_kernel}) // {sum_conv_stride} + 1",
+            }
+
+        return outputs
 
 
 @register_tasks_manager_onnx(
@@ -2402,7 +2424,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 )
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-    ATOL_FOR_VALIDATION = 1e-3
+    ATOL_FOR_VALIDATION = 1e-4
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
     _MODEL_PATCHER = VisionEncoderDecoderPatcher

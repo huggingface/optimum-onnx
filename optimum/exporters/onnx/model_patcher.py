@@ -634,6 +634,9 @@ class Seq2SeqModelPatcher(ModelPatcher):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
                             # Who cares about the encoder outputs in the decoder?
+                            print(
+                                "WARNING: The encoder_last_hidden_state output is not used in the decoder, why is this happening?"
+                            )
                             continue
                         else:
                             filtered_outputs[name] = value
@@ -649,6 +652,24 @@ class Seq2SeqModelPatcher(ModelPatcher):
             return filtered_outputs
 
         self.patched_forward = patched_forward
+
+
+class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            logger.warning(
+                "BigBirdPegasus model is using block sparse attention, which is not supported in ONNX export. "
+                "The model will be exported with original full attention."
+            )
+            self._model.set_attention_type("original_full")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            self._model.set_attention_type("block_sparse")
 
 
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
