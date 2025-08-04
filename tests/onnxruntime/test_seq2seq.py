@@ -451,11 +451,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True, use_merged=use_merged
+            self.onnx_model_dirs[model_arch + f"_True_{use_merged}"], use_cache=True, use_merged=use_merged
         )
         self.check_onnx_model(model_with_pkv, use_cache=True, use_merged=use_merged)
         model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False, use_merged=use_merged
+            self.onnx_model_dirs[model_arch + f"_False_{use_merged}"], use_cache=False, use_merged=use_merged
         )
         self.check_onnx_model(model_without_pkv, use_cache=False, use_merged=use_merged)
 
@@ -490,11 +490,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_merged = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_True"], use_cache=use_cache, use_merged=True
+            self.onnx_model_dirs[test_name + f"_{use_cache}_True"], use_cache=use_cache, use_merged=True
         )
         self.check_onnx_model(model_merged, use_cache=use_cache, use_merged=True)
         model_not_merged = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_False"], use_cache=use_cache, use_merged=False
+            self.onnx_model_dirs[test_name + f"_{use_cache}_False"], use_cache=use_cache, use_merged=False
         )
         self.check_onnx_model(model_not_merged, use_cache=use_cache, use_merged=False)
 
@@ -527,11 +527,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_merged = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_True"], use_cache=use_cache, use_merged=True
+            self.onnx_model_dirs[test_name + f"_{use_cache}_True"], use_cache=use_cache, use_merged=True
         )
         self.check_onnx_model(model_merged, use_cache=use_cache, use_merged=True)
         model_not_merged = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_False"], use_cache=use_cache, use_merged=False
+            self.onnx_model_dirs[test_name + f"_{use_cache}_False"], use_cache=use_cache, use_merged=False
         )
         self.check_onnx_model(model_not_merged, use_cache=use_cache, use_merged=False)
 
@@ -621,14 +621,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_False"],
-            use_io_binding=False,
-            use_cache=use_cache,
-            use_merged=use_merged,
+            self.onnx_model_dirs[test_name], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
         )
         self.check_onnx_model(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name + "_True"], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
+            self.onnx_model_dirs[test_name], use_io_binding=True, use_cache=use_cache, use_merged=use_merged
         )
         self.check_onnx_model(io_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=True)
 

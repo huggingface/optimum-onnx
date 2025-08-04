@@ -829,6 +829,16 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             )
         return cached_path
 
+    # TODO: move it to ORTModel (or ORTHubMixin when OptimizedModel is removed)
+    @staticmethod
+    def _infer_file_path(pattern: str, file_name: str, onnx_files: list[Path]):
+        pattern_files = [p for p in onnx_files if re.search(pattern, str(p))]
+        if len(pattern_files) == 0:
+            raise ValueError(f"Could not find any ONNX model file with pattern {pattern}, files found: {onnx_files}.")
+        name_files = [file for file in pattern_files if file.name == file_name]
+        file_path = next(iter(name_files), pattern_files[0])
+        return file_path
+
     @classmethod
     def _from_pretrained(
         cls,
@@ -870,57 +880,32 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
 
-        # For each component of the model, we check for all models satisfying the pattern
-        # and prioritize the one with the exact filename.
-        encoder_pattern_files = [p for p in onnx_files if re.search(ENCODER_ONNX_FILE_PATTERN, str(p))]
-        if len(encoder_pattern_files) == 0:
-            raise ValueError(
-                f"Could not find any ONNX model file in {model_id} with encoder pattern "
-                f"{ENCODER_ONNX_FILE_PATTERN}, files found: {onnx_files}."
-            )
-        encoder_name_files = [file for file in encoder_pattern_files if file.name == encoder_file_name]
-        encoder_path = next(iter(encoder_name_files), encoder_pattern_files[0])
+        encoder_path = cls._infer_file_path(ENCODER_ONNX_FILE_PATTERN, encoder_file_name, onnx_files)
 
-        decoder_path = None
-        decoder_with_past_path = None
         # We default to looking for merged decoder if user didn't disable it explicitly.
+        decoder_path = None
         if use_merged is not False:
-            merged_pattern_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
-            if use_merged is True and len(merged_pattern_files) == 0:
-                raise ValueError(
-                    f"Could not find any merged ONNX model file in {model_id} with merged decoder pattern "
-                    f"{DECODER_MERGED_ONNX_FILE_PATTERN}, files found: {onnx_files}."
+            try:
+                decoder_path = cls._infer_file_path(
+                    DECODER_MERGED_ONNX_FILE_PATTERN, decoder_with_past_file_name, onnx_files
                 )
-            elif len(merged_pattern_files) > 0:
-                merged_decoder_name_files = [file for file in merged_pattern_files if file.name == decoder_file_name]
-                decoder_path = next(iter(merged_decoder_name_files), merged_pattern_files[0])
-            else:
-                use_merged = False
+                use_merged = True
+            except ValueError:
+                if use_merged is True:
+                    raise ValueError(
+                        f"Could not find any merged ONNX model file in {model_id} with pattern "
+                        f"{DECODER_MERGED_ONNX_FILE_PATTERN}, files found: {onnx_files}."
+                    )
+                else:
+                    use_merged = False
 
+        decoder_with_past_path = None
         if use_merged is False:
+            decoder_path = cls._infer_file_path(DECODER_ONNX_FILE_PATTERN, decoder_file_name, onnx_files)
             if use_cache:
-                with_past_pattern_files = [
-                    p for p in onnx_files if re.search(DECODER_WITH_PAST_ONNX_FILE_PATTERN, str(p))
-                ]
-                if len(with_past_pattern_files) == 0:
-                    raise ValueError(
-                        f"Could not find any ONNX model model file in {model_id} with decoder with past pattern "
-                        f"{DECODER_WITH_PAST_ONNX_FILE_PATTERN}, files found: {onnx_files}."
-                    )
-                with_past_name_files = [
-                    file for file in with_past_pattern_files if file.name == decoder_with_past_file_name
-                ]
-                decoder_with_past_path = next(iter(with_past_name_files), with_past_pattern_files[0])
-                decoder_path = decoder_with_past_path.parent / decoder_file_name  # need to be checked if it exists
-            else:
-                decoder_pattern_files = [p for p in onnx_files if re.search(DECODER_ONNX_FILE_PATTERN, str(p))]
-                if len(decoder_pattern_files) == 0:
-                    raise ValueError(
-                        f"Could not find any ONNX model file in {model_id} with decoder pattern "
-                        f"{DECODER_ONNX_FILE_PATTERN}, files found: {onnx_files}."
-                    )
-                decoder_name_files = [file for file in decoder_pattern_files if file.name == decoder_file_name]
-                decoder_path = next(iter(decoder_name_files), decoder_pattern_files[0])
+                decoder_with_past_path = cls._infer_file_path(
+                    DECODER_WITH_PAST_ONNX_FILE_PATTERN, decoder_with_past_file_name, onnx_files
+                )
 
         encoder_path = cls._cached_file(
             model_id,
