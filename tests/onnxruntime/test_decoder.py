@@ -200,15 +200,22 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if use_merged is not None:
             self.assertEqual(onnx_model.is_merged, use_merged)
 
-    def compare_logits(self, outputs1, outputs2, use_cache: Optional[bool] = None):
+    def compare_logits(
+        self,
+        outputs1,
+        outputs2,
+        attention_mask: torch.Tensor,
+        onnx_model: ORTModelForCausalLM,
+        use_cache: Optional[bool] = None,
+    ):
         self.assertTrue("logits" in outputs1)
         self.assertTrue("logits" in outputs2)
         self.assertIsInstance(outputs1.logits, torch.Tensor)
         self.assertIsInstance(outputs2.logits, torch.Tensor)
 
         if is_transformers_version("<", "4.39.0"):
-            self.mask_logits(outputs1.logits, outputs1.attention_mask)
-            self.mask_logits(outputs2.logits, outputs2.attention_mask)
+            self.mask_logits(outputs1.logits, attention_mask)
+            self.mask_logits(outputs2.logits, attention_mask)
 
         torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=self.ATOL, rtol=self.RTOL)
 
@@ -224,16 +231,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0"):
-                self.mask_past_key_values(
-                    onnx_model=outputs1,
-                    past_key_values=outputs1.past_key_values,
-                    attention_mask=outputs1.attention_mask,
-                )
-                self.mask_past_key_values(
-                    onnx_model=outputs2,
-                    past_key_values=outputs2.past_key_values,
-                    attention_mask=outputs2.attention_mask,
-                )
+                self.mask_past_key_values(onnx_model, outputs1.past_key_values, attention_mask)
+                self.mask_past_key_values(onnx_model, outputs2.past_key_values, attention_mask)
 
             torch.testing.assert_close(
                 outputs1.past_key_values, outputs2.past_key_values, atol=self.ATOL, rtol=self.RTOL
@@ -338,7 +337,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         pt_logits = model(**inputs)
         ort_logits = ort_model(**inputs)
-        self.compare_logits(pt_logits, ort_logits)
+        self.compare_logits(pt_logits, ort_logits, onnx_model=ort_model, attention_mask=inputs["attention_mask"])
 
     def test_load_model_from_hub_infer_onnx_model(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
@@ -402,9 +401,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(onnx_model, use_cache=use_cache)
 
         with torch.no_grad():
-            outputs = model(**inputs)
-        onnx_outputs = onnx_model(**inputs)
-        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+            outputs = model(**inputs, use_cache=use_cache)
+        onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
+        self.compare_logits(
+            outputs, onnx_outputs, use_cache=use_cache, onnx_model=onnx_model, attention_mask=inputs["attention_mask"]
+        )
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
@@ -559,7 +560,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         io_outputs = io_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        self.compare_logits(io_outputs, onnx_outputs, use_cache=use_cache)
+        self.compare_logits(
+            io_outputs,
+            onnx_outputs,
+            use_cache=use_cache,
+            onnx_model=onnx_model,
+            attention_mask=inputs["attention_mask"],
+        )
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
@@ -687,7 +694,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs)
         onnx_outputs = onnx_model(**inputs)
-        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+        self.compare_logits(
+            outputs, onnx_outputs, use_cache=use_cache, onnx_model=onnx_model, attention_mask=inputs["attention_mask"]
+        )
 
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
