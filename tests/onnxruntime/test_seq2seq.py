@@ -342,7 +342,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             onnx_model.generation_config.decoder_start_token_id = 1
 
         inputs = self.get_batched_inputs(model_arch, for_generation=True)
+        set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -464,7 +466,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self.check_onnx_model(model_without_pkv, use_cache=False, use_merged=use_merged)
 
         inputs = self.get_batched_inputs(model_arch, for_generation=True)
+        set_seed(SEED)
         outputs_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
+        set_seed(SEED)
         outputs_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=False)
         torch.testing.assert_close(outputs_with_pkv, outputs_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
@@ -544,7 +548,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             model_not_merged.generation_config.decoder_start_token_id = 1
 
         inputs = self.get_batched_inputs(model_arch, for_generation=True)
+        set_seed(SEED)
         outputs_model_merged = model_merged.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        set_seed(SEED)
         outputs_model_not_merged = model_not_merged.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, atol=self.ATOL, rtol=self.RTOL)
 
@@ -639,7 +645,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             onnx_model.generation_config.decoder_start_token_id = 1
 
         inputs = self.get_batched_inputs(model_arch, for_generation=True)
+        set_seed(SEED)
         io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -764,6 +772,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
 
         inputs = self.get_batched_inputs("t5", for_generation=True)
+        set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)

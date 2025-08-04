@@ -432,7 +432,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model(onnx_model, use_cache=use_cache)
 
+        set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -521,7 +523,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model(model_with_pkv, use_cache=True)
 
+        set_seed(SEED)
         outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS)
+        set_seed(SEED)
         outputs_model_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS)
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
@@ -551,7 +555,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
 
+        set_seed(SEED)
         io_outputs = io_model(**inputs, **self.GEN_KWARGS)
+        set_seed(SEED)
         onnx_outputs = onnx_model(**inputs, **self.GEN_KWARGS)
         self.compare_logits(io_outputs, onnx_outputs, use_cache=use_cache)
 
@@ -587,7 +593,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
 
+        set_seed(SEED)
         io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
         torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -681,7 +689,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**inputs)
         self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
 
+        set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS)
+        set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
@@ -733,7 +743,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             torch.testing.assert_close(logits, not_merged_without_cache_logits, atol=self.ATOL, rtol=self.RTOL)
 
             # generate
+            set_seed(SEED)
             outputs = model.generate(**tokens, **self.GEN_KWARGS)
+            set_seed(SEED)
             merged_outputs = merged_model.generate(**tokens, **self.GEN_KWARGS)
             not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**tokens, **self.GEN_KWARGS)
 
