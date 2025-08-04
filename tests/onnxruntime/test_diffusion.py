@@ -18,7 +18,6 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import numpy as np
-import pytest
 import torch
 import torch.version
 from diffusers import (
@@ -45,15 +44,15 @@ from optimum.utils import is_tensorrt_available, is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
-PROVIDERS = ["CPUExecutionProvider"]
+ORT_PROVIDER = "CPUExecutionProvider"
 
 if torch.cuda.is_available():
-    if torch.version.hip is None:
-        PROVIDERS.append("CUDAExecutionProvider")
-    else:
-        PROVIDERS.append("ROCMExecutionProvider")
     if is_tensorrt_available():
-        PROVIDERS.append("TensorrtExecutionProvider")
+        ORT_PROVIDER = "TensorrtExecutionProvider"
+    elif torch.version.hip is not None:
+        ORT_PROVIDER = "ROCMExecutionProvider"
+    else:
+        ORT_PROVIDER = "CUDAExecutionProvider"
 
 
 def get_generator(framework, seed):
@@ -120,12 +119,11 @@ class ORTDiffusionPipelineTest(TestCase):
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
         self.assert_pipeline_sanity(pipe)
 
-    @parameterized.expand(PROVIDERS)
     @require_diffusers
-    def test_load_diffusion_pipeline_with_available_provider(self, provider):
-        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider=provider)
-        self.assertEqual(pipe.device, get_device_for_provider(provider, {}))
-        self.assertEqual(pipe.provider, provider)
+    def test_load_diffusion_pipeline_with_available_provider(self):
+        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider=ORT_PROVIDER)
+        self.assertEqual(pipe.device, get_device_for_provider(ORT_PROVIDER, {}))
+        self.assertEqual(pipe.provider, ORT_PROVIDER)
 
     @require_diffusers
     def test_load_diffusion_pipeline_with_unknown_provider(self):
@@ -257,21 +255,20 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     @require_diffusers
-    @pytest.mark.run_in_series
-    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+    def test_ort_pipeline(self, test_name: str, model_arch: str):
+        if ORT_PROVIDER == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         height, width, batch_size = 32, 32, 1
-        device = get_device_for_provider(provider, {})
+        device = get_device_for_provider(ORT_PROVIDER, {})
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=ORT_PROVIDER)
         self.assertEqual(pipeline.device, device)
 
         outputs = pipeline(**inputs).images
@@ -536,20 +533,20 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     @require_diffusers
-    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+    def test_ort_pipeline(self, test_name: str, model_arch: str):
+        if ORT_PROVIDER == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         height, width, batch_size = 32, 32, 1
-        device = get_device_for_provider(provider, {})
+        device = get_device_for_provider(ORT_PROVIDER, {})
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=ORT_PROVIDER)
         self.assertEqual(pipeline.device, device)
 
         outputs = pipeline(**inputs).images
@@ -800,20 +797,20 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
+    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES}))
     @require_diffusers
-    def test_ort_pipeline(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
+    def test_ort_pipeline(self, test_name: str, model_arch: str):
+        if ORT_PROVIDER == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
         height, width, batch_size = 32, 32, 1
-        device = get_device_for_provider(provider, {})
+        device = get_device_for_provider(ORT_PROVIDER, {})
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=provider)
+        pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch], provider=ORT_PROVIDER)
         self.assertEqual(pipeline.device, device)
 
         outputs = pipeline(**inputs).images
