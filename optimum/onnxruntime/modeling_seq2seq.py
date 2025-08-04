@@ -1211,7 +1211,9 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
 
         decoder = (
-            self.decoder if past_key_values is None or not self.use_cache or self.is_merged else self.decoder_with_past
+            self.decoder_with_past
+            if (past_key_values is not None and self.decoder_with_past is not None)
+            else self.decoder
         )
         decoder_outputs = decoder(
             input_ids=decoder_input_ids,
@@ -1283,7 +1285,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
         decoder = (
             self.decoder_with_past
-            if (past_key_values is not None and use_cache and not self.is_merged)
+            if (past_key_values is not None and self.decoder_with_past is not None)
             else self.decoder
         )
         decoder_outputs = decoder(
@@ -1380,7 +1382,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
         decoder = (
             self.decoder_with_past
-            if (past_key_values is not None and use_cache and not self.is_merged)
+            if (past_key_values is not None and self.decoder_with_past is not None)
             else self.decoder
         )
         decoder_outputs = decoder(
@@ -1444,7 +1446,7 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
 
         decoder = (
             self.decoder_with_past
-            if (past_key_values is not None and use_cache and not self.is_merged)
+            if (past_key_values is not None and self.decoder_with_past is not None)
             else self.decoder
         )
         decoder_outputs = decoder(
