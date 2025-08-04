@@ -607,24 +607,25 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # PIPELINE TESTS
-    def test_pipeline_with_none(self):
-        pipe = optimum_pipeline("text-generation")
+    @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
+    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
+        pipe = optimum_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
+        self.check_onnx_model(pipe.model, use_cache=use_cache)
         text = "The capital of France is"
         set_seed(SEED)
         outputs = pipe(text)
-
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
         self.assertIsInstance(outputs[0]["generated_text"], str)
-        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+        self.assertGreater(len(outputs[0]["generated_text"]), len(text))
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline("text-generation", model=tmpdir)
+            pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             outputs_local_model = pipe(text)
-            self.assertEqual(outputs[0]["generated_text"], outputs_local_model[0]["generated_text"])
+            self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
     def test_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool):
@@ -632,19 +633,18 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         text = "The capital of France is"
-        model_id = MODEL_NAMES[model_arch]
-        tokenizer = get_preprocessor(model_id)
-        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer = self.get_tokenizer(MODEL_NAMES[model_arch])
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        pipe = optimum_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        self.check_onnx_model(onnx_model, use_cache=use_cache)
 
+        pipe = optimum_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
         outputs = pipe(text)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
         self.assertIsInstance(outputs[0]["generated_text"], str)
-        self.assertTrue(len(outputs[0]["generated_text"]) > len(text))
+        self.assertGreater(len(outputs[0]["generated_text"]), len(text))
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)

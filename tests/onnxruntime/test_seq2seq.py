@@ -190,15 +190,12 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
         self.assertIn("only supports the tasks", str(context.exception))
 
-    @parameterized.expand(
-        grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}, add_test_name=False)
-    )
+    @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
+    def test_save_load_model_with_external_data(self, test_name: str, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model_id = MODEL_NAMES["t5"]
             model = self.ORTMODEL_CLASS.from_pretrained(
-                model_id, use_cache=use_cache, use_merged=use_merged, export=True
+                MODEL_NAMES["t5"], use_cache=use_cache, use_merged=use_merged, export=True
             )
             model.save_pretrained(tmpdirname)
             # verify external data is exported
@@ -302,10 +299,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so here only use_cache=True
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
     )
     def test_compare_generation_to_transformers(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -350,10 +347,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     # Beam search generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
     )
     def test_compare_beam_search_to_transformers(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -439,14 +436,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
         model_args = {
-            "test_name": model_arch + "_False",
+            "test_name": model_arch + f"_False_{use_merged}",
             "model_arch": model_arch,
             "use_merged": use_merged,
             "use_cache": False,
         }
         self._setup(model_args)
         model_args = {
-            "test_name": model_arch + "_True",
+            "test_name": model_arch + f"_True_{use_merged}",
             "model_arch": model_arch,
             "use_merged": use_merged,
             "use_cache": True,
@@ -478,14 +475,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
         model_args = {
-            "test_name": test_name + "_True",
+            "test_name": model_arch + f"_{use_cache}_True",
             "model_arch": model_arch,
             "use_cache": use_cache,
             "use_merged": True,
         }
         self._setup(model_args)
         model_args = {
-            "test_name": test_name + "_False",
+            "test_name": model_arch + f"_{use_cache}_False",
             "model_arch": model_arch,
             "use_cache": use_cache,
             "use_merged": False,
@@ -515,14 +512,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             )
 
         model_args = {
-            "test_name": test_name + "_True",
+            "test_name": model_arch + f"_{use_cache}_True",
             "model_arch": model_arch,
             "use_cache": use_cache,
             "use_merged": True,
         }
         self._setup(model_args)
         model_args = {
-            "test_name": test_name + "_False",
+            "test_name": model_arch + f"_{use_cache}_False",
             "model_arch": model_arch,
             "use_cache": use_cache,
             "use_merged": False,
@@ -554,11 +551,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
     # NUMERICAL CONSISTENCY WITH IO BINDING
     @parameterized.expand(
         grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True, False]}
+            {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False], "use_merged": [False, True]}
         )
     )
     def test_compare_logits_with_and_without_io_binding(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -594,10 +591,10 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True], "use_cache": [True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
     )
     def test_compare_generation_with_and_without_io_binding(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool
+        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
     ):
         if model_arch == "encoder-decoder-bert-bert":
             if use_merged:
@@ -609,14 +606,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
                 use_cache = False
 
         model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
+            "test_name": test_name,
             "use_cache": use_cache,
+            "model_arch": model_arch,
             "use_merged": use_merged,
         }
         self._setup(model_args)
         model_args = {
-            "test_name": test_name + "_False",
+            "test_name": test_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
             "use_merged": use_merged,
