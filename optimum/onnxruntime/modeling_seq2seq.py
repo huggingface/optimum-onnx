@@ -524,19 +524,8 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.self_attention_output_names = [key for key in self.key_value_output_names if "encoder" not in key]
         self.cross_attention_output_names = [key for key in self.key_value_output_names if "encoder" in key]
-
-        self.is_merged = "use_cache_branch" in self.input_names
-        self.use_past_in_inputs = len(self.key_value_input_names) > 0
-        self.use_past_in_outputs = len(self.key_value_output_names) > 0
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
-
-        # We may use ORTDecoderForSeq2Seq for vision-encoder-decoder models, where models as gpt2
-        # can be used but do not support KV caching for the cross-attention key/values, see:
-        # https://github.com/huggingface/transformers/blob/v4.31.0/src/transformers/models/gpt2/modeling_gpt2.py#L302-L311
-        # This attribute is used to avoid returning cross-attention KV-cache in this case.
-        self.no_cross_attention_cache = (
-            self.config.model_type == "vision-encoder-decoder" and self.config.decoder.model_type == "gpt2"
-        )
+        self.is_merged = "use_cache_branch" in self.input_names
 
         self.num_attention_heads = getattr(self.config, "decoder", self.config).num_attention_heads
         self.embed_size_per_head = getattr(self.config, "decoder", self.config).hidden_size // self.num_attention_heads
@@ -567,7 +556,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         # Save the precomputed cross-attention key/values
         cross_attention_key_values = None
         if past_key_values is not None:
-            if len(past_key_values[0]) == 4 and not self.no_cross_attention_cache:
+            if len(past_key_values[0]) == 4:
                 cross_attention_key_values = sum(
                     tuple(past_key_values[i][2:4] for i in range(len(past_key_values))), ()
                 )
@@ -1237,7 +1226,9 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
 
         decoder = (
-            self.decoder if past_key_values is None or not self.use_cache or self.is_merged else self.decoder_with_past
+            self.decoder_with_past
+            if (past_key_values is not None and use_cache and not self.is_merged)
+            else self.decoder
         )
         decoder_outputs = decoder(
             input_ids=decoder_input_ids,
@@ -1287,29 +1278,46 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         input_features: torch.FloatTensor | None = None,
         attention_mask: torch.LongTensor | None = None,
         decoder_input_ids: torch.LongTensor | None = None,
+        decoder_attention_mask: torch.LongTensor | None = None,
         encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         cache_position: torch.Tensor | None = None,
+        use_cache: bool | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        if use_cache and not self.can_use_cache:
+            raise ValueError(
+                "`use_cache=True` was passed to the model but the loaded model does not support pkv cache reuse. "
+                "Please load your current model with `use_cache=True` or re-export the original model "
+                "once again with `use_cache=True` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in `from_pretrained`."
+            )
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_features=input_features, attention_mask=attention_mask)
 
-        model = (
-            self.decoder if past_key_values is None or not self.use_cache or self.is_merged else self.decoder_with_past
+        decoder = (
+            self.decoder_with_past
+            if (past_key_values is not None and use_cache and not self.is_merged)
+            else self.decoder
         )
-        decoder_outputs = model(
+        decoder_outputs = decoder(
             input_ids=decoder_input_ids,
-            past_key_values=past_key_values,
+            attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
+            past_key_values=past_key_values,
             cache_position=cache_position,
+            use_cache=use_cache,
         )
 
         return Seq2SeqLMOutput(
             loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
     @classmethod
@@ -1365,22 +1373,41 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     def forward(
         self,
         pixel_values: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
         decoder_input_ids: torch.LongTensor | None = None,
-        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        decoder_attention_mask: torch.BoolTensor | None = None,
+        encoder_outputs: BaseModelOutput | list[torch.FloatTensor] | None = None,
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        cache_position: torch.Tensor | None = None,
+        use_cache: bool | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        if use_cache and not self.can_use_cache:
+            raise ValueError(
+                "`use_cache=True` was passed to the model but the loaded model does not support pkv cache reuse. "
+                "Please load your current model with `use_cache=True` or re-export the original model "
+                "once again with `use_cache=True` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in `from_pretrained`."
+            )
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
 
-        model = (
-            self.decoder if past_key_values is None or not self.use_cache or self.is_merged else self.decoder_with_past
+        decoder = (
+            self.decoder_with_past
+            if (past_key_values is not None and use_cache and not self.is_merged)
+            else self.decoder
         )
-
-        decoder_outputs = model(
+        decoder_outputs = decoder(
             input_ids=decoder_input_ids,
-            past_key_values=past_key_values,
+            attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
+            encoder_attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            use_cache=use_cache,
         )
 
         return Seq2SeqLMOutput(
@@ -1416,21 +1443,34 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         decoder_attention_mask: torch.BoolTensor | None = None,
         encoder_outputs: BaseModelOutput | list[torch.FloatTensor] | None = None,
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        use_cache: bool | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        if use_cache and not self.can_use_cache:
+            raise ValueError(
+                "`use_cache=True` was passed to the model but the loaded model does not support pkv cache reuse. "
+                "Please load your current model with `use_cache=True` or re-export the original model "
+                "once again with `use_cache=True` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in `from_pretrained`."
+            )
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(flattened_patches=flattened_patches, attention_mask=attention_mask)
 
-        model = (
-            self.decoder if self.is_merged or not self.use_cache or past_key_values is None else self.decoder_with_past
+        decoder = (
+            self.decoder_with_past
+            if (past_key_values is not None and use_cache and not self.is_merged)
+            else self.decoder
         )
-
-        decoder_outputs = model(
+        decoder_outputs = decoder(
             input_ids=decoder_input_ids,
-            decoder_attention_mask=decoder_attention_mask,
-            past_key_values=past_key_values,
+            attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_outputs.last_hidden_state,
             encoder_attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
         )
 
         return Seq2SeqLMOutput(
