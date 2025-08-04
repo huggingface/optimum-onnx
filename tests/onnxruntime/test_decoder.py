@@ -125,7 +125,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
-    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 1, "do_sample": False}  # noqa: RUF012
+    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 1, "do_sample": True}  # noqa: RUF012
     if is_transformers_version(">=", "4.51.0"):
         GEN_KWARGS["use_model_defaults"] = False
 
