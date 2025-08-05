@@ -378,9 +378,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        # TODO: again it makes more sense for me if we just separated the model into encoder and decoder parts
-        # and exported them with different ONNX configs. the config behaviors paradigm is still confuses me
-        # even after years of fixing it, so it's probably more confusing for external developers.
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}

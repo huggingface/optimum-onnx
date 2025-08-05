@@ -527,8 +527,16 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
         self.is_merged = "use_cache_branch" in self.input_names
 
-        self.num_attention_heads = getattr(self.config, "decoder", self.config).num_attention_heads
-        self.embed_size_per_head = getattr(self.config, "decoder", self.config).hidden_size // self.num_attention_heads
+        if self.config.model_type == "pix2struct":
+            self.num_attention_heads = getattr(self.config, "text_config", self.config).num_heads
+            self.embed_size_per_head = (
+                getattr(self.config, "text_config", self.config).hidden_size // self.num_attention_heads
+            )
+        else:
+            self.num_attention_heads = getattr(self.config, "decoder", self.config).num_attention_heads
+            self.embed_size_per_head = (
+                getattr(self.config, "decoder", self.config).hidden_size // self.num_attention_heads
+            )
 
     def forward(
         self,
@@ -571,11 +579,11 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
 
         # Generate dummy position cache for the first forward pass
         if "cache_position" in self.input_names and cache_position is None:
-            cache_position = (
-                torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.int64, device=self.device)
-                .unsqueeze(0)
-                .expand(batch_size, -1)
-            )
+            cache_position = torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.int64, device=self.device)
+
+        # Generate dummy attention mask for the first forward pass
+        if "attention_mask" in self.input_names and attention_mask is None:
+            attention_mask = torch.ones((batch_size, pkv_seq_len + seq_len), dtype=torch.int64, device=self.device)
 
         model_inputs = {
             "input_ids": input_ids,
@@ -668,7 +676,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         )
 
 
-class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
+class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin):
     """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference.
 
     Important attributes:
@@ -1170,7 +1178,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
+class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
     """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5."""
 
     auto_model_class = AutoModelForSeq2SeqLM
@@ -1234,7 +1242,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin):
+class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
     """Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text."""
 
     main_input_name = "input_features"
@@ -1338,7 +1346,7 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
+class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
     """VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder."""
 
     auto_model_class = AutoModelForVision2Seq
@@ -1404,7 +1412,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
+class ORTModelForPix2Struct(ORTModelForConditionalGeneration):
     """Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct."""
 
     auto_model_class = Pix2StructForConditionalGeneration

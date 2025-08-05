@@ -648,6 +648,8 @@ class LongT5OnnxConfig(T5OnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
+    PAD_ATTENTION_MASK_TO_PAST = True
+
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
         encoder_num_layers="encoder_layers",
         decoder_num_layers="decoder_layers",
@@ -754,17 +756,6 @@ class M2M100OnnxConfig(TextSeq2SeqOnnxConfig):
                         2: "past_sequence_length + sequence_length",
                     }
         return common_outputs
-
-    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        # This will handle the attention mask padding when Bart is used for text-generation.
-        if self.task == "text-generation":
-            self.PAD_ATTENTION_MASK_TO_PAST = True
-
-        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
-
-        # Setting it back to the default version.
-        self.PAD_ATTENTION_MASK_TO_PAST = False
-        return dummy_inputs
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         if self.task in ["feature-extraction", "text2text-generation"]:

@@ -1530,18 +1530,16 @@ class ORTModelForCTC(ORTModel):
     def forward(
         self,
         input_values: torch.Tensor | np.ndarray | None = None,
-        input_features: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
     ):
         self.warn_on_unhandled_inputs(kwargs)
-        use_torch = isinstance(input_values or input_features, torch.Tensor)
+        use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
             "input_values": input_values,
-            "input_features": input_features,
         }
 
         if self.use_io_binding:
