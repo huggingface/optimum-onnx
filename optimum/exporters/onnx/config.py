@@ -176,7 +176,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior is ConfigBehavior.DECODER:
             return {
                 "decoder_input_ids": "input_ids",
-                "decoder_attention_mask": "attention_mask",
                 "encoder_outputs": "encoder_hidden_states",
                 "attention_mask": "encoder_attention_mask",
             }
@@ -379,23 +378,17 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
-            common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
         else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-                common_inputs["attention_mask"] = {
-                    0: "batch_size",
-                    1: "past_sequence_length + decoder_sequence_length",
-                }
                 self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-                common_inputs["attention_mask"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
         return common_inputs
 
