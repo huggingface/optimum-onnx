@@ -382,15 +382,23 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def flatten_output_collection_property(self, name: str, field: Iterable[Any]) -> dict[str, Any]:
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
-    def generate_dummy_inputs_for_validation(self, reference_model_inputs: dict[str, Any]) -> dict[str, Any]:
+    def generate_dummy_inputs_for_validation(
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
+    ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
         else:
             if self._behavior is ConfigBehavior.DECODER:
                 if "decoder_input_ids" in reference_model_inputs:
                     reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+
                 if "encoder_outputs" in reference_model_inputs:
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                    if "encoder_hidden_states" in onnx_input_names:
+                        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(
+                            "encoder_outputs"
+                        )[0]
+                    else:
+                        reference_model_inputs.pop("encoder_outputs")
 
             return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
