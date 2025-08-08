@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.tasks import TasksManager
+from optimum.onnx import merge_decoders
 from optimum.utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -31,19 +33,13 @@ from optimum.utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    is_diffusers_available,
     logging,
 )
-
-
-# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
-    if is_diffusers_available():
-        from diffusers import ModelMixin
 
 logger = logging.get_logger(__name__)
 
@@ -110,7 +106,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
@@ -119,8 +115,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
-            from optimum.onnx import merge_decoders
-
             decoder_path = Path(path, onnx_files_subpaths[0])
             decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
@@ -289,8 +283,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             legacy=legacy,
         )
 
-        from optimum.exporters.tasks import TasksManager
-
         self.is_decoder_with_past = False
 
         # Set up the encoder ONNX config.
@@ -383,7 +375,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
             return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
@@ -405,7 +397,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(

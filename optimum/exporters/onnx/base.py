@@ -604,7 +604,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         return flattened_output
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
@@ -864,7 +864,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 else:
                     reference_model_inputs.pop("encoder_outputs")
 
-        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
 
 
 class OnnxConfigWithLoss(OnnxConfig, ABC):
