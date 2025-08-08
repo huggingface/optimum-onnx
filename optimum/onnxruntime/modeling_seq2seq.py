@@ -551,9 +551,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        batch_size, seq_len = input_ids.shape
+        batch_size, in_seq_len = input_ids.shape
         encoder_seq_len = encoder_hidden_states.shape[1]
-        pkv_seq_len = past_key_values[0][0].shape[2] if past_key_values is not None else 0
+        past_seq_len = past_key_values[0][0].shape[2] if past_key_values is not None else 0
+        out_seq_len = past_seq_len + in_seq_len
 
         use_cache_branch = None
         if self.is_merged:
@@ -565,9 +566,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         cross_attention_key_values = None
         if past_key_values is not None:
             if len(past_key_values[0]) == 4:
-                cross_attention_key_values = sum(
-                    tuple(past_key_values[i][2:4] for i in range(len(past_key_values))), ()
-                )
+                cross_attention_key_values = tuple(past_key_values[i][2:4] for i in range(len(past_key_values)))
 
         # Generate dummy past for the first forward pass
         if len(self.key_value_input_names) > 0 and past_key_values is None:
@@ -576,14 +575,12 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
         elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
             past_key_values = sum(past_key_values, ())
+            if cross_attention_key_values is not None:
+                cross_attention_key_values = sum(cross_attention_key_values, ())
 
         # Generate dummy position cache for the first forward pass
         if "cache_position" in self.input_names and cache_position is None:
-            cache_position = torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.int64, device=self.device)
-
-        # Generate dummy attention mask for the first forward pass
-        if "attention_mask" in self.input_names and attention_mask is None:
-            attention_mask = torch.ones((batch_size, pkv_seq_len + seq_len), dtype=torch.int64, device=self.device)
+            cache_position = torch.arange(past_seq_len, out_seq_len, dtype=torch.int64, device=self.device)
 
         model_inputs = {
             "input_ids": input_ids,
@@ -594,32 +591,29 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             "cache_position": cache_position,
         }
         if past_key_values is not None:
-            assert len(past_key_values) == len(self.key_value_input_names), (
-                f"Expected {len(self.key_value_input_names)} past key/values, but got {len(past_key_values)}."
-            )
             model_inputs.update(zip(self.key_value_input_names, past_key_values))
 
         known_output_shapes = {}
         outputs_to_not_bind = set()
         if use_cache:
             # Infers the shape of the output pkv
-            self_attn_shape = (batch_size, self.num_attention_heads, pkv_seq_len + seq_len, self.embed_size_per_head)
+            self_attn_shape = (batch_size, self.num_attention_heads, out_seq_len, self.embed_size_per_head)
             cross_attn_shape = (batch_size, self.num_attention_heads, encoder_seq_len, self.embed_size_per_head)
             known_output_shapes = {
                 name: (cross_attn_shape if "encoder" in name else self_attn_shape)
                 for name in self.key_value_output_names
             }
         else:
+            # we don't bind the key/values if they are not gonna be returned/used
             outputs_to_not_bind.update(self.key_value_output_names)
 
         if cross_attention_key_values is not None:
+            # we don't bind the cross-attention key/values if they are already provided/computed
             outputs_to_not_bind.update(self.cross_attention_output_names)
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs,
-                outputs_to_not_bind=outputs_to_not_bind,
-                known_output_shapes=known_output_shapes,
+                model_inputs, outputs_to_not_bind=outputs_to_not_bind, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
@@ -657,15 +651,11 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
                     )
 
         if use_cache:
-            if cross_attention_key_values is None:
-                past_key_values = tuple(
-                    self_attention_key_values[i : i + 2] for i in range(0, len(self_attention_key_values), 2)
-                )
-            else:
-                past_key_values = tuple(
-                    self_attention_key_values[i : i + 2] + cross_attention_key_values[i : i + 2]
-                    for i in range(0, len(self_attention_key_values), 2)
-                )
+            # At this point we should definitely have both self-attention and cross-attention key/values :)
+            past_key_values = tuple(
+                self_attention_key_values[i : i + 2] + cross_attention_key_values[i : i + 2]
+                for i in range(0, len(self_attention_key_values), 2)
+            )
         else:
             past_key_values = None
 
@@ -889,7 +879,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
 
         encoder_path = cls._infer_file_path(ENCODER_ONNX_FILE_PATTERN, encoder_file_name, onnx_files)
-
         # We default to looking for merged decoder if user didn't disable it explicitly.
         decoder_path = None
         if use_merged is not False:
@@ -1135,9 +1124,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         **kwargs,
     ) -> dict:
         if past_key_values is not None:
-            pkv_seq_len = past_key_values[0][0].shape[2]
-            if input_ids.shape[1] > pkv_seq_len:
-                remove_prefix_length = pkv_seq_len
+            past_seq_len = past_key_values[0][0].shape[2]
+            if input_ids.shape[1] > past_seq_len:
+                remove_prefix_length = past_seq_len
             else:
                 remove_prefix_length = input_ids.shape[1] - 1
             input_ids = input_ids[:, remove_prefix_length:]

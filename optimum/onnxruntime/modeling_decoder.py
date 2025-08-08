@@ -240,17 +240,18 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             )
 
         # Get the input/output dimensions
-        batch_size, seq_len = input_ids.shape
+        batch_size, in_seq_len = input_ids.shape
         if past_key_values is not None:
             if self.config.model_type == "gpt_bigcode":
                 if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
+                    past_seq_len = past_key_values[0].shape[1]
                 else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+                    past_seq_len = past_key_values[0].shape[2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                past_seq_len = past_key_values[0][0].shape[2]
         else:
-            pkv_seq_len = 0
+            past_seq_len = 0
+        out_seq_len = past_seq_len + in_seq_len
 
         # Prepare position_ids
         if position_ids is None and "position_ids" in self.input_names:
@@ -259,7 +260,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     # OPT models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, -1)
-                    position_ids = position_ids[:, pkv_seq_len:]
+                    position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
                         "The model OPT requires position_ids for batched generation but none were provided. "
@@ -270,7 +271,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     # GPT BigCode models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, 1)
-                    position_ids = position_ids[:, pkv_seq_len:]
+                    position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
                         "The model gpt_bigcode requires position_ids for batched generation but none were provided. "
@@ -279,7 +280,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 # Create position_ids from input_ids
                 position_ids = (
-                    torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.long, device=input_ids.device)
+                    torch.arange(past_seq_len, out_seq_len, dtype=torch.long, device=input_ids.device)
                     .unsqueeze(0)
                     .expand(batch_size, -1)
                 )
@@ -319,31 +320,23 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         outputs_to_not_bind = set()
         if use_cache and self.use_io_binding:
             # Infers the shape of the output pkv
-            batch_size, seq_len = input_ids.shape
             if self.config.model_type == "bloom" and self.old_bloom_modeling:
-                k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, pkv_seq_len + seq_len)
-                v_shape = (batch_size * self.num_key_value_heads, pkv_seq_len + seq_len, self.embed_size_per_head)
+                k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, out_seq_len)
+                v_shape = (batch_size * self.num_key_value_heads, out_seq_len, self.embed_size_per_head)
             elif self.config.model_type == "gpt_bigcode" and self.config.multi_query:
-                k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, self.embed_size_per_head)
+                k_shape = v_shape = (batch_size, out_seq_len, self.embed_size_per_head)
             else:
-                k_shape = v_shape = (
-                    batch_size,
-                    self.num_key_value_heads,
-                    pkv_seq_len + seq_len,
-                    self.embed_size_per_head,
-                )
+                k_shape = v_shape = (batch_size, self.num_key_value_heads, out_seq_len, self.embed_size_per_head)
             known_output_shapes = {
                 name: k_shape if ".key" in name else v_shape for name in self.key_value_output_names
             }
         else:
-            # Don't bind the output pkv if not necessary
-            outputs_to_not_bind = self.key_value_output_names
+            # we don't bind the key/values if they are not gonna be returned/used
+            outputs_to_not_bind.update(self.key_value_output_names)
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs,
-                outputs_to_not_bind=outputs_to_not_bind,
-                known_output_shapes=known_output_shapes,
+                model_inputs, outputs_to_not_bind=outputs_to_not_bind, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
@@ -400,14 +393,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if past_key_values is not None:
             if self.config.model_type == "gpt_bigcode":
                 if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
+                    past_seq_len = past_key_values[0].shape[1]
                 else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+                    past_seq_len = past_key_values[0].shape[2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                past_seq_len = past_key_values[0][0].shape[2]
 
-            if input_ids.shape[1] > pkv_seq_len:
-                remove_prefix_length = pkv_seq_len
+            if input_ids.shape[1] > past_seq_len:
+                remove_prefix_length = past_seq_len
             else:
                 remove_prefix_length = input_ids.shape[1] - 1
             input_ids = input_ids[:, remove_prefix_length:]
