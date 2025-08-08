@@ -1944,9 +1944,11 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
-    def get_raw_image(self, model_arch):
-        image_url = "https://picsum.photos/id/237/200/300"
-        return Image.open(requests.get(image_url, stream=True).raw)
+    def get_raw_image(self):
+        # Create a simple 200x300 RGB image with random colors
+        np.random.seed(42)  # For reproducibility
+        image_array = np.random.randint(0, 256, (300, 200, 3), dtype=np.uint8)
+        return Image.fromarray(image_array)
 
     def get_input(self, model_arch, return_tensors="pt"):
         model_id = MODEL_NAMES[model_arch]
@@ -1977,7 +1979,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
             )
             return tokens
 
-        raw_input = self.get_raw_image(model_arch)
+        raw_input = self.get_raw_image()
         return processor(images=raw_input, return_tensors=return_tensors)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
