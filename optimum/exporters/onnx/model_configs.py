@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import math
 import warnings
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from packaging import version
@@ -34,7 +33,6 @@ from optimum.exporters.onnx.config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
@@ -97,7 +95,6 @@ from optimum.utils import (
     Speech2TextDummyAudioInputGenerator,
     T5DummySeq2SeqPastKeyValuesGenerator,
     VitPoseDummyInputGenerator,
-    is_diffusers_available,
     is_diffusers_version,
     is_transformers_version,
     logging,
@@ -109,10 +106,7 @@ from optimum.utils.normalized_config import NormalizedConfigManager
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
-    from transformers.modeling_utils import PreTrainedModel
 
-    if is_diffusers_available():
-        from diffusers import ModelMixin
 
 logger = logging.get_logger(__name__)
 
@@ -2040,100 +2034,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_outputs
 
-    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_decoder_sequence_length"
-            name = "past_key_values"
-        else:
-            decoder_sequence_name = "past_decoder_sequence_length + sequence_length"
-            name = "present"
-
-        for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {0: "total_batch_size", 2: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {0: "total_batch_size", 2: decoder_sequence_name}
-
-            if (
-                self.is_merged is True
-                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
-                or direction == "inputs"
-            ):
-                # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
-                # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
-                # not yet set at this time)
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {
-                    0: "total_batch_size",
-                    2: "encoder_sequence_length_out",
-                }
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {
-                    0: "total_batch_size",
-                    2: "encoder_sequence_length_out",
-                }
-
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
-    def post_process_exported_models(
-        self,
-        path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
-        onnx_files_subpaths: list[str],
-    ):
-        # Attempt to merge only if the decoder was exported without/with past, and ignore seq2seq models exported with text-generation task
-        if "with-past" in self.variant:
-            decoder_path = Path(path, onnx_files_subpaths[2])
-            decoder_with_past_path = Path(path, onnx_files_subpaths[3])
-            decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
-            try:
-                from optimum.onnx import merge_decoders
-
-                # The decoder with past does not output the cross attention past key values as they are constant,
-                # hence the need for strict=False
-                merge_decoders(
-                    decoder=decoder_path,
-                    decoder_with_past=decoder_with_past_path,
-                    save_path=decoder_merged_path,
-                    strict=False,
-                )
-            except Exception as e:
-                raise RuntimeError("Unable to merge decoders") from e
-
-            # In order to do the validation of the two branches on the same file
-            text_encoder_path = onnx_files_subpaths[0]
-            encodec_decode_path = onnx_files_subpaths[1]
-            build_delay_pattern_mask_path = onnx_files_subpaths[4]
-
-            onnx_files_subpaths_new = [
-                text_encoder_path,
-                encodec_decode_path,
-                decoder_merged_path.name,
-                decoder_merged_path.name,
-                build_delay_pattern_mask_path,
-            ]
-
-            # We validate the two branches of the decoder model then
-            models_and_onnx_configs[ONNX_DECODER_NAME][1].is_merged = True
-            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_cache_branch = False
-
-            # Past key values won't be generated by default, but added in the input
-            models_and_onnx_configs[ONNX_DECODER_NAME][1].use_past_in_inputs = True
-
-            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].use_cache_branch = True
-            models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1].is_merged = True
-        else:
-            onnx_files_subpaths_new = onnx_files_subpaths
-
-        return models_and_onnx_configs, onnx_files_subpaths_new
-
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
@@ -2142,13 +2042,10 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             dummy_input_gen.batch_size = (
                 original_batch_size * dummy_input_gen.normalized_config.DECODER_NORMALIZED_CONFIG_CLASS.num_codebooks
             )
-
             dummy_input = dummy_input_gen.generate(
                 input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
             )
-
             dummy_input_gen.batch_size = original_batch_size
-
         else:
             dummy_input = super().overwrite_shape_and_generate_input(
                 dummy_input_gen, input_name, framework, input_shapes
@@ -2263,10 +2160,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return common_outputs
 
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        return {"encoder_outputs": "encoder_hidden_states"}
-
     def overwrite_shape_and_generate_input(
         self, dummy_input_gen: DummyInputGenerator, input_name: str, framework: str, input_shapes: dict
     ):
@@ -2275,29 +2168,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
         )
         return dummy_input
-
-    def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_decoder_sequence_length"
-            name = "past_key_values"
-        else:
-            decoder_sequence_name = "past_decoder_sequence_length + decoder_sequence_length"
-            name = "present"
-
-        for i in range(self._normalized_config.decoder_num_layers):
-            inputs_or_outputs[f"{name}.{i}.decoder.key"] = {2: decoder_sequence_name}
-            inputs_or_outputs[f"{name}.{i}.decoder.value"] = {2: decoder_sequence_name}
-
-            if (
-                self.is_merged is True
-                or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
-                or direction == "inputs"
-            ):
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {2: "encoder_sequence_length_out"}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {2: "encoder_sequence_length_out"}
 
 
 @register_tasks_manager_onnx("vits", *["text-to-audio"])
@@ -2542,17 +2412,6 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "decoder_attention_mask": "attention_mask",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
-    @property
     def inputs(self):
         common_inputs = {}
 
@@ -2581,17 +2440,18 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             return super().outputs
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
-        dummy_inputs_generators = []
-        dummy_inputs_generators.append(self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config))
-
         if self._preprocessors is None or len(self._preprocessors) < 2:
             raise ValueError(
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
 
-        encoder_sequence_length = self._preprocessors[1].image_processor.max_patches
+        dummy_inputs_generators = []
+        dummy_inputs_generators.append(
+            self.DUMMY_INPUT_GENERATOR_CLASSES[0](self.task, self._normalized_config, **kwargs)
+        )
         # A hack for DummyPix2StructInputGenerator to gain access to the preprocessors.
-        # TODO: we should probably pass preprocessors to all dummy input generators.
+        # TODO: we probably pass preprocessors to all dummy input generators.
+        encoder_sequence_length = self._preprocessors[1].image_processor.max_patches
         kwargs["preprocessors"] = self._preprocessors
         for cls_ in self.DUMMY_INPUT_GENERATOR_CLASSES[1:]:
             dummy_inputs_generators.append(
@@ -2608,6 +2468,7 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
 
+        # it would been simpler if pix2struct dummy input generator took care of generating these as well
         if input_name in ["encoder_outputs", "attention_mask"]:
             # Pix2struct takes inputs encoder inputs/outputs with a fixed sequence length (max_patches).
             original_seq_length = dummy_input_gen.sequence_length

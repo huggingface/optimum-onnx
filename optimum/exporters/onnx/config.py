@@ -172,16 +172,6 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
-    @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
         if self._behavior is not ConfigBehavior.DECODER:
@@ -270,16 +260,6 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
 
 
 class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
@@ -382,7 +362,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
         else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
@@ -391,16 +370,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
         if self.is_decoder_with_past:

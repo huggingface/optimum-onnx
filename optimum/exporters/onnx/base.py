@@ -708,6 +708,17 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         return onnx_config
 
     @property
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "decoder_attention_mask": "attention_mask",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
+
+    @property
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super(OnnxConfigWithPast, self).outputs
         # Renaming the outputs axes properly.
@@ -743,7 +754,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             decoder_sequence_name = "past_decoder_sequence_length"
             name = "past_key_values"
         else:
-            decoder_sequence_name = "past_decoder_sequence_length + sequence_length"
+            decoder_sequence_name = "past_decoder_sequence_length + decoder_sequence_length"
             name = "present"
 
         for i in range(self._normalized_config.decoder_num_layers):
@@ -755,11 +766,8 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
                 or (self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs)
                 or direction == "inputs"
             ):
-                # TODO: we only need to call it encoder_sequence_length_out in the merge case - but at torch.onnx.export()
-                # time we have currently no case to check whether we will merge at a later step or not (self.is_merged is
-                # not yet set at this time)
-                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
-                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length_out"}
+                inputs_or_outputs[f"{name}.{i}.encoder.key"] = {0: "batch_size", 2: "encoder_sequence_length"}
+                inputs_or_outputs[f"{name}.{i}.encoder.value"] = {0: "batch_size", 2: "encoder_sequence_length"}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         if len(t) not in [2, 4]:
@@ -825,7 +833,12 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
         dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
 
-        if self.use_past_in_inputs and self.PAD_ATTENTION_MASK_TO_PAST and self.use_cache_branch is not False:
+        if (
+            self.use_past_in_inputs
+            and self.PAD_ATTENTION_MASK_TO_PAST
+            and self.use_cache_branch is not False
+            and "decoder_attention_mask" in dummy_inputs
+        ):
             seq_len = dummy_inputs["decoder_input_ids"].shape[1]
             past_seq_len = dummy_inputs["past_key_values"][0][1].shape[-2]
             dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
