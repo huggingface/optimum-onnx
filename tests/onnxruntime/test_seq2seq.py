@@ -163,9 +163,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         else:
             self.assertIsNone(onnx_model.decoder_with_past)
 
+        self.assertEqual(onnx_model.generation_config.use_cache, use_cache)
         self.assertEqual(onnx_model.config.use_cache, use_cache)
-        if use_merged is not None:
-            self.assertEqual(onnx_model.is_merged, use_merged)
+
+        if use_cache or use_merged:
+            # if a model is exported with use_cache=True or use_merged=True, it should support cache use
+            self.assertTrue(onnx_model.can_use_cache)
+        else:
+            # if a model is exported with use_cache=False or use_merged=False, it should not support cache use
+            self.assertFalse(onnx_model.can_use_cache)
+
+        if use_merged:
+            # if a model is exported with use_merged, it should have a merged decoder
+            self.assertTrue(onnx_model.decoder.is_merged)
+        else:
+            # if a model is exported with use_merged=False or None, it should not have a merged decoder
+            self.assertFalse(onnx_model.decoder.is_merged)
+
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
 

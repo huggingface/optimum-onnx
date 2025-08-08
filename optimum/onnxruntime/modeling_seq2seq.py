@@ -1115,13 +1115,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
             return super().prepare_inputs_for_generation(*args, **kwargs)
 
     def _prepare_inputs_for_generation_legacy(
-        self,
-        input_ids,
-        attention_mask=None,
-        encoder_outputs=None,
-        past_key_values=None,
-        use_cache=None,
-        **kwargs,
+        self, input_ids, past_key_values: tuple[tuple[torch.Tensor]] | None = None, **kwargs
     ) -> dict:
         if past_key_values is not None:
             past_seq_len = past_key_values[0][0].shape[2]
@@ -1133,23 +1127,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
 
         return {
             "decoder_input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "encoder_outputs": encoder_outputs,
             "past_key_values": past_key_values,
-            "use_cache": use_cache,
+            **kwargs,
         }
-
-    @property
-    def is_merged(self) -> bool:
-        return self.decoder.is_merged
-
-    @property
-    def use_merged(self) -> bool:
-        logger.warning(
-            "The `use_merged` property is deprecated and will be removed in a future version. "
-            "Use `model.is_merged` instead."
-        )
-        return self.is_merged
 
     @property
     def can_use_cache(self) -> bool:
@@ -1158,10 +1138,19 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         )
 
     @property
+    def use_merged(self) -> bool:
+        logger.warning(
+            f"The `{self.__class__.__name__}.use_merged` property is deprecated and will be removed in a future version. "
+            "Use `model.decoder.is_merged` instead."
+        )
+        return self.decoder.is_merged
+
+    @property
     def use_cache(self) -> bool:
         logger.warning(
-            "The `use_cache` property is deprecated and will be removed in a future version. "
-            "Use `model.can_use_cache` instead."
+            f"The `{self.__class__.__name__}.use_cache` property is deprecated and will be removed in a future version. "
+            "Use `model.config.use_cache` to know whether the model will use cache or not during inference, and "
+            "`model.can_use_cache` to know whether the model supports cache use or not."
         )
         return self.can_use_cache
 
