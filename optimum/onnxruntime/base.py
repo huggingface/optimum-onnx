@@ -422,6 +422,8 @@ class ORTSessionMixin:
         outputs_to_not_bind = outputs_to_not_bind or set()
 
         if len(outputs_to_not_bind) > 0:
+            # We clear the IO binding outputs to ensure that session
+            # wouldn't try to put its outputs in previously bound buffers
             self._io_binding.clear_binding_outputs()
 
         for output_name in self.output_names:
