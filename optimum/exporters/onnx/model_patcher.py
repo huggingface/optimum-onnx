@@ -633,10 +633,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                            # Who cares about the encoder outputs in the decoder?
-                            print(
-                                "WARNING: The encoder_last_hidden_state output is not used in the decoder, why is this happening?"
-                            )
                             continue
                         else:
                             filtered_outputs[name] = value
