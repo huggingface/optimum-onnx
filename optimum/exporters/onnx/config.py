@@ -378,7 +378,9 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
-            return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
+            return self._encoder_onnx_config.generate_dummy_inputs_for_validation(
+                reference_model_inputs, onnx_input_names
+            )
         else:
             if self._behavior is ConfigBehavior.DECODER:
                 if "decoder_input_ids" in reference_model_inputs:
@@ -392,7 +394,9 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
                     else:
                         reference_model_inputs.pop("encoder_outputs")
 
-            return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
+            return self._decoder_onnx_config.generate_dummy_inputs_for_validation(
+                reference_model_inputs, onnx_input_names
+            )
 
     def post_process_exported_models(
         self,
