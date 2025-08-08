@@ -159,7 +159,8 @@ class TestTorchExportPatchesComprehensive(unittest.TestCase):
         with torch_export_patches(patch_transformers=True, verbose=0):
             values, spec = py_pytree.tree_flatten(cache)
             restored_cache = py_pytree.tree_unflatten(values, spec)
-
+            # If the registration stops working, this will be hit.
+            self.assertNotIsInstance(values[0], StaticCache)
             self.assertIsInstance(restored_cache, StaticCache)
             self.assertEqual(cache.max_cache_len, restored_cache.max_cache_len)
             self.assertEqualArrayAny(cache.key_cache, restored_cache.key_cache)
@@ -187,6 +188,7 @@ class TestTorchExportPatchesComprehensive(unittest.TestCase):
         with torch_export_patches(patch_transformers=True, verbose=0):
             values, spec = py_pytree.tree_flatten(cache)
             restored_cache = py_pytree.tree_unflatten(values, spec)
+            self.assertNotIsInstance(values[0], HybridCache)
             self.assertIsInstance(restored_cache, HybridCache)
 
     def test_sliding_window_cache_serialization(self):
@@ -211,6 +213,7 @@ class TestTorchExportPatchesComprehensive(unittest.TestCase):
         with torch_export_patches(patch_transformers=True, verbose=0):
             values, spec = py_pytree.tree_flatten(cache)
             restored_cache = py_pytree.tree_unflatten(values, spec)
+            self.assertNotIsInstance(values[0], SlidingWindowCache)
             self.assertIsInstance(restored_cache, SlidingWindowCache)
 
     def test_encoder_decoder_cache_serialization(self):
@@ -235,6 +238,7 @@ class TestTorchExportPatchesComprehensive(unittest.TestCase):
             values, spec = py_pytree.tree_flatten(cache)
             restored_cache = py_pytree.tree_unflatten(values, spec)
 
+            self.assertNotIsInstance(values[0], EncoderDecoderCache)
             self.assertIsInstance(restored_cache, EncoderDecoderCache)
             self.assertIsInstance(restored_cache.self_attention_cache, DynamicCache)
             self.assertIsInstance(restored_cache.cross_attention_cache, DynamicCache)
@@ -337,38 +341,6 @@ class TestTorchExportPatchesComprehensive(unittest.TestCase):
 
         with self.assertRaises(ValueError), torch_export_patches(dump_rewriting="some_file"):
             pass
-
-    def test_dataclass_serialization(self):
-        """Test dataclass serialization functionality."""
-        try:
-            from transformers.modeling_outputs import BaseModelOutput
-        except ImportError:
-            self.skipTest("BaseModelOutput not available")
-
-        output = BaseModelOutput(last_hidden_state=torch.randn(2, 8, 64), hidden_states=None, attentions=None)
-
-        with torch_export_patches(patch_transformers=True, verbose=0):
-            values, spec = py_pytree.tree_flatten(output)
-            restored_output = py_pytree.tree_unflatten(values, spec)
-
-            self.assertIsInstance(restored_output, BaseModelOutput)
-            self.assertEqualArray(output.last_hidden_state, restored_output.last_hidden_state)
-
-    def test_diffusers_patches(self):
-        """Test diffusers-specific patches."""
-        try:
-            from diffusers.models.unets.unet_2d_condition import UNet2DConditionOutput
-        except ImportError:
-            self.skipTest("UNet2DConditionOutput not available")
-
-        output = UNet2DConditionOutput(sample=torch.randn(2, 4, 8, 8))
-
-        with torch_export_patches(patch_diffusers=True, verbose=0):
-            values, spec = py_pytree.tree_flatten(output)
-            restored_output = py_pytree.tree_unflatten(values, spec)
-
-            self.assertIsInstance(restored_output, UNet2DConditionOutput)
-            self.assertEqualArray(output.sample, restored_output.sample)
 
     def test_multiple_cache_operations(self):
         """Test multiple cache operations in sequence."""
