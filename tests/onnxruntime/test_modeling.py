@@ -1944,7 +1944,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
-    def get_raw_image(self):  
+    def get_raw_image(self):
         # Create a simple 200x300 RGB image with random colors
         np.random.seed(42)  # For reproducibility
         image_array = np.random.randint(0, 256, (300, 200, 3), dtype=np.uint8)
