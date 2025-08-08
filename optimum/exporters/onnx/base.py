@@ -373,7 +373,7 @@ class OnnxConfig(ExporterConfig, ABC):
             return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:
         """Generates inputs for ONNX Runtime using the reference model inputs.
 
@@ -523,22 +523,10 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and "attention_mask" in dummy_inputs
             and self.task == "text-generation"
         ):
-            past_present_length = dummy_inputs["input_ids"].shape[1] + dummy_inputs["past_key_values"][0][1].shape[-2]
-
+            seq_len = dummy_inputs["input_ids"].shape[1]
+            past_seq_len = dummy_inputs["past_key_values"][0][1].shape[-2]
             dummy_inputs["attention_mask"] = DummyInputGenerator.pad_input_on_dim(
-                dummy_inputs["attention_mask"],
-                desired_length=past_present_length,
-                dim=1,
-                dtype=dummy_inputs["attention_mask"].dtype,
-            )
-
-        if self.use_past_in_inputs and self.use_cache_branch is not False and "decoder_attention_mask" in dummy_inputs:
-            past_length = dummy_inputs["past_key_values"][0][0].shape[2]
-            dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
-                dummy_inputs["decoder_attention_mask"],
-                desired_length=past_length + 1,
-                dim=1,
-                dtype=dummy_inputs["decoder_attention_mask"].dtype,
+                dummy_inputs["attention_mask"], desired_length=past_seq_len + seq_len, dim=1
             )
 
         return dummy_inputs
@@ -834,6 +822,18 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return models_and_onnx_configs, onnx_files_subpaths_new
 
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        if self.use_past_in_inputs and self.PAD_ATTENTION_MASK_TO_PAST and self.use_cache_branch is not False:
+            seq_len = dummy_inputs["decoder_input_ids"].shape[1]
+            past_seq_len = dummy_inputs["past_key_values"][0][1].shape[-2]
+            dummy_inputs["decoder_attention_mask"] = DummyInputGenerator.pad_input_on_dim(
+                dummy_inputs["decoder_attention_mask"], desired_length=past_seq_len + seq_len, dim=1
+            )
+
+        return dummy_inputs
+
     def generate_dummy_inputs_for_validation(
         self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
     ) -> dict[str, Any]:
@@ -844,27 +844,15 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             if "attention_mask" in reference_model_inputs:
                 reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
 
-            if onnx_input_names is not None:
-                if "encoder_outputs" in reference_model_inputs:
-                    if "encoder_hidden_states" in onnx_input_names:
-                        # This is typically the case for the decoder without past, and for **some**
-                        # decoder with past, e.g. t5.
-                        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(
-                            "encoder_outputs"
-                        )[0]
-                    else:
-                        reference_model_inputs.pop("encoder_outputs")
-            else:
-                # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
-                if "encoder_outputs" in reference_model_inputs:
-                    if self.use_past_in_inputs is False or self.is_merged:
-                        # ONNX without past uses encoder_hidden_states even when we don't outputing them
-                        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(
-                            "encoder_outputs"
-                        )[0]
-                    else:
-                        # ONNX with past does not use encoder_hidden_states when we don't output them
-                        reference_model_inputs.pop("encoder_outputs")
+            if "decoder_attention_mask" in reference_model_inputs:
+                reference_model_inputs["attention_mask"] = reference_model_inputs.pop("decoder_attention_mask")
+
+            if "encoder_outputs" in reference_model_inputs:
+                if "encoder_hidden_states" in onnx_input_names:
+                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
+                else:
+                    reference_model_inputs.pop("encoder_outputs")
+
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
 

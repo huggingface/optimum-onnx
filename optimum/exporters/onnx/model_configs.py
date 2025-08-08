@@ -2532,6 +2532,7 @@ class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
     *["image-to-text", "image-to-text-with-past", "visual-question-answering", "visual-question-answering-with-past"],
 )
 class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
+    PAD_ATTENTION_MASK_TO_PAST = True
     NORMALIZED_CONFIG_CLASS = Pix2StructNormalizedConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTextInputGenerator,
@@ -2540,105 +2541,44 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         DummyPix2StructInputGenerator,
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if is_transformers_version("==", "4.46.0") and self._behavior is ConfigBehavior.DECODER:
-            logger.error(
-                "Found transformers v4.46.0 while trying to exporting a Pix2Struct model, this specific version of transformers is not supported. "
-                "Please upgrade to v4.46.1 or higher, or downgrade your transformers version"
-            )
+    @property
+    def torch_to_onnx_input_map(self) -> dict[str, str]:
+        if self._behavior is ConfigBehavior.DECODER:
+            return {
+                "decoder_input_ids": "input_ids",
+                "decoder_attention_mask": "attention_mask",
+                "encoder_outputs": "encoder_hidden_states",
+                "attention_mask": "encoder_attention_mask",
+            }
+        return {}
 
     @property
     def inputs(self):
         common_inputs = {}
+
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            common_inputs["flattened_patches"] = {0: "batch_size"}
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size"}
         common_inputs["attention_mask"] = {0: "batch_size"}
 
-        if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["flattened_patches"] = {0: "batch_size"}
-
-        if self._behavior is not ConfigBehavior.ENCODER:
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self._behavior is ConfigBehavior.DECODER:
-            if self.use_past_in_inputs:
+                decoder_attention_mask_dim = "past_decoder_sequence_length + decoder_sequence_length"
                 self.add_past_key_values(common_inputs, direction="inputs")
-
-            common_inputs["encoder_outputs"] = {0: "batch_size"}
-
-            # Contrary to other seq2seq archs as t5 and bart, Pix2Struct DO make use of the decoder_attention_mask input.
-            common_inputs["decoder_attention_mask"] = {
-                0: "batch_size",
-                1: "past_sequence_length + decoder_sequence_length",
-            }
+            else:
+                decoder_attention_mask_dim = "decoder_sequence_length"
+            common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: decoder_attention_mask_dim}
 
         return common_inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         if self._behavior is ConfigBehavior.ENCODER:
-            common_outputs = {
-                "last_hidden_state": {0: "batch_size"}
-            }  # The last hidden state dim=1 is constant, no need for it to be dynamic.
+            return {"last_hidden_state": {0: "batch_size"}}
         else:
-            common_outputs = super(OnnxConfigWithPast, self).outputs
-
-        # Renaming the outputs axes properly.
-        for name, axes_names in common_outputs.items():
-            if self._behavior is ConfigBehavior.ENCODER or "encoder" in name:
-                sequence_name = "encoder_sequence_length"
-            else:
-                sequence_name = "decoder_sequence_length"
-
-            new_axes_names = {}
-            for axis_idx, axis_name in axes_names.items():
-                if "sequence" in axis_name:
-                    if self.use_past_in_inputs is False or self.is_merged is True:
-                        new_axes_names[axis_idx] = sequence_name
-                    else:
-                        # Trick to force it since ONNX sometimes infer a dynamic axis where it's not.
-                        new_axes_names[axis_idx] = "1"
-                else:
-                    new_axes_names[axis_idx] = axis_name
-            common_outputs[name] = new_axes_names
-
-        if self.use_past:
-            # When exporting decoder models with use_cache=True, both the decoder without past and with past have the KV cache as an output.
-            self.add_past_key_values(common_outputs, direction="outputs")
-
-        return common_outputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
-    def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
-    ) -> dict[str, Any]:
-        if self._behavior is ConfigBehavior.DECODER:
-            reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-
-        if onnx_input_names is not None:
-            if "encoder_outputs" in reference_model_inputs:
-                if "encoder_hidden_states" in onnx_input_names:
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-                else:
-                    reference_model_inputs.pop("encoder_outputs")
-        else:
-            # TODO: remove this else in optimum 2.0 and make onnx_input_names a required argument
-            # Pix2Struct requires encoder_hidden_states as an input for both the without/with past models,
-            # which is different than other architectures that require it only for the without past case
-            reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-
-        return super().generate_dummy_inputs_for_validation(reference_model_inputs)
+            return super().outputs
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
         dummy_inputs_generators = []
@@ -2668,24 +2608,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 f"Preprocessors for pix2struct need to be available for the ONNX export to infer input static shapes. Got: {self._preprocessors}"
             )
 
-        # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
-        # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
-        if (
-            self.use_past
-            and self.use_past_in_inputs
-            and self.use_cache_branch is not False
-            and input_name in ["decoder_input_ids", "input_ids"]
-        ):
-            sequence_length = dummy_input_gen.sequence_length
-            # Use a sequence length of 1 when the KV cache is already populated.
-            dummy_input_gen.sequence_length = 1
-            dummy_input = dummy_input_gen.generate(
-                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
-            )
-            dummy_input_gen.sequence_length = sequence_length
-        elif input_name in ["encoder_outputs", "attention_mask"]:
-            # pix2struct takes inputs whose so-called sequence length is **static** to max_patches, so we do NOT use
-            # the passed sequence_length that behaves as a dynamic shape.
+        if input_name in ["encoder_outputs", "attention_mask"]:
+            # Pix2struct takes inputs encoder inputs/outputs with a fixed sequence length (max_patches).
             original_seq_length = dummy_input_gen.sequence_length
             dummy_input_gen.sequence_length = self._preprocessors[1].image_processor.max_patches
             dummy_input = dummy_input_gen.generate(
@@ -2693,8 +2617,8 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
             )
             dummy_input_gen.sequence_length = original_seq_length
         else:
-            dummy_input = dummy_input_gen.generate(
-                input_name, framework=framework, int_dtype=self.int_dtype, float_dtype=self.float_dtype
+            dummy_input = super().overwrite_shape_and_generate_input(
+                dummy_input_gen, input_name, framework, input_shapes
             )
 
         return dummy_input
