@@ -329,13 +329,9 @@ def _run_validation(
         else:
             ref_outputs_dict[name] = value
 
-    onnx_input_names = [inp.name for inp in session.get_inputs()]
-
     # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
     # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(
-        reference_model_inputs, onnx_input_names=onnx_input_names
-    )
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}

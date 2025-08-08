@@ -244,8 +244,6 @@ class OnnxConfig(ExporterConfig, ABC):
         session_options.graph_optimization_level = GraphOptimizationLevel.ORT_DISABLE_ALL  # no need to optimize here
         session = InferenceSession(model_path.as_posix(), providers=providers, sess_options=session_options)
 
-        onnx_input_names = [inp.name for inp in session.get_inputs()]
-
         to_fix = []
         for output_idx, node in enumerate(session.get_outputs()):
             for idx, axis in enumerate(node.shape):
@@ -257,7 +255,7 @@ class OnnxConfig(ExporterConfig, ABC):
             if input_shapes is None:
                 input_shapes = {}
             dummy_inputs = self.generate_dummy_inputs(framework="np", **input_shapes)
-            dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs, onnx_input_names=onnx_input_names)
+            dummy_inputs = self.generate_dummy_inputs_for_validation(dummy_inputs)
             dummy_inputs = self.rename_ambiguous_inputs(dummy_inputs)
 
             onnx_inputs = {}
@@ -372,9 +370,7 @@ class OnnxConfig(ExporterConfig, ABC):
         else:
             return {f"{name}.{idx}": item for idx, item in enumerate(field)}
 
-    def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
-    ) -> dict[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: dict[str, Any]) -> dict[str, Any]:
         """Generates inputs for ONNX Runtime using the reference model inputs.
 
         Override this to run inference with seq2seq
@@ -383,9 +379,6 @@ class OnnxConfig(ExporterConfig, ABC):
         Args:
             reference_model_inputs (`Dict[str, Tensor]`):
                 Reference inputs for the model.
-            onnx_input_names (`Optional[List[str]]`, defaults to `None`):
-                Names of the actual inputs to the ONNX model. This argument may be required as an unused
-                input to the model is automatically removed by torch.onnx.export (e.g. encoder_outputs in the decoder with past)
 
         Returns:
             `Dict[str, Tensor]`: The mapping holding the kwargs to provide to the model's forward function
@@ -603,9 +596,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
         return flattened_output
 
-    def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
-    ) -> dict[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: dict[str, Any]) -> dict[str, Any]:
         if self.is_merged is True and self.use_cache_branch is True:
             reference_model_inputs["use_cache_branch"] = DummyInputGenerator.constant_tensor(shape=[1], value=True)
         elif self.is_merged is True and self.use_cache_branch is False:
@@ -847,24 +838,17 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return dummy_inputs
 
-    def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
-    ) -> dict[str, Any]:
+    # this is more of "post_process_generated_inputs_for_validation" than "generate_dummy_inputs_for_validation"
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: dict[str, Any]) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.DECODER:
             if "decoder_input_ids" in reference_model_inputs:
                 reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-
             if "attention_mask" in reference_model_inputs:
                 reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
-
             if "decoder_attention_mask" in reference_model_inputs:
                 reference_model_inputs["attention_mask"] = reference_model_inputs.pop("decoder_attention_mask")
-
             if "encoder_outputs" in reference_model_inputs:
-                if "encoder_hidden_states" in onnx_input_names:
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-                else:
-                    reference_model_inputs.pop("encoder_outputs")
+                reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
 
         return super().generate_dummy_inputs_for_validation(reference_model_inputs)
 
@@ -966,9 +950,7 @@ class OnnxConfigWithLoss(OnnxConfig, ABC):
 
         return dummy_inputs
 
-    def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
-    ) -> dict[str, Any]:
+    def generate_dummy_inputs_for_validation(self, reference_model_inputs: dict[str, Any]) -> dict[str, Any]:
         return self._onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
 
     def flatten_decoder_past_key_values(self, flattened_output, name, idx, t):
