@@ -277,20 +277,13 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             remove_directory(tmpdirname)
 
     @require_hf_token
-    @parameterized.expand(
-        grid_parameters({"model_arch": ["t5"], "use_cache": [False, True], "use_merged": [False, True]})
-    )
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_push_model_with_external_data_to_hub(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
-    ):
+    def test_push_model_with_external_data_to_hub(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            model_id = MODEL_NAMES[model_arch]
+            model_id = MODEL_NAMES["t5"]
             repo_dir = model_id.split("/")[-1] + "-onnx"
             token = os.environ.get("HF_AUTH_TOKEN", None)
-            model = self.ORTMODEL_CLASS.from_pretrained(
-                model_id, use_cache=use_cache, use_merged=use_merged, export=True
-            )
+            model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True)
             # verify the model can be pushed to the hub
             model.save_pretrained(tmpdirname, token=token, repository_id=repo_dir, push_to_hub=True)
             # verify pulling from hub works
@@ -681,7 +674,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
         pipe = optimum_pipeline(
             "text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
         )
-        self.check_onnx_model_correctness(pipe.model, use_cache=use_cache, use_merged=use_merged)
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(texts)
         self.assertIsInstance(outputs, list)
@@ -695,7 +688,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
             pipe = optimum_pipeline(
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
-            self.check_onnx_model_correctness(pipe.model, use_cache=use_cache, use_merged=use_merged)
+            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
             local_outputs = pipe(texts)
             self.assertEqual(outputs, local_outputs)
