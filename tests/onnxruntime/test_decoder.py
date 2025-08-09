@@ -222,7 +222,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs1.logits, torch.Tensor)
         self.assertIsInstance(outputs2.logits, torch.Tensor)
 
-        if is_transformers_version("<", "4.39.0"):
+        if is_transformers_version("<", "4.39.0") and attention_mask is not None:
             self.mask_logits(outputs1.logits, attention_mask)
             self.mask_logits(outputs2.logits, attention_mask)
 
@@ -239,7 +239,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             if isinstance(outputs2.past_key_values, Cache):
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
 
-            if is_transformers_version("<", "4.39.0"):
+            if is_transformers_version("<", "4.39.0") and attention_mask is not None:
                 self.mask_past_key_values(onnx_model, outputs1.past_key_values, attention_mask)
                 self.mask_past_key_values(onnx_model, outputs2.past_key_values, attention_mask)
 
@@ -339,11 +339,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         inputs = tokenizer(inputs, return_tensors="pt", padding=True)
 
         model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
-        ort_model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True, trust_remote_code=True)
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True, trust_remote_code=True)
 
-        pt_logits = model(**inputs)
-        ort_logits = ort_model(**inputs)
-        self.compare_logits(pt_logits, ort_logits, onnx_model=ort_model, attention_mask=inputs["attention_mask"])
+        outputs = model(**inputs)
+        onnx_outputs = onnx_model(**inputs)
+        attention_mask = inputs["attention_mask"]
+        self.compare_logits(outputs, onnx_outputs, onnx_model=onnx_model, attention_mask=attention_mask)
 
     def test_load_model_from_hub_infer_onnx_model(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
@@ -409,8 +410,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
+        attention_mask = inputs["attention_mask"]
         self.compare_logits(
-            outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache, attention_mask=inputs["attention_mask"]
+            outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache, attention_mask=attention_mask
         )
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
