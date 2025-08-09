@@ -141,7 +141,6 @@ register_tasks_manager_onnx = TasksManager.create_register("onnx")
 @register_tasks_manager_onnx("bert", *COMMON_TEXT_TASKS)
 class BertOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -348,7 +347,6 @@ class DebertaV2OnnxConfig(DebertaOnnxConfig):
 )
 class EsmOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -435,7 +433,6 @@ class SmolLM3OnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
 class OlmoOnnxConfig(LlamaOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
     MIN_TRANSFORMERS_VERSION = version.parse("4.40.0")
 
 
@@ -606,7 +603,7 @@ class T5OnnxConfig(TextSeq2SeqOnnxConfig):
     *["feature-extraction", "feature-extraction-with-past", "text2text-generation", "text2text-generation-with-past"],
 )
 class MT5OnnxConfig(T5OnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -807,7 +804,6 @@ class ViTOnnxConfig(VisionOnnxConfig):
 @register_tasks_manager_onnx("vitpose", *["keypoint-detection"])
 class VitPoseOnnxConfig(ViTOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (VitPoseDummyInputGenerator,)
-    ATOL_FOR_VALIDATION = 1e-4
 
     _MODEL_PATCHER = VitPoseModelPatcher
 
@@ -818,7 +814,7 @@ class VitPoseOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("cvt", *["feature-extraction", "image-classification"])
 class CvTOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-2
+    pass
 
 
 @register_tasks_manager_onnx("levit", *["feature-extraction", "image-classification"])
@@ -873,18 +869,17 @@ class Dinov2OnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("mobilevit", *["feature-extraction", "image-classification", "image-segmentation"])
 class MobileViTOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
+    pass
 
 
 @register_tasks_manager_onnx("regnet", *["feature-extraction", "image-classification"])
 class RegNetOnnxConfig(ViTOnnxConfig):
-    # This config has the same inputs as ViTOnnxConfig
     pass
 
 
 @register_tasks_manager_onnx("resnet", *["feature-extraction", "image-classification"])
 class ResNetOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
+    pass
 
 
 @register_tasks_manager_onnx("detr", *["feature-extraction", "object-detection", "image-segmentation"])
@@ -953,7 +948,6 @@ class GlpnOnnxConfig(ViTOnnxConfig):
 @register_tasks_manager_onnx("poolformer", *["feature-extraction", "image-classification"])
 class PoolFormerOnnxConfig(ViTOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
-    ATOL_FOR_VALIDATION = 2e-3
 
 
 @register_tasks_manager_onnx(
@@ -972,8 +966,6 @@ class SegformerOnnxConfig(YolosOnnxConfig):
 
 @register_tasks_manager_onnx("mobilenet_v1", *["feature-extraction", "image-classification"])
 class MobileNetV1OnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {"pixel_values": {0: "batch_size"}}
@@ -1010,8 +1002,6 @@ class DonutSwinOnnxConfig(ViTOnnxConfig):
 
 @register_tasks_manager_onnx("default-timm-config", *["image-classification"], library_name="timm")
 class TimmDefaultOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
-
     def rename_ambiguous_inputs(self, inputs):
         #  The input name in the model signature is `x, hence the export input name is updated.
         model_inputs = {}
@@ -1133,8 +1123,6 @@ class SentenceTransformersCLIPOnnxConfig(CLIPOnnxConfig):
 
 @register_tasks_manager_onnx("clip-text-with-projection", *["feature-extraction"], library_name="diffusers")
 class CLIPTextWithProjectionOnnxConfig(TextEncoderOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-3
-
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         vocab_size="vocab_size",
         sequence_length="max_position_embeddings",
@@ -1219,8 +1207,6 @@ class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
 
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
 class UNetOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
-
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         image_size="sample_size",
         num_channels="in_channels",
@@ -1291,8 +1277,6 @@ class UNetOnnxConfig(VisionOnnxConfig):
 
 @register_tasks_manager_onnx("vae-encoder", *["semantic-segmentation"], library_name="diffusers")
 class VaeEncoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 3e-4
-
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
         num_channels="in_channels", image_size="sample_size", allow_new=True
     )
@@ -1317,8 +1301,6 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
 
 @register_tasks_manager_onnx("vae-decoder", *["semantic-segmentation"], library_name="diffusers")
 class VaeDecoderOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 3e-4
-
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(num_channels="latent_channels", allow_new=True)
 
     @property
@@ -1343,7 +1325,6 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
 @register_tasks_manager_onnx("t5-encoder", *["feature-extraction"], library_name="diffusers")
 class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self):
@@ -1360,8 +1341,6 @@ class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
 
 @register_tasks_manager_onnx("sd3-transformer-2d", *["semantic-segmentation"], library_name="diffusers")
 class SD3TransformerOnnxConfig(VisionOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-4
-
     DUMMY_INPUT_GENERATOR_CLASSES = (
         DummyTransformerTimestepInputGenerator,
         DummyTransformerVisionInputGenerator,
@@ -1443,7 +1422,6 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
 class OwlViTOnnxConfig(CLIPOnnxConfig):
     # Sets the absolute tolerance to when validating the exported ONNX model against the
     # reference model.
-    ATOL_FOR_VALIDATION = 1e-4
 
     def __init__(
         self,
@@ -1724,7 +1702,6 @@ class ASTOnnxConfig(OnnxConfig):
         num_mel_bins="num_mel_bins", max_length="max_length", allow_new=True
     )
     DUMMY_INPUT_GENERATOR_CLASSES = (ASTDummyAudioInputGenerator,)
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -1807,7 +1784,6 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
         feature_size="num_mel_bins",
         allow_new=True,
     )
-    ATOL_FOR_VALIDATION = 1e-3
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -2153,7 +2129,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
 @register_tasks_manager_onnx("vits", *["text-to-audio"])
 class VitsOnnxConfig(TextEncoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -2191,7 +2166,6 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
         *AudioToTextOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES[1:],
         DummyTextInputGenerator,
     )
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -2265,7 +2239,6 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 )
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-    ATOL_FOR_VALIDATION = 1e-4
 
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
     _MODEL_PATCHER = VisionEncoderDecoderPatcher
@@ -2474,7 +2447,6 @@ class EncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
 class PatchTSTOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTimeSeriesForecastingConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyPatchTSTInputGenerator,)
-    ATOL_FOR_VALIDATION = 1e-4
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
@@ -2495,8 +2467,6 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
 
 @register_tasks_manager_onnx("rt_detr", *["object-detection"])
 class RTDetrOnnxConfig(ViTOnnxConfig):
-    ATOL_FOR_VALIDATION = 1e-5
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {
@@ -2536,7 +2506,6 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
         vision_config="vlm_config.vision_config",
         vlm_config="vlm_config",
     )
-    ATOL_FOR_VALIDATION = 1e-4
 
     VARIANTS = {  # noqa: RUF012
         "vision": "Embedding extraction for image.",
