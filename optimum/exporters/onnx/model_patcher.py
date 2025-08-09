@@ -448,12 +448,7 @@ class ModelPatcher:
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-
-        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
-        if config.__class__.__name__ == "OnnxConfigWithLoss":
-            self.real_config = config._onnx_config
-        else:
-            self.real_config = config
+        self.real_config = config
 
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
@@ -633,7 +628,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                            # Who cares about the encoder outputs in the decoder?
                             continue
                         else:
                             filtered_outputs[name] = value
@@ -649,6 +643,24 @@ class Seq2SeqModelPatcher(ModelPatcher):
             return filtered_outputs
 
         self.patched_forward = patched_forward
+
+
+class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            logger.warning(
+                "BigBirdPegasus model is using block sparse attention, which is not supported in ONNX export. "
+                "The model will be exported with original full attention."
+            )
+            self._model.set_attention_type("original_full")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            self._model.set_attention_type("block_sparse")
 
 
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
