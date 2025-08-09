@@ -385,7 +385,8 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             if self._behavior is ConfigBehavior.DECODER:
                 if "decoder_input_ids" in reference_model_inputs:
                     reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
-
+                if "attention_mask" in reference_model_inputs:
+                    reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
                 if "encoder_outputs" in reference_model_inputs:
                     if "encoder_hidden_states" in onnx_input_names:
                         reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(

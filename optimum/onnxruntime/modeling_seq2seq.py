@@ -702,6 +702,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
 
     _supports_cache_class = False
 
+    _library_name = "transformers"
     _ort_encoder_class = ORTEncoder
     _ort_decoder_class = ORTDecoderForSeq2Seq
 

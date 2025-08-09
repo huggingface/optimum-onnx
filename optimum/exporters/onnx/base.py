@@ -621,7 +621,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
                 "past_key_values", framework="pt", int_dtype=self.int_dtype, float_dtype=self.float_dtype
             )
 
-        return reference_model_inputs
+        return super().generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
 
 
 class ConfigBehavior(str, enum.Enum):
@@ -847,7 +847,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
 
         return dummy_inputs
 
-    # this is more of "post_process_generated_inputs_for_validation" than "generate_dummy_inputs_for_validation"
     def generate_dummy_inputs_for_validation(
         self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:

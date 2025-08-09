@@ -55,7 +55,7 @@ MODEL_NAMES = {
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTForSemanticSegmentation",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": "mohitsha/tiny-random-testing-bert2gpt2",
+    "encoder-decoder": "optimum-internal-testing/tiny-random-encoder-decoder-gpt2-bert",
     "encoder-decoder-bert-bert": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "falcon": "fxmarty/really-tiny-falcon-testing",
