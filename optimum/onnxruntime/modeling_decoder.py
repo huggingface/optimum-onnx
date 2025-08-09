@@ -28,6 +28,7 @@ import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
+from transformers.cache_utils import Cache
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils import cached_file
@@ -128,6 +129,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
     _supports_cache_class = False
+    _is_stateful = False
 
     def __init__(
         self,
@@ -223,7 +225,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "smollm3",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
-
         elif self.config.model_type == "falcon":
             if self.config.new_decoder_architecture or not self.config.multi_query:
                 self.num_key_value_heads = self.config.num_kv_heads
@@ -283,6 +284,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
                 "To re-export your model, simply set `export=True` in the `from_pretrained` method."
             )
+
+        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
+        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
+            past_key_values = None
 
         # Get the input/output dimensions
         batch_size, seq_len = input_ids.shape
@@ -702,6 +707,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             config.is_decoder = True
         if hasattr(config, "is_encoder_decoder"):
             config.is_encoder_decoder = False
+        if hasattr(config, "_attn_implementation"):
+            config._attn_implementation = "onnxruntime"
 
         if generation_config is None:
             try:

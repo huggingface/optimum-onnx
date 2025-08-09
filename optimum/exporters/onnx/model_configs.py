@@ -554,26 +554,35 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_sequence_length"
-            name = "past_key_values"
+        if is_transformers_version(">=", "4.45"):
+            super().add_past_key_values(inputs_or_outputs, direction)
         else:
-            decoder_sequence_name = "past_sequence_length + sequence_length"
-            name = "present"
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        if self._normalized_config.multi_query:
-            decoder_sequence_dim = 1
-        else:
-            decoder_sequence_dim = 2
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + sequence_length"
+                name = "present"
 
-        for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", decoder_sequence_dim: decoder_sequence_name}
+            if self._normalized_config.multi_query:
+                decoder_sequence_dim = 1
+            else:
+                decoder_sequence_dim = 2
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                    0: "batch_size",
+                    decoder_sequence_dim: decoder_sequence_name,
+                }
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.key_value"] = t
+        if is_transformers_version(">=", "4.45"):
+            super().flatten_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 @register_tasks_manager_onnx("falcon", *[*COMMON_TEXT_GENERATION_TASKS, "question-answering", "token-classification"])
