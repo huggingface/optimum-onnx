@@ -181,7 +181,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 past_key_values[i][0].masked_fill_(mask == 0, 0)
                 past_key_values[i][1].masked_fill_(mask == 0, 0)
 
-    def check_onnx_model(
+    def check_onnx_model_attributes(
         self,
         onnx_model,
         use_cache: bool = True,
@@ -190,22 +190,32 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     ):
         self.assertIsInstance(onnx_model, self.ORTMODEL_CLASS)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
-        self.assertIsInstance(onnx_model.generation_config, GenerationConfig)
         self.assertIsInstance(onnx_model.session, InferenceSession)
+        self.assertIsInstance(onnx_model.generation_config, GenerationConfig)
 
+        self.assertEqual(onnx_model.generation_config.use_cache, use_cache)
         self.assertEqual(onnx_model.config.use_cache, use_cache)
-        if use_io_binding is not None:
-            self.assertEqual(onnx_model.use_io_binding, use_io_binding)
+
+        if use_cache or use_merged:
+            self.assertTrue(onnx_model.can_use_cache)
+        else:
+            self.assertFalse(onnx_model.can_use_cache)
+
         if use_merged is not None:
             self.assertEqual(onnx_model.is_merged, use_merged)
+        else:
+            self.assertFalse(onnx_model.is_merged)
+
+        if use_io_binding is not None:
+            self.assertEqual(onnx_model.use_io_binding, use_io_binding)
 
     def compare_logits(
         self,
         outputs1,
         outputs2,
-        attention_mask: torch.Tensor,
         onnx_model: ORTModelForCausalLM,
         use_cache: Optional[bool] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ):
         self.assertTrue("logits" in outputs1)
         self.assertTrue("logits" in outputs2)
@@ -277,16 +287,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     def test_load_model_from_hub(self):
         model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
-        self.assertEqual(model.path.name, ONNX_DECODER_WITH_PAST_NAME)
-        self.check_onnx_model(model, use_cache=True, use_merged=False)
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
 
         model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
-        self.assertEqual(model.path.name, ONNX_DECODER_MERGED_NAME)
-        self.check_onnx_model(model, use_cache=True, use_merged=True)
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
 
         model = self.ORTMODEL_CLASS.from_pretrained("hf-internal-testing/tiny-random-gpt2")
-        self.assertEqual(model.path.name, ONNX_WEIGHTS_NAME)
-        self.check_onnx_model(model, use_cache=True)
+        self.check_onnx_model_attributes(model, use_cache=True)
 
     @parameterized.expand(
         grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}, add_test_name=False)
@@ -397,13 +404,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(onnx_model, use_cache=use_cache)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
         self.compare_logits(
-            outputs, onnx_outputs, use_cache=use_cache, onnx_model=onnx_model, attention_mask=inputs["attention_mask"]
+            outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache, attention_mask=inputs["attention_mask"]
         )
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
@@ -430,7 +437,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(onnx_model, use_cache=use_cache)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -466,7 +473,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(onnx_model, use_cache=use_cache)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         # beam search with random sampling
         gen_config = GenerationConfig(num_beams=4, max_new_tokens=10, min_new_tokens=10, do_sample=True)
@@ -517,11 +524,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
             with_pkv_dir, use_cache=True, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(model_with_pkv, use_cache=True)
+        self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
         model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
             without_pkv_dir, use_cache=False, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(model_with_pkv, use_cache=True)
+        self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
 
         set_seed(SEED)
         outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
@@ -549,23 +556,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             model_dir, use_cache=use_cache, use_io_binding=False, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(onnx_model, use_cache=use_cache, use_io_binding=False)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
         io_model = self.ORTMODEL_CLASS.from_pretrained(
             model_dir, use_cache=use_cache, use_io_binding=True, trust_remote_code=trust_remote_code
         )
-        self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
+        self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
         set_seed(SEED)
         io_outputs = io_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        self.compare_logits(
-            io_outputs,
-            onnx_outputs,
-            use_cache=use_cache,
-            onnx_model=onnx_model,
-            attention_mask=inputs["attention_mask"],
-        )
+        self.compare_logits(io_outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
@@ -590,14 +591,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             use_io_binding=False,
             use_cache=use_cache,
         )
-        self.check_onnx_model(onnx_model, use_cache=use_cache, use_io_binding=False)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
         io_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name],
             trust_remote_code=trust_remote_code,
             use_io_binding=True,
             use_cache=use_cache,
         )
-        self.check_onnx_model(io_model, use_cache=use_cache, use_io_binding=True)
+        self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
         set_seed(SEED)
         io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -609,7 +610,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
         pipe = optimum_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
-        self.check_onnx_model(pipe.model, use_cache=use_cache)
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
         text = "The capital of France is"
         set_seed(SEED)
         outputs = pipe(text)
@@ -634,7 +635,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         text = "The capital of France is"
         tokenizer = self.get_tokenizer(MODEL_NAMES[model_arch])
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        self.check_onnx_model(onnx_model, use_cache=use_cache)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         pipe = optimum_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
@@ -682,7 +683,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         model = self.AUTOMODEL_CLASS.from_pretrained("gpt2").eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained("optimum/gpt2", use_cache=use_cache)
-        self.check_onnx_model(onnx_model, use_cache=use_cache)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         self.assertEqual(onnx_model.use_cache, use_cache)
         if use_cache:
@@ -693,9 +694,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs)
         onnx_outputs = onnx_model(**inputs)
-        self.compare_logits(
-            outputs, onnx_outputs, use_cache=use_cache, onnx_model=onnx_model, attention_mask=inputs["attention_mask"]
-        )
+        self.compare_logits(outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache)
 
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -732,13 +731,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
                 tmpdir, use_cache=False, use_merged=False, trust_remote_code=trust_remote_code
             )
-            self.check_onnx_model(not_merged_without_cache_model, use_cache=False, use_merged=False)
+            self.check_onnx_model_attributes(not_merged_without_cache_model, use_cache=False, use_merged=False)
 
             # merged model
             merged_model = self.ORTMODEL_CLASS.from_pretrained(
                 tmpdir, use_cache=True, use_merged=True, trust_remote_code=trust_remote_code
             )
-            self.check_onnx_model(merged_model, use_cache=True, use_merged=True)
+            self.check_onnx_model_attributes(merged_model, use_cache=True, use_merged=True)
 
             # forward
             logits = model(**tokens).logits
