@@ -20,7 +20,7 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "base": ["OnnxConfig", "OnnxConfigWithLoss", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
+    "base": ["OnnxConfig", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
     "config": ["TextDecoderOnnxConfig", "TextEncoderOnnxConfig", "TextSeq2SeqOnnxConfig"],
     "convert": [
         "export",
@@ -40,12 +40,7 @@ _import_structure = {
 
 if TYPE_CHECKING:
     from optimum.exporters.onnx.__main__ import main_export
-    from optimum.exporters.onnx.base import (
-        OnnxConfig,
-        OnnxConfigWithLoss,
-        OnnxConfigWithPast,
-        OnnxSeq2SeqConfigWithPast,
-    )
+    from optimum.exporters.onnx.base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
     from optimum.exporters.onnx.config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
     from optimum.exporters.onnx.convert import (
         export,

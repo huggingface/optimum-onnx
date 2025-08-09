@@ -19,7 +19,6 @@ from unittest import TestCase
 
 import numpy as np
 import torch
-import torch.version
 from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,

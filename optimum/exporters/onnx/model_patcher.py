@@ -448,12 +448,7 @@ class ModelPatcher:
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-
-        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
-        if config.__class__.__name__ == "OnnxConfigWithLoss":
-            self.real_config = config._onnx_config
-        else:
-            self.real_config = config
+        self.real_config = config
 
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
