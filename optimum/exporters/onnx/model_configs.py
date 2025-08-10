@@ -480,6 +480,12 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
+@register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
+class NemotronOnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+
+
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
 class GraniteOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
