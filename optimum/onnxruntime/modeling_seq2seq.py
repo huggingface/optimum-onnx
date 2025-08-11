@@ -423,7 +423,7 @@ class ORTEncoderForSpeech(ORTEncoder):
         return BaseModelOutput(last_hidden_state=last_hidden_state)
 
 
-class ORTEncoderForVisionEncoderDecoder(ORTEncoder):
+class ORTEncoderForVision(ORTEncoder):
     """Encoder model for ONNX Runtime inference for VisionEncoderDecoder models.
 
     Args:
@@ -528,11 +528,13 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         self.is_merged = "use_cache_branch" in self.input_names
 
         if self.config.model_type == "pix2struct":
+            self.vocab_size = getattr(self.config, "text_config", self.config).vocab_size
             self.num_attention_heads = getattr(self.config, "text_config", self.config).num_heads
             self.embed_size_per_head = (
                 getattr(self.config, "text_config", self.config).hidden_size // self.num_attention_heads
             )
         else:
+            self.vocab_size = getattr(self.config, "decoder", self.config).vocab_size
             self.num_attention_heads = getattr(self.config, "decoder", self.config).num_attention_heads
             self.embed_size_per_head = (
                 getattr(self.config, "decoder", self.config).hidden_size // self.num_attention_heads
@@ -582,6 +584,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         if "cache_position" in self.input_names and cache_position is None:
             cache_position = torch.arange(past_seq_len, out_seq_len, dtype=torch.int64, device=self.device)
 
+        # Generate dummy attention mask for Pix2Struct text model
+        if self.config.model_type == "pix2struct" and attention_mask is None:
+            attention_mask = torch.ones((batch_size, out_seq_len), dtype=torch.int64, device=self.device)
+
         model_inputs = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -593,16 +599,18 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         if past_key_values is not None:
             model_inputs.update(zip(self.key_value_input_names, past_key_values))
 
-        known_output_shapes = {}
         outputs_to_not_bind = set()
+        known_output_shapes = {"logits": (batch_size, in_seq_len, self.vocab_size)}
         if use_cache:
             # Infers the shape of the output pkv
             self_attn_shape = (batch_size, self.num_attention_heads, out_seq_len, self.embed_size_per_head)
             cross_attn_shape = (batch_size, self.num_attention_heads, encoder_seq_len, self.embed_size_per_head)
-            known_output_shapes = {
-                name: (cross_attn_shape if "encoder" in name else self_attn_shape)
-                for name in self.key_value_output_names
-            }
+            known_output_shapes.update(
+                {
+                    name: (cross_attn_shape if "encoder" in name else self_attn_shape)
+                    for name in self.key_value_output_names
+                }
+            )
         else:
             # we don't bind the key/values if they are not gonna be returned/used
             outputs_to_not_bind.update(self.key_value_output_names)
@@ -1026,7 +1034,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: bool | str | None = None,
         # inference options
-        use_merged: bool = False,  # why defaulting to False here ?
+        use_merged: bool = False,
         use_cache: bool = True,
         **kwargs,
     ) -> ORTModelForConditionalGeneration:
@@ -1222,7 +1230,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
-    """Speech Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text."""
+    """Speech sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper, speech_to_text."""
 
     main_input_name = "input_features"
     auto_model_class = AutoModelForSpeechSeq2Seq
@@ -1295,13 +1303,14 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
     @classmethod
     def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         if config.model_type == "whisper":
-            return _ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
+            return ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
         else:
             return super()._from_pretrained(model_id, config, **kwargs)
 
 
-class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
-    """Whisper implements its own generate() method."""
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
+    """Whisper sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper."""
 
     auto_model_class = WhisperForConditionalGeneration
 
@@ -1311,12 +1320,9 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
         self.model = DummyWhisperModel()
 
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    def generate(*args, **kwargs):
-        return WhisperForConditionalGeneration.generate(*args, **kwargs)
-
+    generate = WhisperForConditionalGeneration.generate
     # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
-    def prepare_inputs_for_generation(*args, **kwargs):
-        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
+    prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
 
     # this is needed to avoid circular calls
     @classmethod
@@ -1326,12 +1332,19 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
-    """VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder."""
+    """Vision sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports vision encoder-decoder and pix2struct."""
 
     auto_model_class = AutoModelForVision2Seq
     main_input_name = "pixel_values"
 
-    _ort_encoder_class = ORTEncoderForVisionEncoderDecoder
+    _ort_encoder_class = ORTEncoderForVision
+
+    @classmethod
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
+        if config.model_type == "pix2struct":
+            return ORTModelForPix2Struct._from_pretrained(model_id, config, **kwargs)
+        else:
+            return super()._from_pretrained(model_id, config, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING
@@ -1391,13 +1404,18 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForPix2Struct(ORTModelForConditionalGeneration):
-    """Pix2struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct."""
+class ORTModelForPix2Struct(ORTModelForVision2Seq):
+    """Pix2Struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct."""
 
     auto_model_class = Pix2StructForConditionalGeneration
     main_input_name = "flattened_patches"
 
     _ort_encoder_class = ORTEncoderForPix2Struct
+
+    # this is needed to avoid circular calls when ORTModelForVision2Seq is called to instantiate a ORTModelForPix2Struct
+    @classmethod
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
+        return super(ORTModelForVision2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         PIX2STRUCT_ONNX_MODEL_DOCSTRING

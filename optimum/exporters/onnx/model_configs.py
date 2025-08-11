@@ -1014,7 +1014,7 @@ class TimmDefaultOnnxConfig(ViTOnnxConfig):
         return {"x": "pixel_values"}
 
 
-@register_tasks_manager_onnx("mgp-str", *["feature-extraction", "image-to-text"])
+@register_tasks_manager_onnx("mgp-str", *["feature-extraction"])
 class MgpstrOnnxConfig(ViTOnnxConfig):
     _MODEL_PATCHER = MgpstrModelPatcher
 
@@ -2175,22 +2175,16 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
 
         if self._behavior is not ConfigBehavior.DECODER:
             common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
-            common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
-
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {
-                0: "batch_size",
-                1: f"encoder_sequence_length / {(2 * self._config.num_conv_layers)}",
-            }
 
         return common_inputs
 
@@ -2198,19 +2192,20 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
         if self._behavior is ConfigBehavior.ENCODER:
-            # for Speech2text, we need to name the second axis as
-            # encoder_sequence_length / 2 * self._config.num_conv_layers as the axis name is
-            # used for dummy input generation
-            common_outputs["last_hidden_state"][1] = (
-                f"{common_outputs['last_hidden_state'][1]} / {(2 * self._config.num_conv_layers)}"
-            )
+            common_outputs["last_hidden_state"] = {
+                0: "batch_size",
+                1: f"encoder_sequence_length / {2 * self._config.num_conv_layers} + 1",
+            }
         return common_outputs
 
 
-# TODO: Replace the TextSeq2SeqOnnxConfig inheritance with VisionToTextOnnxConfig when added.
-# The change below however does not affect the export for the model
+# TrOCR is a causal model, used as the decoder in some vision encoder-decoder models.
 @register_tasks_manager_onnx(
-    "trocr", *["feature-extraction", "feature-extraction-with-past", "image-to-text", "image-to-text-with-past"]
+    "trocr",
+    *[
+        "feature-extraction",
+        "feature-extraction-with-past",
+    ],
 )
 class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig.with_args(
@@ -2221,15 +2216,9 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
 
-@register_tasks_manager_onnx(
-    "donut",
-    *[
-        "image-to-text",
-        "image-to-text-with-past",
-        "document-question-answering",
-        "document-question-answering-with-past",
-    ],
-)
+# TODO: donut is not a model type but rather a family of vision encoder decoder models
+# that use donut (swin) as an encoder, but removing this registration breaks tasks manager
+@register_tasks_manager_onnx("donut")
 @register_tasks_manager_onnx(
     "vision-encoder-decoder",
     *[
@@ -2354,7 +2343,12 @@ class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
 
 @register_tasks_manager_onnx(
     "pix2struct",
-    *["image-to-text", "image-to-text-with-past", "visual-question-answering", "visual-question-answering-with-past"],
+    *[
+        "image-to-text",
+        "image-to-text-with-past",
+        "visual-question-answering",
+        "visual-question-answering-with-past",
+    ],
 )
 class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     PAD_ATTENTION_MASK_TO_PAST = True
@@ -2379,10 +2373,11 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
         if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
-                decoder_attention_mask_dim = "past_decoder_sequence_length + decoder_sequence_length"
                 self.add_past_key_values(common_inputs, direction="inputs")
+                decoder_attention_mask_dim = "past_decoder_sequence_length + decoder_sequence_length"
             else:
                 decoder_attention_mask_dim = "decoder_sequence_length"
+
             common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: decoder_attention_mask_dim}
 
         return common_inputs

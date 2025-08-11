@@ -244,11 +244,9 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
             common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
 
         if self._behavior is not ConfigBehavior.ENCODER:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
                 self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
 
         if self._behavior is ConfigBehavior.DECODER:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
