@@ -732,7 +732,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         )
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
-        outputs = pipe(texts, generation_kwargs=self.GEN_KWARGS)
+        outputs = pipe(texts, generate_kwargs=self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
@@ -746,7 +746,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
-            local_outputs = pipe(texts, generation_kwargs=self.GEN_KWARGS)
+            local_outputs = pipe(texts, generate_kwargs=self.GEN_KWARGS)
             self.assertEqual(outputs, local_outputs)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
@@ -767,7 +767,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         # Text2Text generation
         pipe = optimum_pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
-        outputs = pipe(texts, generation_kwargs=self.GEN_KWARGS)
+        outputs = pipe(texts, generate_kwargs=self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
         self.assertIsInstance(outputs[0], dict)
         self.assertIn("generated_text", outputs[0])
@@ -780,7 +780,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             set_seed(SEED)
-            outputs_local_model = pipe(texts, generation_kwargs=self.GEN_KWARGS)
+            outputs_local_model = pipe(texts, generate_kwargs=self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
 
     # OLD SEQ2SEQ ONNX MODEL TESTS
