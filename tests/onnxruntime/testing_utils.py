@@ -49,7 +49,7 @@ MODEL_NAMES = {
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
-    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
+    "vision-encoder-decoder-donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
@@ -128,7 +128,7 @@ MODEL_NAMES = {
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRForImageSuperResolution",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
-    "trocr": "microsoft/trocr-small-handwritten",
+    "vision-encoder-decoder-trocr": "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
@@ -163,53 +163,25 @@ class ORTModelTestMixin(unittest.TestCase):
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
 
-    def _setup(self, model_args: dict):
-        """Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
-        We don't use unittest setUpClass, in order to still be able to run individual tests.
-        """
-        model_arch_and_params = model_args.pop("test_name")
-        model_arch = model_args.pop("model_arch")
-        trust_remote_code = model_args.pop("trust_remote_code", False)
-
-        model_ids = MODEL_NAMES[model_arch]
-        if isinstance(model_ids, dict):
-            model_ids = list(model_ids.keys())
-        else:
-            model_ids = [model_ids]
-
-        task = self.TASK
-        if model_args.get("use_cache", False):
-            task = task + "-with-past"
-
-        if model_arch_and_params in self.onnx_model_dirs:
+    def _setup(self, setup_args: dict):
+        """Exports the PyTorch models to ONNX and caches them to be reused across tests."""
+        if setup_args.get("test_name") in self.onnx_model_dirs:
             return
 
-        self.onnx_model_dirs[model_arch_and_params] = {}
-        for model_id in model_ids:
-            if isinstance(MODEL_NAMES[model_arch], dict) and task not in MODEL_NAMES[model_arch][model_id]:
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
+        model_args = setup_args.copy()
+        test_name = model_args.pop("test_name")
+        model_arch = model_args.pop("model_arch")
 
-            set_seed(SEED)
-            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{task}_{model_id.replace('/', '_')}")
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-                model_id, **model_args, export=True, trust_remote_code=trust_remote_code
-            )
-            onnx_model.save_pretrained(model_dir)
-
-            if isinstance(MODEL_NAMES[model_arch], dict):
-                self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
-            else:
-                self.onnx_model_dirs[model_arch_and_params] = model_dir
+        set_seed(SEED)
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], **model_args, export=True)
+        model_dir = tempfile.mkdtemp(prefix=f"{onnx_model.__class__.__name__}_{test_name}")
+        self.onnx_model_dirs[test_name] = model_dir
+        onnx_model.save_pretrained(model_dir)
 
     @classmethod
     def tearDownClass(cls):
         for dir_path in cls.onnx_model_dirs.values():
-            if isinstance(dir_path, dict):
-                for sec_dir_path in dir_path.values():
-                    shutil.rmtree(sec_dir_path)
-            else:
-                shutil.rmtree(dir_path)
+            shutil.rmtree(dir_path)
 
 
 # Copied from https://github.com/huggingface/transformers/blob/3bc726b381592601cd9dd0fdcff5edcb02f3a85b/src/transformers/testing_utils.py#L1922C1-L1951C86
