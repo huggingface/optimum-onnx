@@ -986,6 +986,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         self.assertIsInstance(outputs[0]["chunks"], list)
         self.assertGreater(len(outputs[0]["chunks"]), 0)
 
+        if not hasattr(pipe, "image_processor"):
+            # Error in pipelines in transformers 4.36
+            pipe.image_processor = None
+
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
             pipe = optimum_pipeline(
@@ -1033,6 +1037,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         self.assertIn("chunks", outputs[0])
         self.assertIsInstance(outputs[0]["chunks"], list)
         self.assertGreater(len(outputs[0]["chunks"]), 0)
+
+        if not hasattr(pipe, "image_processor"):
+            # Error in pipelines in transformers 4.36
+            pipe.image_processor = None
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
@@ -1123,7 +1131,11 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         if model_arch == "vision-encoder-decoder":
             # VisionEncoderDecoderModel does not implement the `_reorder_cache` method
-            # So we use the one defined in the ORTModelForSeq2SeqLM class
+            # So we use the one defined in the ORT class
+            model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
+        elif model_arch == "pix2struct" and is_transformers_version("<", "4.50.0"):
+            # Pix2StructModel does not implement the `_reorder_cache` method in transformers < 4.50.0
+            # So we use the one defined in the ORT class
             model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
 
         return model
@@ -1281,7 +1293,11 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         # Image-to-Text generation
         pipe = optimum_pipeline(
-            "image-to-text", model=onnx_model, tokenizer=tokenizer, image_processor=image_processor
+            "image-to-text",
+            model=onnx_model,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            feature_extractor=image_processor,
         )
         set_seed(SEED)
         outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
