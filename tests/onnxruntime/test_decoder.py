@@ -122,24 +122,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("smollm3")
 
-    # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
-    GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 1, "do_sample": True}  # noqa: RUF012
-    if is_transformers_version(">=", "4.51.0"):
-        GEN_KWARGS["use_model_defaults"] = False
+
+    # base generation kwargs
+    GEN_KWARGS = {  # noqa: RUF012
+        "num_beams": 1,  # we test beam search in a separate test
+        "do_sample": True,  # to avoid the model returning the same id repeatedly
+        "max_new_tokens": 10,
+        "min_new_tokens": 10,
+    }
 
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
     AUTOMODEL_CLASS = AutoModelForCausalLM
 
     # UTILITIES
-    def get_simple_inputs(self):
-        return ["This is a simple text"]
-
-    def get_batched_inputs(self):
-        return ["This is me", "Today is a nice day and I am longer"]
-
-    def get_tokenizer(self, model_id: str, trust_remote_code: bool = False):
+    def get_tokenizer(self, model_arch: str):
+        model_id = MODEL_NAMES[model_arch]
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=trust_remote_code)
         if tokenizer.pad_token is None:
             if tokenizer.eos_token is not None:
@@ -152,6 +152,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 )
         tokenizer.padding_side = "left"
         return tokenizer
+
+    def get_inputs(
+        self, model_arch: str, for_generation: bool = False, for_pipeline: bool = False, batched: bool = True
+    ):
+        if batched:
+            texts = ["This is me", "Today is a nice day and I am longer"]
+        else:
+            texts = "Today is a nice day."
+
+        if for_pipeline:
+            return texts
+
+        tokenizer = self.get_tokenizer(model_arch)
+        inputs = tokenizer(texts, return_tensors="pt", padding=True)
+        if for_generation and is_transformers_version(">=", "4.51.0"):
+            inputs["use_model_defaults"] = False
+
+        return inputs
 
     def mask_logits(self, logits, attention_mask):
         """Mask the logits based on the attention mask."""
@@ -334,10 +352,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_trust_remote_code(self):
         model_id = "optimum-internal-testing/tiny-testing-gpt2-remote-code"
 
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
+        inputs = self.get_inputs("gpt2")
         model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=True).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(model_id, export=True, trust_remote_code=True)
 
@@ -393,14 +408,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        texts = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
-        inputs = tokenizer(texts, return_tensors="pt", padding=True)
+        inputs = self.get_inputs(model_arch)
+        attention_mask = inputs["attention_mask"]
 
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
@@ -410,7 +423,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
-        attention_mask = inputs["attention_mask"]
         self.compare_logits(
             outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache, attention_mask=attention_mask
         )
@@ -427,14 +439,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
+        inputs = self.get_inputs(model_arch, for_generation=True)
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
@@ -459,18 +467,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
-        gen_kwargs = {}
-        if is_transformers_version(">=", "4.51.0"):
-            gen_kwargs["use_model_defaults"] = False
+        inputs = self.get_inputs(model_arch, for_generation=True)
 
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            model_id, use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
@@ -480,9 +481,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         # beam search with random sampling
         gen_config = GenerationConfig(num_beams=4, max_new_tokens=10, min_new_tokens=10, do_sample=True)
         set_seed(SEED)
-        outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
+        outputs = model.generate(**inputs, generation_config=gen_config)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
+        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
         # group beam search with diversity penalty
@@ -494,8 +495,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             num_beam_groups=2,
             do_sample=False,
         )
-        outputs = model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
-        onnx_outputs = onnx_model.generate(**inputs, **gen_kwargs, generation_config=gen_config)
+        outputs = model.generate(**inputs, generation_config=gen_config)
+        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
@@ -516,11 +517,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
+        inputs = self.get_inputs(model_arch)
         with_pkv_dir = self.onnx_model_dirs[model_arch + "_True"]
         without_pkv_dir = self.onnx_model_dirs[model_arch + "_False"]
         model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
@@ -532,6 +529,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         )
         self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
 
+        inputs = self.get_inputs(model_arch, for_generation=True)
         set_seed(SEED)
         outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
         set_seed(SEED)
@@ -549,18 +547,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code=trust_remote_code)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
-        model_dir = self.onnx_model_dirs[test_name]
+        inputs = self.get_inputs(model_arch)
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, use_cache=use_cache, use_io_binding=False, trust_remote_code=trust_remote_code
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=False,
+            trust_remote_code=trust_remote_code,
         )
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
         io_model = self.ORTMODEL_CLASS.from_pretrained(
-            model_dir, use_cache=use_cache, use_io_binding=True, trust_remote_code=trust_remote_code
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=True,
+            trust_remote_code=trust_remote_code,
         )
         self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
@@ -582,11 +581,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_id = MODEL_NAMES[model_arch]
-        inputs = self.get_batched_inputs()
-        tokenizer = self.get_tokenizer(model_id, trust_remote_code)
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
+        inputs = self.get_inputs(model_arch, for_generation=True)
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name],
             trust_remote_code=trust_remote_code,
@@ -611,22 +606,23 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
+        texts = self.get_inputs("llama", for_pipeline=True)
         pipe = optimum_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
-        text = "The capital of France is"
+
         set_seed(SEED)
-        outputs = pipe(text)
+        outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
-        self.assertIsInstance(outputs[0], dict)
-        self.assertIn("generated_text", outputs[0])
-        self.assertIsInstance(outputs[0]["generated_text"], str)
-        self.assertGreater(len(outputs[0]["generated_text"]), len(text))
+        self.assertIsInstance(outputs[0][0], dict)
+        self.assertIn("generated_text", outputs[0][0])
+        self.assertIsInstance(outputs[0][0]["generated_text"], str)
+        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
             pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
-            outputs_local_model = pipe(text)
+            outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
@@ -634,55 +630,53 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
-        text = "The capital of France is"
-        tokenizer = self.get_tokenizer(MODEL_NAMES[model_arch])
+        tokenizer = self.get_tokenizer(model_arch)
+        texts = self.get_inputs(model_arch, for_pipeline=True)
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         pipe = optimum_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
-        outputs = pipe(text)
+        outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
-        self.assertIsInstance(outputs[0], dict)
-        self.assertIn("generated_text", outputs[0])
-        self.assertIsInstance(outputs[0]["generated_text"], str)
-        self.assertGreater(len(outputs[0]["generated_text"]), len(text))
+        self.assertIsInstance(outputs[0][0], dict)
+        self.assertIn("generated_text", outputs[0][0])
+        self.assertIsInstance(outputs[0][0]["generated_text"], str)
+        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
             pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
-            local_pipe_outputs = pipe(text)
-            self.assertEqual(outputs[0]["generated_text"], local_pipe_outputs[0]["generated_text"])
+            local_pipe_outputs = pipe(texts, **self.GEN_KWARGS)
+            self.assertEqual(outputs, local_pipe_outputs)
 
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}, add_test_name=False))
     def test_pipeline_with_hub_model_id(self, model_arch: str, use_cache: bool):
-        texts = self.get_batched_inputs()
-        model_id = MODEL_NAMES[model_arch]
+        texts = self.get_inputs(model_arch, for_pipeline=True)
         pipe = optimum_pipeline(
-            "text-generation", model=model_id, accelerator="ort", model_kwargs={"use_cache": use_cache}
+            "text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache}
         )
 
         set_seed(SEED)
-        outputs = pipe(texts)
+        outputs = pipe(texts, **self.GEN_KWARGS)
+        self.assertIsInstance(outputs, list)
+        self.assertIsInstance(outputs[0][0], dict)
+        self.assertIn("generated_text", outputs[0][0])
         self.assertIsInstance(outputs[0][0]["generated_text"], str)
-        self.assertTrue(len(outputs[0][0]["generated_text"]) > len(texts))
+        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
-                "text-generation", model=tmpdir, accelerator="ort", model_kwargs={"use_cache": use_cache}
-            )
+            pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
-            outputs_local_model = pipe(texts)
+            outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand([(False,), (True,)])
     def test_inference_with_old_onnx_model(self, use_cache):
-        inputs = self.get_simple_inputs()  # old onnx model can't handle batched inputs (missing position_ids)
-        tokenizer = self.get_tokenizer("gpt2")
-        inputs = tokenizer(inputs, return_tensors="pt", padding=True)
-
+        # old onnx model can't handle batched inputs (missing position_ids)
+        inputs = self.get_inputs("gpt2", batched=False)
         model = self.AUTOMODEL_CLASS.from_pretrained("gpt2").eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained("optimum/gpt2", use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
@@ -698,22 +692,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**inputs)
         self.compare_logits(outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache)
 
+        # old onnx model can't handle batched inputs (missing position_ids)
+        inputs = self.get_inputs("gpt2", for_generation=True, batched=False)
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
+    # LEGACY MODELS
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            inputs = self.get_simple_inputs()  # legacy models can't handle batched inputs (missing position_ids)
+            # legacy models can't handle batched inputs (missing position_ids)
+            inputs = self.get_inputs(model_arch, batched=False)
             model_id = MODEL_NAMES[model_arch]
             task = "text-generation-with-past"
-            tokenizer = self.get_tokenizer(model_id, trust_remote_code)
-            tokens = tokenizer(inputs, return_tensors="pt", padding=True)
 
             set_seed(SEED)
             model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
@@ -742,22 +738,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.check_onnx_model_attributes(merged_model, use_cache=True, use_merged=True)
 
             # forward
-            logits = model(**tokens).logits
-            merged_logits = merged_model(**tokens).logits
-            not_merged_without_cache_logits = not_merged_without_cache_model(**tokens).logits
+            logits = model(**inputs).logits
+            merged_logits = merged_model(**inputs).logits
+            not_merged_without_cache_logits = not_merged_without_cache_model(**inputs).logits
 
             # compare merged to transformers
             torch.testing.assert_close(logits, merged_logits, atol=self.ATOL, rtol=self.RTOL)
             # compare not merged without cache to transformers
             torch.testing.assert_close(logits, not_merged_without_cache_logits, atol=self.ATOL, rtol=self.RTOL)
 
+            # legacy models can't handle batched inputs (missing position_ids)
+            inputs = self.get_inputs(model_arch, for_generation=True, batched=False)
             # generate
             set_seed(SEED)
-            outputs = model.generate(**tokens, **self.GEN_KWARGS)
+            outputs = model.generate(**inputs, **self.GEN_KWARGS)
             set_seed(SEED)
-            merged_outputs = merged_model.generate(**tokens, **self.GEN_KWARGS)
+            merged_outputs = merged_model.generate(**inputs, **self.GEN_KWARGS)
             set_seed(SEED)
-            not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**tokens, **self.GEN_KWARGS)
+            not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**inputs, **self.GEN_KWARGS)
 
             # compare merged to transformers
             torch.testing.assert_close(outputs, merged_outputs, atol=self.ATOL, rtol=self.RTOL)
