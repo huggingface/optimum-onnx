@@ -68,8 +68,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = None
 
     GEN_KWARGS = {  # noqa: RUF012
-        "num_beams": 1,
-        "do_sample": True,
+        "num_beams": 1,  # we test beam search in a separate test
+        "do_sample": True,  # to avoid the model returning the same id repeatedly
         "max_new_tokens": 10,
         "min_new_tokens": 10,
     }
@@ -113,7 +113,6 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         else:
             self.assertIsNone(onnx_model.decoder_with_past)
 
-        self.assertEqual(onnx_model.generation_config.use_cache, use_cache)
         self.assertEqual(onnx_model.config.use_cache, use_cache)
 
         if use_cache or use_merged:
@@ -201,6 +200,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch)
         model = self.get_transformers_model(**setup_args)
         onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
@@ -220,6 +220,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch, for_generation=True)
         model = self.get_transformers_model(**setup_args)
         onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -241,6 +242,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch, for_generation=True)
         model = self.get_transformers_model(**setup_args)
         onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         # beam search with random sampling
         gen_config = GenerationConfig(
@@ -290,6 +292,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch)
         model_merged = self.get_onnx_model(**merged_setup_args)
         model_not_merged = self.get_onnx_model(**not_merged_setup_args)
+        self.check_onnx_model_attributes(model_merged, use_cache=use_cache, use_merged=True)
+        self.check_onnx_model_attributes(model_not_merged, use_cache=use_cache, use_merged=False)
 
         outputs_model_merged = model_merged(**inputs, use_cache=use_cache)
         outputs_model_not_merged = model_not_merged(**inputs, use_cache=use_cache)
@@ -312,8 +316,10 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         self._setup(not_merged_setup_args)
 
         inputs = self.get_inputs(model_arch, for_generation=True)
-        model_not_merged = self.get_onnx_model(**not_merged_setup_args)
         model_merged = self.get_onnx_model(**merged_setup_args)
+        model_not_merged = self.get_onnx_model(**not_merged_setup_args)
+        self.check_onnx_model_attributes(model_merged, use_cache=use_cache, use_merged=True)
+        self.check_onnx_model_attributes(model_not_merged, use_cache=use_cache, use_merged=False)
 
         set_seed(SEED)
         outputs_model_merged = model_merged.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -336,6 +342,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch)
         onnx_model = self.get_onnx_model(**setup_args, use_io_binding=False)
         io_model = self.get_onnx_model(**setup_args, use_io_binding=True)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
+        self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=True)
 
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
         io_outputs = io_model(**inputs, use_cache=use_cache)
@@ -355,6 +363,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch, for_generation=True)
         onnx_model = self.get_onnx_model(**setup_args, use_io_binding=False)
         io_model = self.get_onnx_model(**setup_args, use_io_binding=True)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=False)
+        self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=True)
 
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
@@ -380,8 +390,10 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         self._setup(without_pkv_setup_args)
 
         inputs = self.get_inputs(model_arch, for_generation=True)
-        model_without_pkv = self.get_onnx_model(**without_pkv_setup_args)
         model_with_pkv = self.get_onnx_model(**with_pkv_setup_args)
+        model_without_pkv = self.get_onnx_model(**without_pkv_setup_args)
+        self.check_onnx_model_attributes(model_with_pkv, use_cache=True, use_merged=use_merged)
+        self.check_onnx_model_attributes(model_without_pkv, use_cache=False, use_merged=use_merged)
 
         set_seed(SEED)
         outputs_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
@@ -411,6 +423,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
     AUTOMODEL_CLASS = AutoModelForSeq2SeqLM
 
+    # UTILITIES
     def get_tokenizer(self, model_arch: str):
         model_id = MODEL_NAMES[model_arch]
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -445,6 +458,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         if model_arch.startswith("encoder-decoder"):
             # EnocderDecoderModel does not take `use_cache` during instantiation
             model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
+            model.decoder.config.use_cache = use_cache
         else:
             model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], use_cache=use_cache).eval()
 
@@ -455,7 +469,6 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         if model_arch == "encoder-decoder-bert-bert":
             # The encoder-decoder-bert-bert model is missing these attributes
-            model.config.decoder_start_token_id = 1
             model.generation_config.decoder_start_token_id = 1
 
         if model_arch == "encoder-decoder":
@@ -488,21 +501,14 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         use_merged: Optional[bool] = None,
         use_io_binding: Optional[bool] = None,
     ):
-        assert test_name in self.onnx_model_dirs, (
-            f"Test name {test_name} not found in onnx_model_dirs. Please check the setup of your test."
-        )
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
         )
 
         if model_arch == "encoder-decoder-bert-bert":
             # The encoder-decoder-bert-bert model is missing these attributes
-            onnx_model.config.decoder_start_token_id = 1
             onnx_model.generation_config.decoder_start_token_id = 1
 
-        self.check_onnx_model_attributes(
-            onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
-        )
         return onnx_model
 
     # INTEGRATION TESTS
@@ -761,8 +767,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         self._setup(setup_args)
 
         tokenizer = self.get_tokenizer(model_arch)
-        onnx_model = self.get_onnx_model(**setup_args)
         texts = self.get_inputs(model_arch, for_pipeline=True)
+        onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         # Text2Text generation
         pipe = optimum_pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
@@ -779,6 +786,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             pipe = optimum_pipeline(
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
+            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
             outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
@@ -789,7 +797,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     def test_inference_old_onnx_model(self, test_name: str, use_cache: bool):
         model = self.AUTOMODEL_CLASS.from_pretrained("t5-small").eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained("optimum/t5-small", use_cache=use_cache)
-        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=False)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         inputs = self.get_inputs("t5")
         outputs = model(**inputs, use_cache=use_cache)
@@ -873,14 +881,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         use_io_binding: Optional[bool] = None,
         **kwargs,
     ):
-        assert test_name in self.onnx_model_dirs, (
-            f"Test name {test_name} not found in onnx_model_dirs. Please check the setup of your test."
-        )
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
-        )
-        self.check_onnx_model_attributes(
-            onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
         )
         return onnx_model
 
@@ -1125,15 +1127,18 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         return inputs
 
-    def get_transformers_model(self, model_arch: str, **kwargs):
+    def get_transformers_model(self, model_arch: str, use_cache: bool = True, **kwargs):
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
+        # vision-encoder-decoders and pix2struct models do not support use_cache=True at instantiation
+        model.decoder.config.use_cache = use_cache
 
         if model_arch == "vision-encoder-decoder":
             # VisionEncoderDecoderModel does not implement the `_reorder_cache` method
             # So we use the one defined in the ORT class
             model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
-        elif model_arch == "pix2struct" and is_transformers_version("<", "4.50.0"):
+
+        if model_arch == "pix2struct" and is_transformers_version("<", "4.50.0"):
             # Pix2StructModel does not implement the `_reorder_cache` method in transformers < 4.50.0
             # So we use the one defined in the ORT class
             model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
@@ -1148,14 +1153,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         use_io_binding: Optional[bool] = None,
         **kwargs,
     ):
-        assert test_name in self.onnx_model_dirs, (
-            f"Test name {test_name} not found in onnx_model_dirs. Please check the setup of your test."
-        )
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
-        )
-        self.check_onnx_model_attributes(
-            onnx_model, use_cache=use_cache, use_merged=use_merged, use_io_binding=use_io_binding
         )
         return onnx_model
 

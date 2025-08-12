@@ -151,11 +151,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "a newer version of Optimum for better performance and more reliable generation. "
             )
 
-        if not self.can_use_cache and self.generation_config.use_cache:
+        if not self.can_use_cache and self.config.use_cache:
             logger.warning(
-                "`model.generation_config.use_cache=True` but the loaded model does not support using the past key values cache."
+                "`model.config.use_cache=True` but the loaded model does not support using the past key values cache."
                 "Please re-export the original model once again with `use_cache=True` to be able to use it during generation. "
-                "Or set `model.generation_config.use_cache=False` to avoid errors from attempting to use the cache. "
+                "Or set `model.config.use_cache=False` to avoid errors from attempting to use the cache. "
                 "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
 
@@ -197,7 +197,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         logger.warning(
             "The `ORTModelForCausalLM.use_cache` property is deprecated and will be removed in a future version. "
             "Please rather use `ORTModelForCausalLM.can_use_cache` to check if a model supports using cache during generation. "
-            "And use `ORTModelForCausalLM.generation_config.use_cache` to check if the model is configured to use cache during generation."
+            "And use `ORTModelForCausalLM.config.use_cache` to check if the model is configured to use cache during generation."
         )
         return self.can_use_cache
 
