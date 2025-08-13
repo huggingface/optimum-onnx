@@ -603,9 +603,12 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
         allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
-        # sometimes the text_config has use_cache set to False
-        if allow_past_in_outputs and hasattr(model.config, "text_config"):
-            model.config.text_config.use_cache = True
+        # sometimes the text_config/decoder is set to False
+        if allow_past_in_outputs:
+            if hasattr(model.config, "text_config"):
+                model.config.text_config.use_cache = True
+            elif hasattr(model.config, "decoder"):
+                model.config.decoder.use_cache = True
 
         # Re-use the patched forward method from the parent class
         self.super_patched_forward = self.patched_forward
@@ -1229,3 +1232,29 @@ class Qwen3MoeModelPatcher(DecoderModelPatcher):
 
         if is_transformers_version(">=", "4.53"):
             Qwen3MoeSparseMoeBlock.forward = self.original_moe_forward
+
+
+# This is a traceable version of the original function which results in a constant integer
+def _get_feat_extract_output_lengths_patched(self, input_lengths: torch.LongTensor):
+    output_conv1_length = (input_lengths - 127) // 64 + 1
+    output_conv2_length = (output_conv1_length - 7) // 3 + 1
+    output_conv3_length = (output_conv2_length - 3) // 2 + 1
+    return output_conv3_length.to(torch.int64)
+
+
+class MoonshineModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
+
+        self.original_feat_extract_output_lengths = MoonshinePreTrainedModel._get_feat_extract_output_lengths
+        MoonshinePreTrainedModel._get_feat_extract_output_lengths = _get_feat_extract_output_lengths_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
+
+        MoonshinePreTrainedModel._get_feat_extract_output_lengths = self.original_feat_extract_output_lengths
+        del self.original_feat_extract_output_lengths

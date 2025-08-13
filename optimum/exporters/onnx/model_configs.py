@@ -37,6 +37,7 @@ from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
     MgpstrModelPatcher,
+    MoonshineModelPatcher,
     MusicgenModelPatcher,
     Qwen3MoeModelPatcher,
     SAMModelPatcher,
@@ -53,6 +54,7 @@ from optimum.utils import (
     BartDummyTextInputGenerator,
     BloomDummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
+    DummyAudioInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -1737,6 +1739,30 @@ class MCTCTOnnxConfig(OnnxConfig):
         return outputs
 
 
+class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("input_values", "attention_mask")
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "input_values":  # raw waveform
+            return self.random_float_tensor(
+                shape=[self.batch_size, self.sequence_length],
+                min_value=-1,
+                max_value=1,
+                framework=framework,
+                dtype=float_dtype,
+            )
+        elif input_name == "attention_mask":  # attention mask
+            return self.random_int_tensor(
+                shape=[self.batch_size, self.sequence_length],
+                min_value=0,
+                max_value=2,
+                framework=framework,
+                dtype=int_dtype,
+            )
+        else:
+            raise ValueError(f"Unsupported input name: {input_name}")
+
+
 @register_tasks_manager_onnx(
     "moonshine",
     *[
@@ -1748,15 +1774,21 @@ class MCTCTOnnxConfig(OnnxConfig):
 )
 class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
+    _MODEL_PATCHER = MoonshineModelPatcher
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyMoonshineAudioInputGenerator,
+        DummySeq2SeqDecoderTextInputGenerator,
+        DummySeq2SeqPastKeyValuesGenerator,
+    )
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
-
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
-            common_inputs["input_values"] = {0: "batch_size", 1: "num_samples"}
+            common_inputs["input_values"] = {0: "batch_size", 1: "encoder_sequence_length"}
         else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+        common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
@@ -1764,6 +1796,16 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
                 self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        common_outputs = super().outputs
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            output_conv1_length = "( encoder_sequence_length - 127 ) // 64 + 1"
+            output_conv2_length = f"( {output_conv1_length} - 7 ) // 3 + 1"
+            output_conv3_length = f"( {output_conv2_length} - 3 ) // 2 + 1"
+            common_outputs["last_hidden_state"] = {0: "batch_size", 1: output_conv3_length}
+        return common_outputs
 
 
 @register_tasks_manager_onnx(
@@ -1802,6 +1844,9 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
+        if self.task == "audio-classification":
+            return {"logits": {0: "batch_size"}}
+
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_outputs["last_hidden_state"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.

@@ -31,6 +31,7 @@ from transformers import (
     AutoModelForVision2Seq,
     GenerationConfig,
     GenerationMixin,
+    MoonshineForConditionalGeneration,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
@@ -83,13 +84,22 @@ SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""
             Indices of input sequence tokens in the vocabulary of shape `(batch_size, encoder_sequence_length)`.
         attention_mask (`torch.LongTensor`):
             Mask to avoid performing attention on padding token indices, of shape
-            `(batch_size, encoder_sequence_length)`. Mask values selected in `[0, 1]`.
+            `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
 """
 
 SPEECH_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
         input_features (`torch.FloatTensor`):
             Mel / fbank features extracted from the raw speech waveform. `(batch_size, feature_size, encoder_sequence_length)`.
+"""
+
+MOONSHINE_ENCODER_INPUTS_DOCSTRING = r"""
+    Args:
+        input_values (`torch.FloatTensor`):
+            Float values of the raw speech waveform. `(batch_size, audio_length)`.
+        attention_mask (`torch.LongTensor`):
+            Mask to avoid performing attention on padding token indices, of shape
+            `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
 """
 
 VISION_ENCODER_INPUTS_DOCSTRING = r"""
@@ -144,6 +154,24 @@ SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING = r"""
         input_features (`torch.FloatTensor`):
             Mel features extracted from the raw speech waveform.
             `(batch_size, feature_size, encoder_sequence_length)`.
+        decoder_input_ids (`torch.LongTensor`):
+            Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
+        encoder_outputs (`torch.FloatTensor`):
+            The encoder `last_hidden_state` of shape `(batch_size, encoder_sequence_length, hidden_size)`.
+        past_key_values (`tuple(tuple(torch.FloatTensor), *optional*, defaults to `None`)`
+            Contains the precomputed key and value hidden states of the attention blocks used to speed up decoding.
+            The tuple is of length `config.n_layers` with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, decoder_sequence_length, embed_size_per_head)` and 2 additional tensors of shape
+            `(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+"""
+
+MOONSHINE_ONNX_MODEL_DOCSTRING = r"""
+    Args:
+        input_values (`torch.FloatTensor`):
+            Float values of the raw speech waveform. `(batch_size, audio_length)`.
+        attention_mask (`torch.LongTensor`):
+            Mask to avoid performing attention on padding token indices, of shape
+            `(batch_size, sequence_length)`. Mask values selected in `[0, 1]`.
         decoder_input_ids (`torch.LongTensor`):
             Indices of decoder input sequence tokens in the vocabulary of shape `(batch_size, decoder_sequence_length)`.
         encoder_outputs (`torch.FloatTensor`):
@@ -399,6 +427,47 @@ class ORTEncoderForSpeech(ORTEncoder):
 
         model_inputs = {
             "input_features": input_features,
+            "attention_mask": attention_mask,
+        }
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
+
+            last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
+            last_hidden_state = model_outputs["last_hidden_state"]
+
+        return BaseModelOutput(last_hidden_state=last_hidden_state)
+
+
+class ORTEncoderForMoonshine(ORTEncoder):
+    """Encoder model for ONNX Runtime inference for Moonshine model.
+
+    Args:
+        session (`InferenceSession`):
+            The ONNX Runtime inference session associated to the encoder.
+    """
+
+    main_input_name = "input_values"
+
+    @add_start_docstrings_to_model_forward(MOONSHINE_ENCODER_INPUTS_DOCSTRING)
+    def forward(self, input_values: torch.FloatTensor, attention_mask: torch.LongTensor, **kwargs) -> BaseModelOutput:
+        use_torch = isinstance(input_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
+
+        model_inputs = {
+            "input_values": input_values,
             "attention_mask": attention_mask,
         }
 
@@ -1304,6 +1373,8 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
     def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         if config.model_type == "whisper":
             return ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
+        elif config.model_type == "moonshine":
+            return ORTModelForMoonshine._from_pretrained(model_id, config, **kwargs)
         else:
             return super()._from_pretrained(model_id, config, **kwargs)
 
@@ -1325,6 +1396,74 @@ class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerati
     prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
 
     # this is needed to avoid circular calls
+    @classmethod
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
+        return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
+
+
+class ORTModelForMoonshine(ORTModelForSpeechSeq2Seq):
+    """Moonshine sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports moonshine."""
+
+    main_input_name = "input_values"
+    auto_model_class = MoonshineForConditionalGeneration
+
+    _ort_encoder_class = ORTEncoderForMoonshine
+
+    @add_start_docstrings_to_model_forward(
+        MOONSHINE_ONNX_MODEL_DOCSTRING
+        + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
+            processor_class=_PROCESSOR_FOR_DOC,
+            model_class="ORTModelForMoonshine",
+            checkpoint="UsefulSensors/moonshine-base",
+        )
+    )
+    def forward(
+        self,
+        input_values: torch.FloatTensor | None = None,
+        attention_mask: torch.LongTensor | None = None,
+        decoder_input_ids: torch.LongTensor | None = None,
+        decoder_attention_mask: torch.LongTensor | None = None,
+        encoder_outputs: tuple[tuple[torch.Tensor]] | None = None,
+        past_key_values: tuple[tuple[torch.Tensor]] | None = None,
+        cache_position: torch.Tensor | None = None,
+        use_cache: bool | None = None,
+        **kwargs,
+    ) -> Seq2SeqLMOutput:
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        if use_cache and not self.can_use_cache:
+            raise ValueError(
+                "`use_cache=True` was passed to the model but the loaded model does not support pkv cache reuse. "
+                "Please load your current model with `use_cache=True` or re-export the original model "
+                "once again with `use_cache=True` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in `from_pretrained`."
+            )
+
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(input_values=input_values, attention_mask=attention_mask)
+
+        decoder = (
+            self.decoder_with_past
+            if (past_key_values is not None and self.decoder_with_past is not None)
+            else self.decoder
+        )
+        decoder_outputs = decoder(
+            input_ids=decoder_input_ids,
+            attention_mask=decoder_attention_mask,
+            encoder_hidden_states=encoder_outputs.last_hidden_state,
+            encoder_attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            use_cache=use_cache,
+        )
+
+        return Seq2SeqLMOutput(
+            loss=decoder_outputs.loss,
+            logits=decoder_outputs.logits,
+            past_key_values=decoder_outputs.past_key_values,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+        )
+
     @classmethod
     def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)

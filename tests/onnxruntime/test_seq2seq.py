@@ -21,6 +21,7 @@ import pytest
 import torch
 from onnxruntime import InferenceSession
 from parameterized import parameterized
+from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import (
     AutoFeatureExtractor,
@@ -66,6 +67,9 @@ if torch.cuda.is_available():
 
 class ORTSeq2SeqTestMixin(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = None
+
+    MODEL_ATOL = {}  # noqa: RUF012
+    MODEL_RTOL = {}  # noqa: RUF012
 
     GEN_KWARGS = {  # noqa: RUF012
         "num_beams": 1,  # we test beam search in a separate test
@@ -128,19 +132,22 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
 
-    def compare_logits(self, outputs1, outputs2, use_cache: bool = True):
+    def compare_logits(self, model_arch: str, outputs1, outputs2, use_cache: bool = True):
+        atol = self.MODEL_ATOL.get(model_arch, self.ATOL)
+        rtol = self.MODEL_RTOL.get(model_arch, self.RTOL)
+
         self.assertTrue("logits" in outputs1)
         self.assertTrue("logits" in outputs2)
         self.assertIsInstance(outputs1.logits, torch.Tensor)
         self.assertIsInstance(outputs2.logits, torch.Tensor)
-        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=atol, rtol=rtol)
 
         self.assertTrue("encoder_last_hidden_state" in outputs1)
         self.assertTrue("encoder_last_hidden_state" in outputs2)
         self.assertIsInstance(outputs1.encoder_last_hidden_state, torch.Tensor)
         self.assertIsInstance(outputs2.encoder_last_hidden_state, torch.Tensor)
         torch.testing.assert_close(
-            outputs1.encoder_last_hidden_state, outputs2.encoder_last_hidden_state, atol=self.ATOL, rtol=self.RTOL
+            outputs1.encoder_last_hidden_state, outputs2.encoder_last_hidden_state, atol=atol, rtol=rtol
         )
 
         if use_cache:
@@ -156,9 +163,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
             if isinstance(outputs2.past_key_values, Cache):
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
 
-            torch.testing.assert_close(
-                outputs1.past_key_values, outputs2.past_key_values, atol=self.ATOL, rtol=self.RTOL
-            )
+            torch.testing.assert_close(outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol)
 
     # INTEGRATION TESTS
     def _test_find_untested_architectures(self):
@@ -204,7 +209,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
 
         outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
-        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+        self.compare_logits(model_arch, outputs, onnx_outputs, use_cache=use_cache)
 
     def _test_compare_generation_to_transformers(
         self, test_name: str, model_arch: str, use_cache: bool = True, use_merged: Optional[bool] = None
@@ -226,7 +231,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs)
 
     def _test_compare_beam_search_to_transformers(
         self, test_name: str, model_arch: str, use_cache: bool = True, use_merged: bool = False
@@ -256,7 +261,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         outputs = model.generate(**inputs, generation_config=gen_config)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
-        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs)
 
         # group beam search with diversity penalty
         gen_config = GenerationConfig(
@@ -270,7 +275,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         )
         outputs = model.generate(**inputs, generation_config=gen_config)
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
-        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs)
 
     # NUMERICAL CONSISTENCY WITH DECODER MERGING
     def _test_compare_logits_merged_and_not_merged(self, model_arch: str, use_cache: bool = True):
@@ -297,7 +302,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
 
         outputs_model_merged = model_merged(**inputs, use_cache=use_cache)
         outputs_model_not_merged = model_not_merged(**inputs, use_cache=use_cache)
-        self.compare_logits(outputs_model_not_merged, outputs_model_merged, use_cache=use_cache)
+        self.compare_logits(model_arch, outputs_model_not_merged, outputs_model_merged, use_cache=use_cache)
 
     def _test_compare_generation_merged_and_not_merged(self, model_arch: str, use_cache: bool = True):
         merged_setup_args = {
@@ -325,7 +330,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         outputs_model_merged = model_merged.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         outputs_model_not_merged = model_not_merged.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged)
 
     # NUMERICAL CONSISTENCY WITH IOBINDING
     def _test_compare_logits_with_and_without_io_binding(
@@ -347,7 +352,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
 
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
         io_outputs = io_model(**inputs, use_cache=use_cache)
-        self.compare_logits(onnx_outputs, io_outputs, use_cache=use_cache)
+        self.compare_logits(model_arch, onnx_outputs, io_outputs, use_cache=use_cache)
 
     def _test_compare_generation_with_and_without_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool = True, use_merged: bool = False
@@ -370,7 +375,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(onnx_outputs, io_outputs)
 
     # NUMERICAL CONSISTENCY WITH PAST KEY VALUES
     def _test_compare_generation_with_and_without_past_key_values(self, model_arch: str, use_merged: bool = False):
@@ -399,7 +404,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         outputs_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
         set_seed(SEED)
         outputs_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=False)
-        torch.testing.assert_close(outputs_with_pkv, outputs_without_pkv, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs_with_pkv, outputs_without_pkv)
 
 
 class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
@@ -449,7 +454,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
 
         return inputs
 
@@ -802,25 +807,33 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         inputs = self.get_inputs("t5")
         outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
-        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+        self.compare_logits("t5", outputs, onnx_outputs, use_cache=use_cache)
 
         inputs = self.get_inputs("t5", for_generation=True)
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs)
 
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "whisper",
+        "moonshine",
         "speech_to_text",
+        "whisper",
     ]
 
     TASK = "automatic-speech-recognition"
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
     AUTOMODEL_CLASS = AutoModelForSpeechSeq2Seq
+
+    MODEL_ATOL = {  # noqa: RUF012
+        "moonshine": 1e-2,  # Moonshine model has a lot of numerical noise from the convolutional layers
+    }
+    MODEL_RTOL = {  # noqa: RUF012
+        "moonshine": 1e-2,  # Moonshine model has a lot of numerical noise from the convolutional layers
+    }
 
     def get_tokenizer(self, model_arch: str):
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAMES[model_arch])
@@ -842,8 +855,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     def get_inputs(
         self, model_arch: str, for_generation: bool = False, for_pipeline: bool = False, batched: bool = True
     ):
+        set_seed(SEED)
         if batched:
-            audios = [np.random.randn(5 * 16000), np.random.randn(60 * 16000)]
+            audios = [np.random.randn(5 * 16000), np.random.randn(60 * 16000)]  # 5 seconds, 60 seconds
         else:
             audios = np.random.randn(5 * 16000)
 
@@ -864,7 +878,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
 
         return inputs
 
@@ -887,8 +901,10 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         return onnx_model
 
     # INTEGRATION TESTS
-    def test_find_untested_architectures(self):
-        self._test_find_untested_architectures()
+    # The task automatic-speech-recognition contains models like hubert, mctct, sew, etc. that are not supported by the
+    # ORTForSpeechSeq2Seq class, but rather by the ORTModelForCTC class.
+    # def test_find_untested_architectures(self):
+    #     self._test_find_untested_architectures()
 
     def test_load_vanilla_transformers_which_is_not_supported(self):
         self._test_load_vanilla_transformers_which_is_not_supported()
@@ -1068,14 +1084,14 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         inputs = self.get_inputs("whisper", batched=False)
         outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
-        self.compare_logits(outputs, onnx_outputs, use_cache=use_cache)
+        self.compare_logits("whisper", outputs, onnx_outputs, use_cache=use_cache)
 
         inputs = self.get_inputs("whisper", for_generation=True)
         set_seed(SEED)
         outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
-        torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs, onnx_outputs)
 
 
 class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
@@ -1108,11 +1124,10 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         return image_processor
 
     def get_inputs(self, model_arch: str, for_generation: bool = False, for_pipeline: bool = False):
+        set_seed(SEED)
         images = [np.random.rand(224, 224, 3).astype(np.float32) for _ in range(2)]
 
         if for_pipeline:
-            from PIL import Image
-
             return [Image.fromarray((image * 255).astype(np.uint8)) for image in images]
 
         image_processor = self.get_image_processor(model_arch)
@@ -1123,7 +1138,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             inputs["use_model_defaults"] = False
         if not for_generation:
             # todo: maybe try random decoder input ids
-            inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
 
         return inputs
 
