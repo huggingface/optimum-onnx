@@ -31,7 +31,6 @@ from transformers import (
     AutoModelForVision2Seq,
     GenerationConfig,
     GenerationMixin,
-    MoonshineForConditionalGeneration,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
@@ -64,6 +63,11 @@ from optimum.utils.file_utils import find_files_matching_pattern
 from optimum.utils.logging import get_logger
 from optimum.utils.save_utils import maybe_save_preprocessors
 
+
+if is_transformers_version(">=", "4.48.0"):
+    from transformers import MoonshineForConditionalGeneration
+else:
+    MoonshineForConditionalGeneration = None
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
