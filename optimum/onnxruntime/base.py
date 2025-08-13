@@ -347,6 +347,8 @@ class ORTSessionMixin:
         The inferred value will be:
             3 + 7 = 10
         """
+        import math  # noqa: F401
+
         if axis_name in known_axes_values:
             # simple case, the axis value is known
             return known_axes_values[axis_name]

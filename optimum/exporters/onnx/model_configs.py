@@ -1753,18 +1753,15 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
 
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_values"] = {0: "batch_size", 1: "num_samples"}
-
-        if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-                self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self._behavior is ConfigBehavior.DECODER:
+        else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
 
         return common_inputs
 
@@ -1790,28 +1787,24 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         if self.task == "audio-classification":
-            common_inputs = {"input_features": {0: "batch_size"}}
+            return {"input_features": {0: "batch_size"}}
+
+        common_inputs = super().inputs
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
         else:
-            common_inputs = super().inputs
-            if self._behavior is not ConfigBehavior.DECODER:
-                common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+            # the dynamix encoder sequence length is only needed here because the input generator generates
+            # encoder_outputs with a seq_len=16 but the model expects at inference time seq_len=1500
+            # TODO: this can be fixed by generating the correct inputs in the input generator
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-            if is_transformers_version(">=", "4.43.0") and is_transformers_version("<", "4.46.0"):
-                # since https://github.com/huggingface/transformers/pull/31166
-                if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
-                    common_inputs["cache_position"] = {0: "decoder_sequence_length"}
-
-            if self._behavior is ConfigBehavior.DECODER and not self.use_past_in_inputs:
-                common_inputs["encoder_outputs"][1] = f"{common_inputs['encoder_outputs'][1]} / 2"
         return common_inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
-        if self._behavior is ConfigBehavior.ENCODER:
-            # For Whisper, we need to name the second axis as encoder_sequence_length / 2 as the axis name is used for
-            # dummy input generation
-            common_outputs["last_hidden_state"][1] = f"{common_outputs['last_hidden_state'][1]} / 2"
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            common_outputs["last_hidden_state"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
         return common_outputs
 
 
@@ -2173,16 +2166,14 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
 
-        if self._behavior is not ConfigBehavior.DECODER:
-            common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            common_inputs["input_features"] = {0: "batch_size", 1: "encoder_sequence_length"}
         else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
             common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
 
@@ -2191,10 +2182,10 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
-        if self._behavior is ConfigBehavior.ENCODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_outputs["last_hidden_state"] = {
                 0: "batch_size",
-                1: f"encoder_sequence_length / {2 * self._config.num_conv_layers} + 1",
+                1: f"math.ceil( encoder_sequence_length / {2 * self._config.num_conv_layers} )",
             }
         return common_outputs
 
@@ -2238,20 +2229,15 @@ class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
 
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
-
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
 
@@ -2377,17 +2363,16 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
                 decoder_attention_mask_dim = "past_decoder_sequence_length + decoder_sequence_length"
             else:
                 decoder_attention_mask_dim = "decoder_sequence_length"
-
             common_inputs["decoder_attention_mask"] = {0: "batch_size", 1: decoder_attention_mask_dim}
 
         return common_inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        if self._behavior is ConfigBehavior.ENCODER:
-            return {"last_hidden_state": {0: "batch_size"}}
-        else:
-            return super().outputs
+        common_outputs = super().outputs
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            common_outputs["last_hidden_state"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+        return common_outputs
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
         if self._preprocessors is None or len(self._preprocessors) < 2:

@@ -449,7 +449,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((inputs.input_ids.shape[0], 1), dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long)
 
         return inputs
 
@@ -818,7 +818,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         "speech_to_text",
     ]
 
-    TASK = "auto-speech-recognition"
+    TASK = "automatic-speech-recognition"
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
     AUTOMODEL_CLASS = AutoModelForSpeechSeq2Seq
 
@@ -864,7 +864,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((inputs.input_features.shape[0], 1), dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long)
 
         return inputs
 
