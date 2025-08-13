@@ -1773,6 +1773,7 @@ class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
     ],
 )
 class MoonshineOnnxConfig(AudioToTextOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")
     NORMALIZED_CONFIG_CLASS = NormalizedSeq2SeqConfig
     _MODEL_PATCHER = MoonshineModelPatcher
     DUMMY_INPUT_GENERATOR_CLASSES = (

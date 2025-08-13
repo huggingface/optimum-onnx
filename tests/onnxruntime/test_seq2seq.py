@@ -38,6 +38,7 @@ from transformers.cache_utils import Cache
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 
 from optimum.exporters import TasksManager
+from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
@@ -819,10 +820,12 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
 class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "moonshine",
         "speech_to_text",
         "whisper",
     ]
+
+    if is_transformers_version(">=", str(MoonshineOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("moonshine")
 
     TASK = "automatic-speech-recognition"
     ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
