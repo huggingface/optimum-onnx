@@ -54,16 +54,16 @@ from optimum.utils.testing_utils import grid_parameters, remove_directory, requi
 
 
 TORCH_DEVICE = "cpu"
-EXECUTION_ROVIDER = "CPUExecutionProvider"
+EXECUTION_PROVIDER = "CPUExecutionProvider"
 
 if torch.cuda.is_available():
     TORCH_DEVICE = "cuda"
     if is_tensorrt_available():
-        EXECUTION_ROVIDER = "TensorrtExecutionProvider"
+        EXECUTION_PROVIDER = "TensorrtExecutionProvider"
     elif torch.version.hip is not None:
-        EXECUTION_ROVIDER = "ROCMExecutionProvider"
+        EXECUTION_PROVIDER = "ROCMExecutionProvider"
     else:
-        EXECUTION_ROVIDER = "CUDAExecutionProvider"
+        EXECUTION_PROVIDER = "CUDAExecutionProvider"
 
 
 class ORTSeq2SeqTestMixin(ORTModelTestMixin):

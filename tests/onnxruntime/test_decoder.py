@@ -60,15 +60,17 @@ from optimum.utils.testing_utils import grid_parameters, remove_directory, requi
 
 logger = get_logger(__name__)
 
-ORT_PROVIDER = "CPUExecutionProvider"
+TORCH_DEVICE = "cpu"
+EXECUTION_PROVIDER = "CPUExecutionProvider"
 
 if torch.cuda.is_available():
+    TORCH_DEVICE = "cuda"
     if is_tensorrt_available():
-        ORT_PROVIDER = "TensorrtExecutionProvider"
+        EXECUTION_PROVIDER = "TensorrtExecutionProvider"
     elif torch.version.hip is not None:
-        ORT_PROVIDER = "ROCMExecutionProvider"
+        EXECUTION_PROVIDER = "ROCMExecutionProvider"
     else:
-        ORT_PROVIDER = "CUDAExecutionProvider"
+        EXECUTION_PROVIDER = "CUDAExecutionProvider"
 
 
 class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
@@ -571,7 +573,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_compare_generation_with_and_withou_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
+    def test_compare_generation_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         model_args = {
             "test_name": test_name,
