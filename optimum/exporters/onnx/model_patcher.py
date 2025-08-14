@@ -462,7 +462,13 @@ class ModelPatcher:
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            if is_transformers_version(">=", "4.48") or model.config["model_type"] == "nemotron": 
+            try:
+                model_type = model.config.model_type
+            except AttributeError:
+                # Handle FrozenDict case - fallback to dictionary access
+                model_type = model.config.get("model_type", None)
+
+            if is_transformers_version(">=", "4.48") or model_type == "nemotron":
                 if "past_key_values" in signature.parameters:
                     pkv_index = list(signature.parameters.keys()).index("past_key_values")
 
