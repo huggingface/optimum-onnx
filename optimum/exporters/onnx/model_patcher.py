@@ -462,13 +462,9 @@ class ModelPatcher:
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            try:
-                model_type = model.config.model_type
-            except AttributeError:
-                # Handle FrozenDict case - fallback to dictionary access
-                model_type = model.config.get("model_type", None)
-
-            if is_transformers_version(">=", "4.48") or model_type == "nemotron":
+            if is_transformers_version(">=", "4.48") or (
+                isinstance(model, PreTrainedModel) and model.config.model_type == "nemotron"
+            ):
                 from transformers.cache_utils import DynamicCache, EncoderDecoderCache
 
                 if "past_key_values" in signature.parameters:
@@ -537,7 +533,9 @@ class ModelPatcher:
                 name = next(iter(config.outputs.keys()))
                 filtered_outputs[name] = outputs
 
-            if is_transformers_version(">=", "4.48") or model_type == "nemotron":
+            if is_transformers_version(">=", "4.48") or (
+                isinstance(model, PreTrainedModel) and model.config.model_type == "nemotron"
+            ):
                 if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
                     filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
