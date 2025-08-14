@@ -445,6 +445,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         return tokenizer
 
     def get_inputs(self, model_arch: str, for_generation: bool = False, for_pipeline: bool = False):
+        set_seed(SEED)
         texts = ["This is me", "Today is a nice day and I am longer"]
 
         if for_pipeline:
@@ -455,7 +456,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
+            size = (next(iter(inputs.values())).shape[0], 10)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
 
         return inputs
 
@@ -881,7 +883,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
+            size = (next(iter(inputs.values())).shape[0], 10)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
 
         return inputs
 
@@ -1140,8 +1143,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         if for_generation and is_transformers_version(">=", "4.51.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
-            # todo: maybe try random decoder input ids
-            inputs["decoder_input_ids"] = torch.ones((next(iter(inputs.values())).shape[0], 16), dtype=torch.long)
+            size = (next(iter(inputs.values())).shape[0], 10)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
 
         return inputs
 

@@ -1836,10 +1836,16 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_features"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
         else:
-            # the dynamix encoder sequence length is only needed here because the input generator generates
+            # the dynamic encoder sequence length is only needed here because the input generator generates
             # encoder_outputs with a seq_len=16 but the model expects at inference time seq_len=1500
             # TODO: this can be fixed by generating the correct inputs in the input generator
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
+
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            if is_transformers_version(">=", "4.43.0") and is_transformers_version("<", "4.46.0"):
+                # since https://github.com/huggingface/transformers/pull/31166
+                if self._behavior is not ConfigBehavior.ENCODER and self.use_past_in_inputs:
+                    common_inputs["cache_position"] = {0: "decoder_sequence_length"}
 
         return common_inputs
 
