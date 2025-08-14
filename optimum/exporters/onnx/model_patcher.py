@@ -30,6 +30,7 @@ from torch.onnx.symbolic_opset14 import (
     jit_utils,
     symbolic_helper,
 )
+from transformers import PreTrainedModel
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.exporters.onnx._traceable_cache import TraceableCache
