@@ -84,6 +84,7 @@ MODEL_NAMES = {
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "echarlaix/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",

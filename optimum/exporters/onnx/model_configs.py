@@ -1539,20 +1539,6 @@ class Data2VecVisionOnnxConfig(ViTOnnxConfig):
     pass
 
 
-@register_tasks_manager_onnx(
-    "data2vec-audio",
-    *[
-        "feature-extraction",
-        "automatic-speech-recognition",
-        "audio-classification",
-        "audio-frame-classification",
-        "audio-xvector",
-    ],
-)
-class Data2VecAudioOnnxConfig(AudioOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig
-
-
 @register_tasks_manager_onnx("perceiver", *["fill-mask", "text-classification", "image-classification"])
 class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
@@ -1625,6 +1611,34 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
 @register_tasks_manager_onnx("hubert", *["feature-extraction", "automatic-speech-recognition", "audio-classification"])
 class HubertOnnxConfig(AudioOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        outputs = super().outputs
+
+        # Hubert output formula adapted from:
+        # https://github.com/huggingface/transformers/blob/v4.55.2/src/transformers/models/hubert/modeling_hubert.py#L721
+        if self.task == "automatic-speech-recognition":
+            sequence_length = "sequence_length"
+            for kernel_size, stride in zip(self._config.conv_kernel, self._config.conv_stride):
+                sequence_length = f"( {sequence_length} - {kernel_size} ) // {stride} + 1"
+            outputs["logits"] = {0: "batch_size", 1: sequence_length}
+
+        return outputs
+
+
+@register_tasks_manager_onnx(
+    "data2vec-audio",
+    *[
+        "feature-extraction",
+        "automatic-speech-recognition",
+        "audio-classification",
+        "audio-frame-classification",
+        "audio-xvector",
+    ],
+)
+class Data2VecAudioOnnxConfig(HubertOnnxConfig):
+    pass
 
 
 @register_tasks_manager_onnx(
@@ -1700,6 +1714,35 @@ class WavLMOnnxConfig(HubertOnnxConfig):
     pass
 
 
+@register_tasks_manager_onnx("mctct", *["feature-extraction", "automatic-speech-recognition"])
+class MCTCTOnnxConfig(AudioOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        input_features_per_channel="input_feat_per_channel", allow_new=True
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {"input_features": {0: "batch_size", 1: "sequence_length"}}
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        outputs = super().outputs
+
+        # mctct output formula adapted from:
+        # https://github.com/huggingface/transformers/blob/v4.53.3/src/transformers/models/deprecated/mctct/modeling_mctct.py#L455
+        if self.task == "automatic-speech-recognition":
+            sequence_length = "sequence_length"
+            for kernel_size, stride in zip(self._config.conv_kernel, self._config.conv_stride):
+                dilation = 1
+                padding = kernel_size // 2
+                sequence_length = f"( {sequence_length} + 2 * {padding} - {dilation} * ({kernel_size} - 1) - 1 )"
+                sequence_length = f"( {sequence_length} // {stride} ) + 1"
+            outputs["logits"] = {0: "batch_size", 1: sequence_length}
+
+        return outputs
+
+
 @register_tasks_manager_onnx("audio-spectrogram-transformer", *["feature-extraction", "audio-classification"])
 class ASTOnnxConfig(OnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
@@ -1710,33 +1753,6 @@ class ASTOnnxConfig(OnnxConfig):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {"input_values": {0: "batch_size"}}
-
-
-@register_tasks_manager_onnx("mctct", *["feature-extraction", "automatic-speech-recognition"])
-class MCTCTOnnxConfig(OnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        input_features_per_channel="input_feat_per_channel", allow_new=True
-    )
-    DUMMY_INPUT_GENERATOR_CLASSES = (MCTCTDummyAudioInputGenerator,)
-
-    @property
-    def inputs(self) -> dict[str, dict[int, str]]:
-        return {"input_features": {0: "batch_size", 1: "sequenece_length"}}
-
-    @property
-    def outputs(self) -> dict[str, dict[int, str]]:
-        outputs = super().outputs
-
-        if self.task == "automatic-speech-recognition":
-            sum_conv_kernel = sum(self._config.conv_kernel)
-            len_conv_kernel = len(self._config.conv_kernel)
-            sum_conv_stride = sum(self._config.conv_stride)
-            outputs["logits"] = {
-                0: "batch_size",
-                1: f"(sequenece_length - {sum_conv_kernel} + {len_conv_kernel}) // {sum_conv_stride} + 1",
-            }
-
-        return outputs
 
 
 class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):

@@ -1530,16 +1530,26 @@ class ORTModelForCTC(ORTModel):
     def forward(
         self,
         input_values: torch.Tensor | np.ndarray | None = None,
+        input_features: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
     ):
+        if self.config.model_type == "mctct":
+            assert input_features is not None, "input_features must be provided for this model"
+            input_name = "input_features"
+            model_input = input_features
+        else:
+            assert input_values is not None, "input_values must be provided for this model"
+            input_name = "input_values"
+            model_input = input_values
+
         self.warn_on_unhandled_inputs(kwargs)
-        use_torch = isinstance(input_values, torch.Tensor)
+        use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
-            "input_values": input_values,
+            input_name: model_input,
         }
 
         if self.use_io_binding:
