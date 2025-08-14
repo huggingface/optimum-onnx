@@ -73,6 +73,10 @@ version = {attr = "optimum.onnx.version.__version__"}
 [tool.ruff]
 line-length = 119
 target-version = "py39"
+exclude = [
+    "optimum/torch_export_patches/_patch_transformers.py",
+    "optimum/torch_export_patches/_patch_torch.py",
+]
 
 [tool.ruff.lint]
 ignore = [
