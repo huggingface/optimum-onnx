@@ -39,7 +39,7 @@ from optimum.utils import is_transformers_version, logging
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
-    pass
+    from transformers.cache_utils import DynamicCache, EncoderDecoderCache
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
         ALL_MASK_ATTENTION_FUNCTIONS,
@@ -537,7 +537,7 @@ class ModelPatcher:
                 name = next(iter(config.outputs.keys()))
                 filtered_outputs[name] = outputs
 
-            if is_transformers_version(">=", "4.48"):
+            if is_transformers_version(">=", "4.48") or model_type == "nemotron":
                 if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
                     filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
