@@ -30,6 +30,7 @@ from torch.onnx.symbolic_opset14 import (
     jit_utils,
     symbolic_helper,
 )
+from transformers import PreTrainedModel
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.exporters.onnx._traceable_cache import TraceableCache
@@ -39,7 +40,7 @@ from optimum.utils import is_transformers_version, logging
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
-    from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+    pass
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
         ALL_MASK_ATTENTION_FUNCTIONS,
@@ -462,7 +463,11 @@ class ModelPatcher:
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
-            if is_transformers_version(">=", "4.48"):
+            if is_transformers_version(">=", "4.48") or (
+                isinstance(model, PreTrainedModel) and model.config.model_type == "nemotron"
+            ):
+                from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+
                 if "past_key_values" in signature.parameters:
                     pkv_index = list(signature.parameters.keys()).index("past_key_values")
 
@@ -529,7 +534,9 @@ class ModelPatcher:
                 name = next(iter(config.outputs.keys()))
                 filtered_outputs[name] = outputs
 
-            if is_transformers_version(">=", "4.48"):
+            if is_transformers_version(">=", "4.48") or (
+                isinstance(model, PreTrainedModel) and model.config.model_type == "nemotron"
+            ):
                 if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
                     filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 

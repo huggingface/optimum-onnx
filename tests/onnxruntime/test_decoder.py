@@ -34,6 +34,7 @@ from optimum.exporters.onnx.model_configs import (
     GraniteOnnxConfig,
     InternLM2OnnxConfig,
     MPTOnnxConfig,
+    NemotronOnnxConfig,
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
     OPTOnnxConfig,
@@ -103,6 +104,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("gemma")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
+    if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("nemotron")
     if is_transformers_version(">=", str(GraniteOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("granite")
     if is_transformers_version(">=", str(Phi3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
