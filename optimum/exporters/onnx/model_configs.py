@@ -2235,9 +2235,10 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            downsample_factor = 2 * self._config.num_conv_layers
             common_outputs["last_hidden_state"] = {
                 0: "batch_size",
-                1: f"math.ceil( encoder_sequence_length / {2 * self._config.num_conv_layers} )",
+                1: f"( encoder_sequence_length + {downsample_factor} - 1 ) // {downsample_factor}",
             }
         return common_outputs
 
