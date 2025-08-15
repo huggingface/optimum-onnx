@@ -49,21 +49,8 @@ from optimum.onnxruntime.utils import (
     ONNX_ENCODER_NAME,
 )
 from optimum.pipelines import pipeline as optimum_pipeline
-from optimum.utils.import_utils import is_tensorrt_available, is_transformers_version
+from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
-
-
-TORCH_DEVICE = "cpu"
-EXECUTION_PROVIDER = "CPUExecutionProvider"
-
-if torch.cuda.is_available():
-    TORCH_DEVICE = "cuda"
-    if is_tensorrt_available():
-        EXECUTION_PROVIDER = "TensorrtExecutionProvider"
-    elif torch.version.hip is not None:
-        EXECUTION_PROVIDER = "ROCMExecutionProvider"
-    else:
-        EXECUTION_PROVIDER = "CUDAExecutionProvider"
 
 
 class ORTSeq2SeqTestMixin(ORTModelTestMixin):
@@ -112,7 +99,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.encoder.session, InferenceSession)
         self.assertIsInstance(onnx_model.decoder.session, InferenceSession)
         if use_cache and use_merged is not True:
-            # if a model is exported with use_cache=True and use_merged
+            # if a model is exported with use_cache=True and use_merged=False/None
             self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
             self.assertIsInstance(onnx_model.decoder_with_past.session, InferenceSession)
         else:
@@ -457,7 +444,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)
-            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size)
 
         return inputs
 
@@ -808,7 +795,8 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         inputs = self.get_inputs("t5")
-        outputs = model(**inputs, use_cache=use_cache)
+        with torch.no_grad():
+            outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
         self.compare_logits("t5", outputs, onnx_outputs, use_cache=use_cache)
 
@@ -884,7 +872,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)
-            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size)
 
         return inputs
 
@@ -1041,9 +1029,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         tokenizer = self.get_tokenizer(model_arch)
         feature_extractor = self.get_feature_extractor(model_arch)
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
-        )
+        onnx_model = self.get_onnx_model(**setup_args)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
         audios = self.get_inputs(model_arch, for_pipeline=True)
 
@@ -1088,7 +1074,8 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         # TODO: the optimum model doesn't output the right logits for padding tokens,
         # we should probably update it with the newest version of optimum
         inputs = self.get_inputs("whisper", batched=False)
-        outputs = model(**inputs, use_cache=use_cache)
+        with torch.no_grad():
+            outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
         self.compare_logits("whisper", outputs, onnx_outputs, use_cache=use_cache)
 
@@ -1144,14 +1131,14 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)
-            inputs["decoder_input_ids"] = torch.randint(0, 100, size, dtype=torch.long)
+            inputs["decoder_input_ids"] = torch.randint(0, 100, size)
 
         return inputs
 
     def get_transformers_model(self, model_arch: str, use_cache: bool = True, **kwargs):
         set_seed(SEED)
-        model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
         # vision-encoder-decoders and pix2struct models do not support use_cache=True at instantiation
+        model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
         model.decoder.config.use_cache = use_cache
 
         if model_arch == "vision-encoder-decoder":
@@ -1305,9 +1292,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         tokenizer = self.get_tokenizer(model_arch)
         image_processor = self.get_image_processor(model_arch)
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
-        )
+        onnx_model = self.get_onnx_model(**setup_args)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
         images = self.get_inputs(model_arch, for_pipeline=True)
 
