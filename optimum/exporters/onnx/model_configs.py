@@ -554,6 +554,10 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
+
+        if is_transformers_version(">=", "4.54"):
+            return super().add_past_key_values(inputs_or_outputs, direction)
+
         if direction not in ["inputs", "outputs"]:
             raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
@@ -573,6 +577,10 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", decoder_sequence_dim: decoder_sequence_name}
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
+
+        if is_transformers_version(">=", "4.54"):
+            return super().flatten_past_key_values(flattened_output, name, idx, t)
+
         flattened_output[f"{name}.{idx}.key_value"] = t
 
 
