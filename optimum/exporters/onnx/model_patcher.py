@@ -762,7 +762,7 @@ class SAMModelPatcher(ModelPatcher):
                         input_masks=None,  # Not supported in the ONNX export
                     )
 
-                    low_res_masks, iou_predictions, _ = model.mask_decoder(
+                    outputs = model.mask_decoder(
                         image_embeddings=image_embeddings,
                         image_positional_embeddings=image_positional_embeddings,
                         sparse_prompt_embeddings=sparse_embeddings,
@@ -770,9 +770,9 @@ class SAMModelPatcher(ModelPatcher):
                         multimask_output=True,  # Not supported in the ONNX export
                         attention_similarity=None,  # Not supported in the ONNX export
                         target_embedding=None,  # Not supported in the ONNX export
-                        output_attentions=False,
                     )
-
+                    low_res_masks = outputs[0]
+                    iou_predictions = outputs[1]
                     if not return_dict:
                         return (iou_predictions, low_res_masks)
                     else:
