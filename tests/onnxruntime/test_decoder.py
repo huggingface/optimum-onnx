@@ -34,6 +34,7 @@ from optimum.exporters.onnx.model_configs import (
     GraniteOnnxConfig,
     InternLM2OnnxConfig,
     MPTOnnxConfig,
+    NemotronOnnxConfig,
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
     OPTOnnxConfig,
@@ -103,6 +104,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("gemma")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
+    if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("nemotron")
     if is_transformers_version(">=", str(GraniteOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("granite")
     if is_transformers_version(">=", str(Phi3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
@@ -188,6 +191,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_architectures = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
         supported_architectures = onnx_architectures & transformers_architectures
         untested_architectures = supported_architectures - tested_architectures
+
+        if "nemotron" in untested_architectures and is_transformers_version("==", "4.45.2"):
+            # Nemotron was introduced in Transformers 4.44.0.
+            # We skip testing it for 4.45.2 because it was unstable in that version.
+            # Specifically, it did not properly handle legacy cache formats (Lists/Cache),
+            # and it also did not return past_key_values when use_cache=True.
+            untested_architectures.remove("nemotron")
 
         if len(untested_architectures) > 0:
             raise ValueError(
