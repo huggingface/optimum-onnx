@@ -192,7 +192,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         supported_architectures = onnx_architectures & transformers_architectures
         untested_architectures = supported_architectures - tested_architectures
 
-        if "nemotron" in untested_architectures and is_transformers_version("==", "4.45.0"):
+        if "nemotron" in untested_architectures and is_transformers_version("==", "4.45"):
             # Nemotron was introduced in Transformers 4.44.0.
             # We skip testing it for 4.45.0 because it was unstable in that version.
             # Specifically, it did not properly handle legacy cache formats (Lists/Cache),
