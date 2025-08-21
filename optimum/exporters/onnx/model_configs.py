@@ -482,7 +482,7 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
 class NemotronOnnxConfig(GemmaOnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse("4.44.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")  # More stable version than 4.44.0
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
