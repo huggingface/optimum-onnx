@@ -28,6 +28,7 @@ from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
+    ArceeOnnxConfig,
     BloomOnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
@@ -83,6 +84,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         "pegasus",
     ]
 
+    if is_transformers_version(">=", str(ArceeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("arcee")
     if is_transformers_version(">=", str(OPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("opt")
     if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):
