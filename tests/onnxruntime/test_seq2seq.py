@@ -42,13 +42,13 @@ from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
+from optimum.onnxruntime.pipelines import pipeline as optimum_pipeline
 from optimum.onnxruntime.utils import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.pipelines import pipeline as optimum_pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
@@ -1252,10 +1252,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
         images = self.get_inputs("vision-encoder-decoder", for_pipeline=True)
 
-        # TODO: should be fixed in optimum
-        # The pipeline for image-to-text generation fails to load the tokenizer
-        return
-
         # Image-to-Text generation
         pipe = optimum_pipeline("image-to-text", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
@@ -1314,10 +1310,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-
-            # TODO: should be fixed in optimum
-            # The pipeline for image-to-text generation fails to load the tokenizer
-            return
 
             pipe = optimum_pipeline(
                 "image-to-text", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}

@@ -52,7 +52,7 @@ from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
 )
-from optimum.pipelines import pipeline as optimum_pipeline
+from optimum.onnxruntime.pipelines import pipeline as optimum_pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
@@ -591,7 +591,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
         texts = self.get_inputs("llama", for_pipeline=True)
         pipe = optimum_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
-        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
+        # openai-community/gpt2 has an onnx model https://huggingface.co/openai-community/gpt2/tree/main/onnx
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=True)
 
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
