@@ -23,7 +23,7 @@ import transformers.pipelines
 from transformers import AutoConfig, Pipeline
 from transformers import pipeline as transformers_pipeline
 
-from optimum.utils import is_onnxruntime_available
+from optimum.utils import is_onnxruntime_available, is_transformers_version
 
 
 if TYPE_CHECKING:
@@ -82,7 +82,6 @@ def get_ort_model_class(
     task: str, config: PretrainedConfig | None = None, model_id: str | None = None, **model_kwargs
 ):
     if task.startswith("translation_"):
-        # the pipeline registery takes care of getting the right model id for translation_xx_to_yy
         task = "translation"
 
     if task not in ORT_TASKS_MAPPING:
@@ -110,16 +109,14 @@ def get_ort_model_class(
 
 # a modified transformers.pipelines.base.infer_framework_load_model that loads ORT models
 def ort_infer_framework_load_model(
-    model,
-    config: PretrainedConfig | None = None,
-    model_classes: dict[str, tuple[type]] | None = None,
-    task: str | None = None,
-    framework: str | None = None,
-    **model_kwargs,
+    model, config: PretrainedConfig | None = None, task: str | None = None, **model_kwargs
 ):
     if isinstance(model, str):
+        model_kwargs.pop("framework", None)
+        model_kwargs.pop("model_class", None)
+        model_kwargs.pop("accelerator", None)
         model_kwargs.pop("torch_dtype", None)  # not supported for ORTModel
-        model_kwargs.pop("_commit_hash", None)  # not needed for ORTModel
+        model_kwargs.pop("_commit_hash", None)  # not supported for ORTModel
         ort_model_class = get_ort_model_class(task, config, model, **model_kwargs)
         ort_model = ort_model_class.from_pretrained(model, **model_kwargs)
     elif isinstance(model, ORTModel):
@@ -159,12 +156,11 @@ def pipeline(  # noqa: D417
     use_fast: bool = True,
     token: str | bool | None = None,
     device: int | str | torch.device | None = None,
-    # device_map: Optional[Union[str, dict[str, Union[int, str]]]] = None, # we do not support device_map with ORTModel
-    # torch_dtype: Optional[Union[str, "torch.dtype"]] = "auto", we don't support model export to different dtypes yet
+    # device_map: Optional[Union[str, dict[str, Union[int, str]]]] = None, # we do not support device_map with ORTModel yet
+    # torch_dtype: Optional[Union[str, "torch.dtype"]] = "auto", we don't support torch_dtype with ORTModel yet
     trust_remote_code: bool | None = None,
     model_kwargs: dict[str, Any] | None = None,
     pipeline_class: Any | None = None,
-    accelerator: str | None = None,
     **kwargs: Any,
 ) -> Pipeline:
     """Utility factory method to build a [`Pipeline`] with an ONNX Runtime model, similar to `transformers.pipeline`.
@@ -335,6 +331,11 @@ def pipeline(  # noqa: D417
     >>> recognizer = pipeline("ner", model=model, tokenizer=tokenizer)
     ```
     """
+    version_dependent_kwargs = {}
+    if is_transformers_version(">=", "4.46.0"):
+        # processor argument was added in transformers v4.46.0
+        version_dependent_kwargs["processor"] = processor
+
     with patch_pipelines_to_load_ort_model():
         pipeline_with_ort_model = transformers_pipeline(
             task=task,
@@ -343,7 +344,6 @@ def pipeline(  # noqa: D417
             tokenizer=tokenizer,
             feature_extractor=feature_extractor,
             image_processor=image_processor,
-            processor=processor,
             # framework=framework,
             revision=revision,
             use_fast=use_fast,
@@ -354,6 +354,7 @@ def pipeline(  # noqa: D417
             trust_remote_code=trust_remote_code,
             model_kwargs=model_kwargs,
             pipeline_class=pipeline_class,
+            **version_dependent_kwargs,
             **kwargs,
         )
 
