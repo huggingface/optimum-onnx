@@ -24,6 +24,7 @@ from transformers import AutoConfig, Pipeline
 from transformers import pipeline as transformers_pipeline
 
 from optimum.utils import is_onnxruntime_available, is_transformers_version
+from optimum.utils.logging import get_logger
 
 
 if TYPE_CHECKING:
@@ -36,6 +37,8 @@ if TYPE_CHECKING:
         ProcessorMixin,
     )
 
+
+logger = get_logger(__name__)
 
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
@@ -113,7 +116,6 @@ def ort_infer_framework_load_model(
 ):
     if isinstance(model, str):
         model_kwargs.pop("framework", None)
-        model_kwargs.pop("accelerator", None)
         model_kwargs.pop("torch_dtype", None)  # not supported for ORTModel
         model_kwargs.pop("_commit_hash", None)  # not supported for ORTModel
         model_kwargs.pop("model_classes", None)
@@ -331,6 +333,12 @@ def pipeline(  # noqa: D417
     >>> recognizer = pipeline("ner", model=model, tokenizer=tokenizer)
     ```
     """
+    if kwargs.get("accelerator") is not None:
+        logger.warning(
+            "The `accelerator` argument should not be passed when using `optimum.onnxruntime.pipelines.pipeline`"
+            " as ONNX Runtime is the only supported backend. Please remove the `accelerator` argument."
+        )
+
     version_dependent_kwargs = {}
     if is_transformers_version(">=", "4.46.0"):
         # processor argument was added in transformers v4.46.0
