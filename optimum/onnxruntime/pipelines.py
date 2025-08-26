@@ -113,10 +113,10 @@ def ort_infer_framework_load_model(
 ):
     if isinstance(model, str):
         model_kwargs.pop("framework", None)
-        model_kwargs.pop("model_class", None)
         model_kwargs.pop("accelerator", None)
         model_kwargs.pop("torch_dtype", None)  # not supported for ORTModel
         model_kwargs.pop("_commit_hash", None)  # not supported for ORTModel
+        model_kwargs.pop("model_classes", None)
         ort_model_class = get_ort_model_class(task, config, model, **model_kwargs)
         ort_model = ort_model_class.from_pretrained(model, **model_kwargs)
     elif isinstance(model, ORTModel):
