@@ -13,8 +13,10 @@
 # limitations under the License.
 """Pipelines running different backends."""
 
+from __future__ import annotations
+
 import contextlib
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import torch
 import transformers.pipelines
@@ -77,7 +79,7 @@ else:
 
 
 def get_ort_model_class(
-    task: str, config: Optional["PretrainedConfig"] = None, model_id: Optional[str] = None, **model_kwargs
+    task: str, config: PretrainedConfig | None = None, model_id: str | None = None, **model_kwargs
 ):
     if task.startswith("translation_"):
         # the pipeline registery takes care of getting the right model id for translation_xx_to_yy
@@ -109,10 +111,10 @@ def get_ort_model_class(
 # a modified transformers.pipelines.base.infer_framework_load_model that loads ORT models
 def ort_infer_framework_load_model(
     model,
-    config: Optional["PretrainedConfig"] = None,
-    model_classes: Optional[dict[str, tuple[type]]] = None,
-    task: Optional[str] = None,
-    framework: Optional[str] = None,
+    config: PretrainedConfig | None = None,
+    model_classes: dict[str, tuple[type]] | None = None,
+    task: str | None = None,
+    framework: str | None = None,
     **model_kwargs,
 ):
     if isinstance(model, str):
@@ -145,23 +147,23 @@ def patch_pipelines_to_load_ort_model():
 # The docstring is simply a copy of transformers.pipelines.pipeline's doc with minor modifications
 # to reflect the fact that this pipeline loads ONNX Runtime models that inherit from ORTModel
 def pipeline(  # noqa: D417
-    task: Optional[str] = None,
-    model: Optional[Union[str, "ORTModel"]] = None,
-    config: Optional[Union[str, "PretrainedConfig"]] = None,
-    tokenizer: Optional[Union[str, "PreTrainedTokenizer", "PreTrainedTokenizerFast"]] = None,
-    feature_extractor: Optional[Union[str, "FeatureExtractionMixin"]] = None,
-    image_processor: Optional[Union[str, "BaseImageProcessor"]] = None,
-    processor: Optional[Union[str, "ProcessorMixin"]] = None,
+    task: str | None = None,
+    model: str | ORTModel | None = None,
+    config: str | PretrainedConfig | None = None,
+    tokenizer: str | PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
+    feature_extractor: str | FeatureExtractionMixin | None = None,
+    image_processor: str | BaseImageProcessor | None = None,
+    processor: str | ProcessorMixin | None = None,
     # framework: Optional[str] = None, # we leave it as None to trigger model loading with ort_infer_framework_load_model
-    revision: Optional[str] = None,
+    revision: str | None = None,
     use_fast: bool = True,
-    token: Optional[Union[str, bool]] = None,
-    device: Optional[Union[int, str, "torch.device"]] = None,
+    token: str | bool | None = None,
+    device: int | str | torch.device | None = None,
     # device_map: Optional[Union[str, dict[str, Union[int, str]]]] = None, # we do not support device_map with ORTModel
     # torch_dtype: Optional[Union[str, "torch.dtype"]] = "auto", we don't support model export to different dtypes yet
-    trust_remote_code: Optional[bool] = None,
-    model_kwargs: Optional[dict[str, Any]] = None,
-    pipeline_class: Optional[Any] = None,
+    trust_remote_code: bool | None = None,
+    model_kwargs: dict[str, Any] | None = None,
+    pipeline_class: Any | None = None,
     accelerator: str | None = None,
     **kwargs: Any,
 ) -> Pipeline:
