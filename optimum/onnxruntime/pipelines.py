@@ -333,7 +333,7 @@ def pipeline(  # noqa: D417
     >>> recognizer = pipeline("ner", model=model, tokenizer=tokenizer)
     ```
     """
-    if kwargs.get("accelerator") is not None:
+    if kwargs.pop("accelerator", None) is not None:
         logger.warning(
             "The `accelerator` argument should not be passed when using `optimum.onnxruntime.pipelines.pipeline`"
             " as ONNX Runtime is the only supported backend. Please remove the `accelerator` argument."
