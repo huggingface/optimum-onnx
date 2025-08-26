@@ -37,6 +37,7 @@ NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS = {
 
 PYTORCH_EXPORT_MODELS_TINY = {
     "albert": "hf-internal-testing/tiny-random-AlbertModel",
+    "arcee": "onnx-internal-testing/tiny-random-ArceeForCausalLM",
     "audio-spectrogram-transformer": "hf-internal-testing/tiny-random-ASTModel",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": {

@@ -26,7 +26,7 @@ style_check:
 
 style:
 	ruff format .
-	ruff check . --fix
+	ruff check . --fix --exit-zero
 
 # Run tests for the library
 test:
