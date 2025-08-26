@@ -1383,6 +1383,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
             return super()._from_pretrained(model_id, config, **kwargs)
 
 
+# TODO: remove WhisperForConditionalGeneration and replace it with WhisperGenerationMixin when min versions allow it
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
     """Whisper sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper."""
