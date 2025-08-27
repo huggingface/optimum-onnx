@@ -37,6 +37,7 @@ from optimum.exporters.onnx.config import (
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
+    FluxTransformerModelPatcher,
     MgpstrModelPatcher,
     MusicgenModelPatcher,
     Qwen3MoeModelPatcher,
@@ -1442,6 +1443,7 @@ class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
         DummyFluxTransformerVisionInputGenerator,
         DummyFluxTransformerTextInputGenerator,
     )
+    _MODEL_PATCHER = FluxTransformerModelPatcher
 
     @property
     def inputs(self):
