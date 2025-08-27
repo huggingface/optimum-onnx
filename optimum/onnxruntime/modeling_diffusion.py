@@ -868,6 +868,9 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
     auto_model_class = StableDiffusionPipeline
 
 
+ORTStableDiffusionPipeline.__call__.__doc__ = StableDiffusionPipeline.__call__.__doc__
+
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline)."""
@@ -877,6 +880,9 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
     auto_model_class = StableDiffusionImg2ImgPipeline
 
 
+ORTStableDiffusionImg2ImgPipeline.__call__.__doc__ = StableDiffusionImg2ImgPipeline.__call__.__doc__
+
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline)."""
@@ -884,6 +890,9 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
     task = "inpainting"
     main_input_name = "prompt"
     auto_model_class = StableDiffusionInpaintPipeline
+
+
+ORTStableDiffusionInpaintPipeline.__call__.__doc__ = StableDiffusionInpaintPipeline.__call__.__doc__
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
@@ -903,9 +912,11 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
         text_encoder_projection_dim=None,
     ):
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
-
         add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
         return add_time_ids
+
+
+ORTStableDiffusionXLPipeline.__call__.__doc__ = StableDiffusionXLPipeline.__call__.__doc__
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
@@ -944,6 +955,9 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
         return add_time_ids, add_neg_time_ids
 
 
+ORTStableDiffusionXLImg2ImgPipeline.__call__.__doc__ = StableDiffusionXLImg2ImgPipeline.__call__.__doc__
+
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline)."""
@@ -980,6 +994,9 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
         return add_time_ids, add_neg_time_ids
 
 
+ORTStableDiffusionXLInpaintPipeline.__call__.__doc__ = StableDiffusionXLInpaintPipeline.__call__.__doc__
+
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline)."""
@@ -989,6 +1006,9 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
     auto_model_class = LatentConsistencyModelPipeline
 
 
+ORTLatentConsistencyModelPipeline.__call__.__doc__ = LatentConsistencyModelPipeline.__call__.__doc__
+
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline)."""
@@ -996,6 +1016,9 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     task = "image-to-image"
     main_input_name = "image"
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
+
+
+ORTLatentConsistencyModelImg2ImgPipeline.__call__.__doc__ = LatentConsistencyModelImg2ImgPipeline.__call__.__doc__
 
 
 class ORTUnavailablePipeline:
@@ -1019,6 +1042,8 @@ if is_diffusers_version(">=", "0.29.0"):
         main_input_name = "prompt"
         auto_model_class = StableDiffusion3Pipeline
 
+    ORTStableDiffusion3Pipeline.__call__.__doc__ = StableDiffusion3Pipeline.__call__.__doc__
+
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
         """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline)."""
@@ -1027,6 +1052,7 @@ if is_diffusers_version(">=", "0.29.0"):
         main_input_name = "image"
         auto_model_class = StableDiffusion3Img2ImgPipeline
 
+    ORTStableDiffusion3Img2ImgPipeline.__call__.__doc__ = StableDiffusion3Img2ImgPipeline.__call__.__doc__
 else:
 
     class ORTStableDiffusion3Pipeline(ORTUnavailablePipeline):
@@ -1047,6 +1073,8 @@ if is_diffusers_version(">=", "0.30.0"):
         main_input_name = "prompt"
         auto_model_class = StableDiffusion3InpaintPipeline
 
+    ORTStableDiffusion3InpaintPipeline.__call__.__doc__ = StableDiffusion3InpaintPipeline.__call__.__doc__
+
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
         """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline)."""
@@ -1055,6 +1083,7 @@ if is_diffusers_version(">=", "0.30.0"):
         main_input_name = "prompt"
         auto_model_class = FluxPipeline
 
+    ORTFluxPipeline.__call__.__doc__ = FluxPipeline.__call__.__doc__
 else:
 
     class ORTStableDiffusion3InpaintPipeline(ORTUnavailablePipeline):
