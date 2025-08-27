@@ -33,12 +33,18 @@
     - sections:
       - local: onnxruntime/package_reference/modeling_ort
         title: ONNX Runtime Models
+      - local: onnxruntime/package_reference/modeling_decoder
+        title: ONNX Runtime Decoder Models (LLMs)
+      - local: onnxruntime/package_reference/modeling_diffusion
+        title: ONNX Runtime Diffusion Pipelines
       - local: onnxruntime/package_reference/configuration
         title: Configuration
       - local: onnxruntime/package_reference/optimization
         title: Optimization
       - local: onnxruntime/package_reference/quantization
         title: Quantization
+      - local: onnxruntime/package_reference/pipelines
+        title: Inference pipelines
       title: Reference
       isExpanded: false
     title: ONNX Runtime
