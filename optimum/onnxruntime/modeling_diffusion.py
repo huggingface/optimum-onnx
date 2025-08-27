@@ -54,11 +54,7 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
-from optimum.onnxruntime.utils import (
-    get_device_for_provider,
-    np_to_pt_generators,
-    prepare_providers_and_provider_options,
-)
+from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -491,29 +487,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 commit_message=commit_message,
             )
 
-    def __call__(self, *args, **kwargs):
-        # we do this to keep numpy random states support for now
-
-        args = list(args)
-        for i in range(len(args)):
-            new_args = np_to_pt_generators(args[i], self.device)
-            if args[i] is not new_args:
-                logger.warning(
-                    "Converting numpy random state to torch generator is deprecated. "
-                    "Please pass a torch generator directly to the pipeline."
-                )
-
-        for key, value in kwargs.items():
-            new_value = np_to_pt_generators(value, self.device)
-            if value is not new_value:
-                logger.warning(
-                    "Converting numpy random state to torch generator is deprecated. "
-                    "Please pass a torch generator directly to the pipeline."
-                )
-                kwargs[key] = new_value
-
-        return self.auto_model_class.__call__(self, *args, **kwargs)
-
 
 class ORTModelMixin(ORTSessionMixin, ConfigMixin):
     config_name: str = CONFIG_NAME
@@ -868,9 +841,6 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
     auto_model_class = StableDiffusionPipeline
 
 
-ORTStableDiffusionPipeline.__call__.__doc__ = StableDiffusionPipeline.__call__.__doc__
-
-
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline)."""
@@ -880,9 +850,6 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
     auto_model_class = StableDiffusionImg2ImgPipeline
 
 
-ORTStableDiffusionImg2ImgPipeline.__call__.__doc__ = StableDiffusionImg2ImgPipeline.__call__.__doc__
-
-
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline)."""
@@ -890,9 +857,6 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
     task = "inpainting"
     main_input_name = "prompt"
     auto_model_class = StableDiffusionInpaintPipeline
-
-
-ORTStableDiffusionInpaintPipeline.__call__.__doc__ = StableDiffusionInpaintPipeline.__call__.__doc__
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
@@ -914,9 +878,6 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
         add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
         return add_time_ids
-
-
-ORTStableDiffusionXLPipeline.__call__.__doc__ = StableDiffusionXLPipeline.__call__.__doc__
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
@@ -955,9 +916,6 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
         return add_time_ids, add_neg_time_ids
 
 
-ORTStableDiffusionXLImg2ImgPipeline.__call__.__doc__ = StableDiffusionXLImg2ImgPipeline.__call__.__doc__
-
-
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline)."""
@@ -994,9 +952,6 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
         return add_time_ids, add_neg_time_ids
 
 
-ORTStableDiffusionXLInpaintPipeline.__call__.__doc__ = StableDiffusionXLInpaintPipeline.__call__.__doc__
-
-
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline)."""
@@ -1006,9 +961,6 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
     auto_model_class = LatentConsistencyModelPipeline
 
 
-ORTLatentConsistencyModelPipeline.__call__.__doc__ = LatentConsistencyModelPipeline.__call__.__doc__
-
-
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
     """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline)."""
@@ -1016,9 +968,6 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     task = "image-to-image"
     main_input_name = "image"
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
-
-
-ORTLatentConsistencyModelImg2ImgPipeline.__call__.__doc__ = LatentConsistencyModelImg2ImgPipeline.__call__.__doc__
 
 
 class ORTUnavailablePipeline:
@@ -1042,8 +991,6 @@ if is_diffusers_version(">=", "0.29.0"):
         main_input_name = "prompt"
         auto_model_class = StableDiffusion3Pipeline
 
-    ORTStableDiffusion3Pipeline.__call__.__doc__ = StableDiffusion3Pipeline.__call__.__doc__
-
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
         """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline)."""
@@ -1051,8 +998,6 @@ if is_diffusers_version(">=", "0.29.0"):
         task = "image-to-image"
         main_input_name = "image"
         auto_model_class = StableDiffusion3Img2ImgPipeline
-
-    ORTStableDiffusion3Img2ImgPipeline.__call__.__doc__ = StableDiffusion3Img2ImgPipeline.__call__.__doc__
 else:
 
     class ORTStableDiffusion3Pipeline(ORTUnavailablePipeline):
@@ -1073,8 +1018,6 @@ if is_diffusers_version(">=", "0.30.0"):
         main_input_name = "prompt"
         auto_model_class = StableDiffusion3InpaintPipeline
 
-    ORTStableDiffusion3InpaintPipeline.__call__.__doc__ = StableDiffusion3InpaintPipeline.__call__.__doc__
-
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
         """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline)."""
@@ -1082,8 +1025,6 @@ if is_diffusers_version(">=", "0.30.0"):
         task = "text-to-image"
         main_input_name = "prompt"
         auto_model_class = FluxPipeline
-
-    ORTFluxPipeline.__call__.__doc__ = FluxPipeline.__call__.__doc__
 else:
 
     class ORTStableDiffusion3InpaintPipeline(ORTUnavailablePipeline):
