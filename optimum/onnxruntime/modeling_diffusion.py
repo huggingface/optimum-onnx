@@ -554,7 +554,7 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin, CacheMixin):
 
     def named_modules(self):
         # starting from diffusers 0.35.0 some model parts inherit from `CacheMixin` which uses `named_modules` method
-        # to register some hooks for attention caching, we return empty list here since it can't be used with OpenVINO
+        # to register some hooks for attention caching, we return empty list here since it can't be used with ONNX Runtime
         yield from []
 
 
