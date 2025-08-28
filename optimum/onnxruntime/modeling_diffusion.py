@@ -1011,9 +1011,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Pipeline]
-        (https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline).
-        """
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1021,9 +1019,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Img2ImgPipeline]
-        (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline).
-        """
+        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline)."""
 
         task = "image-to-image"
         main_input_name = "image"
@@ -1042,9 +1038,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3InpaintPipeline]
-        (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline).
-        """
+        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline)."""
 
         task = "inpainting"
         main_input_name = "prompt"
@@ -1052,9 +1046,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [diffusers.FluxPipeline]
-        (https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline).
-        """
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1082,22 +1074,6 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusion3InpaintPipeline,
     ORTFluxPipeline,
 ]
-
-for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
-    if callable(ort_pipeline_class) and ort_pipeline_class.__call__.__doc__ is not None:
-        # change specific class name in docstring
-        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-            ort_pipeline_class.auto_model_class.__name__, ort_pipeline_class.__name__
-        )
-        # change generic/entrypoint class name in docstring
-        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-            "DiffusionPipeline", "ORTDiffusionPipeline"
-        )
-        # change import diffusers to optimum.onnxruntime in docstring
-        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-            f"from diffusers import {ort_pipeline_class.auto_model_class.__name__}",
-            f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
-        )
 
 
 def _get_ort_class(pipeline_class_name: str, throw_error_if_not_exist: bool = True):
@@ -1203,3 +1179,36 @@ class ORTPipelineForImage2Image(ORTPipelineForTask):
 class ORTPipelineForInpainting(ORTPipelineForTask):
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
+
+
+GENERIC_ORT_PIPELINES = [
+    ORTDiffusionPipeline,
+    ORTPipelineForText2Image,
+    ORTPipelineForImage2Image,
+    ORTPipelineForInpainting,
+]
+
+# Documentation updates
+for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
+    if callable(ort_pipeline_class) and ort_pipeline_class.__call__.__doc__ is not None:
+        # change import diffusers classes to optimum.onnxruntime classes in docstring
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            f"from diffusers import {ort_pipeline_class.auto_model_class.__name__}",
+            f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
+        )
+        for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
+            if generic_ort_pipeline_class != ort_pipeline_class:
+                ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                    f"from diffusers import {generic_ort_pipeline_class.auto_model_class.__name__}",
+                    f"from optimum.onnxruntime import {generic_ort_pipeline_class.__name__}",
+                )
+
+        # change specific class name in docstring
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            ort_pipeline_class.auto_model_class.__name__, ort_pipeline_class.__name__
+        )
+        for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
+            if generic_ort_pipeline_class != ort_pipeline_class:
+                ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                    generic_ort_pipeline_class.auto_model_class.__name__, generic_ort_pipeline_class.__name__
+                )
