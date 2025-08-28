@@ -1307,7 +1307,8 @@ def patched_cohere_rotary_forward(self, x, position_ids):
     # Get batch size and sequence length for manual expansion
     batch_size, seq_len = position_ids.shape[:2]
 
-    # Instead of using expand, manually repeat the tensor to avoid dynamic shapes
+    # Instead of using expand, manually repeat the tensor.
+    # original: inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
     inv_freq_base = self.inv_freq[None, :, None].float()  # Shape: [1, freq_dim, 1]
     inv_freq_expanded = inv_freq_base.repeat(batch_size, 1, 1)  # Shape: [batch_size, freq_dim, 1]
 
