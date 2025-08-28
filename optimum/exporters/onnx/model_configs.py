@@ -37,6 +37,7 @@ from optimum.exporters.onnx.config import (
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
+    CohereModelPatcher,
     FluxTransformerModelPatcher,
     MgpstrModelPatcher,
     MusicgenModelPatcher,
@@ -438,6 +439,13 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class ArceeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+
+
+@register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
+class CohereOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    _MODEL_PATCHER = CohereModelPatcher
 
 
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])

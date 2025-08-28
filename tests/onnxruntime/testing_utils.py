@@ -40,6 +40,7 @@ MODEL_NAMES = {
     "bloom": "hf-internal-testing/tiny-random-BloomModel",
     "camembert": "hf-internal-testing/tiny-random-camembert",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
+    "cohere": "hf-internal-testing/tiny-random-CohereForCausalLM",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
     "convnextv2": "hf-internal-testing/tiny-random-ConvNextV2Model",

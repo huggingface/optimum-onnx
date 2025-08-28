@@ -30,6 +30,7 @@ from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
     ArceeOnnxConfig,
     BloomOnnxConfig,
+    CohereOnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
     InternLM2OnnxConfig,
@@ -87,6 +88,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     if is_transformers_version(">=", str(ArceeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("arcee")
+    if is_transformers_version(">=", str(CohereOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("cohere")
     if is_transformers_version(">=", str(OPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("opt")
     if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):

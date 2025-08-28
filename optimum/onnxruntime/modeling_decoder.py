@@ -213,6 +213,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if self.config.model_type in {
             "arcee",
+            "cohere",
             "gemma",
             "mistral",
             "llama",

@@ -1301,3 +1301,48 @@ class FluxTransformerModelPatcher(ModelPatcher):
 
         if is_diffusers_version(">=", "0.35.0"):
             diffusers.models.transformers.transformer_flux.apply_rotary_emb = self.original_apply_rotary_emb
+
+
+def patched_cohere_rotary_forward(self, x, position_ids):
+    # Get batch size and sequence length for manual expansion
+    batch_size, seq_len = position_ids.shape[:2]
+
+    # Instead of using expand, manually repeat the tensor to avoid dynamic shapes
+    inv_freq_base = self.inv_freq[None, :, None].float()  # Shape: [1, freq_dim, 1]
+    inv_freq_expanded = inv_freq_base.repeat(batch_size, 1, 1)  # Shape: [batch_size, freq_dim, 1]
+
+    position_ids_expanded = position_ids[:, None, :].float()
+    device_type = x.device.type if isinstance(x.device.type, str) and x.device.type != "mps" else "cpu"
+
+    with torch.autocast(device_type=device_type, enabled=False):  # Force float32
+        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+
+        # Replace repeat_interleave with ONNX-compatible operations
+        # Original: emb = torch.repeat_interleave(freqs, 2, dim=-1)
+        # ONNX-compatible alternative:
+        freqs_expanded = freqs[..., None].expand(*freqs.shape, 2)
+        emb = freqs_expanded.reshape(*freqs.shape[:-1], -1)
+
+        cos = emb.cos() * self.attention_scaling
+        sin = emb.sin() * self.attention_scaling
+
+    return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+
+
+class CohereModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.38.0"):
+            from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
+
+            self.original_forward = CohereRotaryEmbedding.forward
+            CohereRotaryEmbedding.forward = patched_cohere_rotary_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.38.0"):
+            from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
+
+            CohereRotaryEmbedding.forward = self.original_forward

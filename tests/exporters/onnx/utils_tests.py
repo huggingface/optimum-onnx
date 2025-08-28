@@ -61,6 +61,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "chinese_clip": "hf-internal-testing/tiny-random-ChineseCLIPModel",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "clip_vision_model": "fxmarty/clip-vision-model-tiny",
+    "cohere": "hf-internal-testing/tiny-random-CohereForCausalLM",
     "colpali": "hf-internal-testing/tiny-random-ColPaliForRetrieval",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
