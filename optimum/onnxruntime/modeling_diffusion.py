@@ -838,13 +838,15 @@ class ORTVae(ORTParentMixin):
 
 ORT_PIPELINE_DOCSTRING = r"""
     This Pipeline inherits from [`ORTDiffusionPipeline`] and is used to run inference with the ONNX Runtime.
-    The pipeline can be loaded from a pretrained pipeline using the [`ORTDiffusionPipeline.from_pretrained`] method.
+    The pipeline can be loaded from a pretrained pipeline using the generic [`ORTDiffusionPipeline.from_pretrained`] method.
 """
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion and corresponding to [diffusers.StableDiffusionPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -853,7 +855,9 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion and corresponding to [diffusers.StableDiffusionImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "image"
@@ -862,7 +866,9 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion and corresponding to [diffusers.StableDiffusionInpaintPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
+    """
 
     task = "inpainting"
     main_input_name = "prompt"
@@ -871,7 +877,9 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -892,7 +900,9 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionXLImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "prompt"
@@ -928,7 +938,9 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLInpaintPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline).
+    """
 
     main_input_name = "image"
     task = "inpainting"
@@ -964,7 +976,9 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using a Latent Consistency Model and corresponding to [diffusers.LatentConsistencyModelPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -973,7 +987,9 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using a Latent Consistency Model and corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "image"
@@ -995,7 +1011,9 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Pipeline]
+        (https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline).
+        """
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1003,7 +1021,9 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Img2ImgPipeline]
+        (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline).
+        """
 
         task = "image-to-image"
         main_input_name = "image"
@@ -1022,7 +1042,9 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3InpaintPipeline]
+        (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline).
+        """
 
         task = "inpainting"
         main_input_name = "prompt"
@@ -1030,7 +1052,9 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [diffusers.FluxPipeline]
+        (https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline).
+        """
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1058,6 +1082,22 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusion3InpaintPipeline,
     ORTFluxPipeline,
 ]
+
+for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
+    if callable(ort_pipeline_class) and ort_pipeline_class.__call__.__doc__ is not None:
+        # change specific class name in docstring
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            ort_pipeline_class.auto_model_class.__name__, ort_pipeline_class.__name__
+        )
+        # change generic/entrypoint class name in docstring
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            "DiffusionPipeline", "ORTDiffusionPipeline"
+        )
+        # change import diffusers to optimum.onnxruntime in docstring
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            f"from diffusers import {ort_pipeline_class.auto_model_class.__name__}",
+            f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
+        )
 
 
 def _get_ort_class(pipeline_class_name: str, throw_error_if_not_exist: bool = True):
