@@ -55,7 +55,7 @@ doc:
 	doc-builder build optimum docs/source/ \
 	--repo_name optimum-onnx \
 	--build_dir $(BUILD_DIR)/ \
-	--version pr_$(VERSION) \
+	--version $(VERSION) \
 	--version_tag_suffix "" \
 	--html \
 	--clean
