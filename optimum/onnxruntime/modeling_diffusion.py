@@ -844,7 +844,7 @@ ORT_PIPELINE_DOCSTRING = r"""
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
-    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion and corresponding to [diffusers.StableDiffusionPipeline]
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion and corresponding to [StableDiffusionPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
     """
 
@@ -855,7 +855,7 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion and corresponding to [diffusers.StableDiffusionImg2ImgPipeline]
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion and corresponding to [StableDiffusionImg2ImgPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
     """
 
@@ -866,7 +866,7 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion and corresponding to [diffusers.StableDiffusionInpaintPipeline]
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion and corresponding to [StableDiffusionInpaintPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
     """
 
@@ -877,7 +877,7 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeline):
-    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLPipeline]
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion XL and corresponding to [StableDiffusionXLPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
     """
 
@@ -900,7 +900,7 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionXLImg2ImgPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline]
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion XL and corresponding to [StableDiffusionXLImg2ImgPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
     """
 
@@ -938,7 +938,7 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion XL and corresponding to [diffusers.StableDiffusionXLInpaintPipeline]
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion XL and corresponding to [StableDiffusionXLInpaintPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline).
     """
 
@@ -976,7 +976,7 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
-    """ONNX Runtime-powered Pipeline for text-to-image generation using a Latent Consistency Model and corresponding to [diffusers.LatentConsistencyModelPipeline]
+    """ONNX Runtime-powered Pipeline for text-to-image generation using a Latent Consistency Model and corresponding to [LatentConsistencyModelPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelPipeline).
     """
 
@@ -987,7 +987,7 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using a Latent Consistency Model and corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline]
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using a Latent Consistency Model and corresponding to [LatentConsistencyModelImg2ImgPipeline]
     (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelImg2ImgPipeline).
     """
 
@@ -1011,7 +1011,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1019,7 +1019,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline)."""
 
         task = "image-to-image"
         main_input_name = "image"
@@ -1038,7 +1038,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline)."""
 
         task = "inpainting"
         main_input_name = "prompt"
@@ -1046,7 +1046,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1191,7 +1191,7 @@ GENERIC_ORT_PIPELINES = [
 # Documentation updates
 for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
     if callable(ort_pipeline_class) and ort_pipeline_class.__call__.__doc__ is not None:
-        # change import diffusers classes to optimum.onnxruntime classes in docstring
+        # change from diffusers import {}Pipeline to from optimum.onnxruntime import ORT{}Pipeline
         ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
             f"from diffusers import {ort_pipeline_class.auto_model_class.__name__}",
             f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
@@ -1203,12 +1203,19 @@ for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
                     f"from optimum.onnxruntime import {generic_ort_pipeline_class.__name__}",
                 )
 
-        # change specific class name in docstring
+        # change {}.from_pretrained to ORT{}.from_pretrained
         ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-            ort_pipeline_class.auto_model_class.__name__, ort_pipeline_class.__name__
+            f"{ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
+            f"{ort_pipeline_class.__name__}.from_pretrained",
         )
         for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
             if generic_ort_pipeline_class != ort_pipeline_class:
                 ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-                    generic_ort_pipeline_class.auto_model_class.__name__, generic_ort_pipeline_class.__name__
+                    f"{generic_ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
+                    f"{generic_ort_pipeline_class.__name__}.from_pretrained",
                 )
+
+        # change ~pipelines.{}.{}Output to diffusers.pipelines.{}.{}Output
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            "~pipelines.", "diffusers.pipelines."
+        )
