@@ -72,7 +72,7 @@ try:
     if not is_diffusers_available():
         raise OptionalDependencyNotAvailable()  # noqa: TRY301
 except OptionalDependencyNotAvailable:
-    _import_structure[".utils.dummy_diffusers_objects"] = [
+    _import_structure["dummy_objects"] = [
         "ORTDiffusionPipeline",
         "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
@@ -163,7 +163,7 @@ if TYPE_CHECKING:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
-        from optimum.utils.dummy_diffusers_objects import (
+        from .dummy_objects import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux
