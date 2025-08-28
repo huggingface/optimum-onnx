@@ -85,6 +85,24 @@ logger = logging.getLogger(__name__)
 
 # TODO: support from_pipe()
 class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
+    """Base class for all ONNX Runtime Pipelines.
+
+    [`ORTDiffusionPipeline`] stores all components (models, schedulers, and processors) for diffusion pipelines and
+    provides methods for exporting, loading, downloading and saving models. It also includes methods to:
+
+        - move all ONNX Runtime sessions to the device of your choice
+        - enable/disable the progress bar for the denoising iteration
+        - handle ONNX Runtime io binding if used
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **task** (`str`) -- A string that identifies the pipeline's task.
+        - **library** (`str`) -- The library the pipeline is compatible with.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+    """
+
     config_name = DIFFUSION_PIPELINE_CONFIG_FILE_NAME
 
     task = "auto"
@@ -1162,21 +1180,70 @@ class ORTPipelineForTask(ConfigMixin):
         class_name = config["_class_name"]
 
         ort_pipeline_class = _get_task_ort_class(cls.ort_pipelines_mapping, class_name)
-
         return ort_pipeline_class.from_pretrained(pretrained_model_or_path, **kwargs)
 
 
 class ORTPipelineForText2Image(ORTPipelineForTask):
+    """[`ORTPipelineForText2Image`] is a generic pipeline class that instantiates a text-to-image pipeline class.
+    The specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForText2Image.from_pretrained`] or [`~ORTPipelineForText2Image.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+        diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+        corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForText2Image
     ort_pipelines_mapping = ORT_TEXT2IMAGE_PIPELINES_MAPPING
 
 
 class ORTPipelineForImage2Image(ORTPipelineForTask):
+    """[`ORTPipelineForImage2Image`] is a generic pipeline class that instantiates an image-to-image pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForImage2Image.from_pretrained`] or [`~ORTPipelineForImage2Image.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForImage2Image
     ort_pipelines_mapping = ORT_IMAGE2IMAGE_PIPELINES_MAPPING
 
 
 class ORTPipelineForInpainting(ORTPipelineForTask):
+    """[`ORTPipelineForInpainting`] is a generic pipeline class that instantiates an inpainting pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForInpainting.from_pretrained`] or [`~ORTPipelineForInpainting.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
 
@@ -1197,11 +1264,10 @@ for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
             f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
         )
         for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
-            if generic_ort_pipeline_class != ort_pipeline_class:
-                ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-                    f"from diffusers import {generic_ort_pipeline_class.auto_model_class.__name__}",
-                    f"from optimum.onnxruntime import {generic_ort_pipeline_class.__name__}",
-                )
+            ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                f"from diffusers import {generic_ort_pipeline_class.auto_model_class.__name__}",
+                f"from optimum.onnxruntime import {generic_ort_pipeline_class.__name__}",
+            )
 
         # change {}.from_pretrained to ORT{}.from_pretrained
         ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
@@ -1209,11 +1275,10 @@ for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
             f"{ort_pipeline_class.__name__}.from_pretrained",
         )
         for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
-            if generic_ort_pipeline_class != ort_pipeline_class:
-                ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
-                    f"{generic_ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
-                    f"{generic_ort_pipeline_class.__name__}.from_pretrained",
-                )
+            ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                f"{generic_ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
+                f"{generic_ort_pipeline_class.__name__}.from_pretrained",
+            )
 
         # change ~pipelines.{}.{}Output to diffusers.pipelines.{}.{}Output
         ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
