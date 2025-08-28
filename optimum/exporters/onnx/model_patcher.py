@@ -1308,6 +1308,9 @@ def patched_cohere_rotary_forward(self, x, position_ids):
     batch_size, seq_len = position_ids.shape[:2]
 
     # Instead of using expand, manually repeat the tensor.
+    # Problem with expand: it creates a view with shared memory rather than copying data,
+    # which causes ONNX export issues with dynamic shapes and view operations.
+    # Using repeat() ensures actual memory allocation and data copying for ONNX compatibility.
     # original: inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
     inv_freq_base = self.inv_freq[None, :, None].float()  # Shape: [1, freq_dim, 1]
     inv_freq_expanded = inv_freq_base.repeat(batch_size, 1, 1)  # Shape: [batch_size, freq_dim, 1]
@@ -1317,13 +1320,7 @@ def patched_cohere_rotary_forward(self, x, position_ids):
 
     with torch.autocast(device_type=device_type, enabled=False):  # Force float32
         freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-
-        # Replace repeat_interleave with ONNX-compatible operations
-        # Original: emb = torch.repeat_interleave(freqs, 2, dim=-1)
-        # ONNX-compatible alternative:
-        freqs_expanded = freqs[..., None].expand(*freqs.shape, 2)
-        emb = freqs_expanded.reshape(*freqs.shape[:-1], -1)
-
+        emb = freqs.repeat_interleave(2, dim=-1)  # diff from Llama: we interleave() instead of cat()
         cos = emb.cos() * self.attention_scaling
         sin = emb.sin() * self.attention_scaling
 
