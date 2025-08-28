@@ -7,7 +7,6 @@ on:
       - main
       - doc-builder*
       - v*-release
-      - ort-pipelines
 
 env:
   UV_SYSTEM_PYTHON: 1
@@ -51,7 +50,7 @@ jobs:
       - name: Setup environment
         run: |
           pip install --upgrade pip uv
-          uv pip install .[onnxruntime] accelerate diffusers
+          uv pip install .[onnxruntime] accelerate diffusers timm
           uv pip install git+https://github.com/huggingface/doc-builder
 
       - name: Make documentation
