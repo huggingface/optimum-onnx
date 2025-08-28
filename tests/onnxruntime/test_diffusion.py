@@ -56,13 +56,8 @@ if torch.cuda.is_available():
         PROVIDERS.append("TensorrtExecutionProvider")
 
 
-def get_generator(framework, seed):
-    if framework == "np":
-        return np.random.RandomState(seed)
-    elif framework == "pt":
-        return torch.Generator().manual_seed(seed)
-    else:
-        raise ValueError(f"Unknown framework: {framework}")
+def get_generator(seed):
+    return torch.Generator().manual_seed(seed)
 
 
 def generate_prompts(batch_size=1):
@@ -309,8 +304,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
 
-            ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
+            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator(SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=self.ATOL, rtol=self.RTOL)
 
@@ -331,12 +326,12 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
             # makes sure io binding is not used
             ort_pipeline.use_io_binding = False
-            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
 
             # makes sure io binding is effectively used
             ort_pipeline.use_io_binding = True
-            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            io_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
 
             # makes sure the outputs are the same
@@ -420,18 +415,14 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
         height, width, batch_size = 64, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        for generator_framework in ["np", "pt"]:
-            ort_outputs_1 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
+        ort_outputs_1 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_2 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_3 = pipeline(**inputs, generator=get_generator(SEED + 1))
 
-            self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
-            np.testing.assert_allclose(
-                ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL
-            )
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+        np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
@@ -445,8 +436,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-        diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+        ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
+        diffusers_images = diffusers_pipeline(**inputs, generator=get_generator(SEED)).images
 
         np.testing.assert_allclose(ort_images, diffusers_images, atol=self.ATOL, rtol=self.RTOL)
 
@@ -471,8 +462,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 32, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
-        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+        ort_output = ort_pipeline(**inputs, generator=get_generator(SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator(SEED))
 
         ort_nsfw_content_detected = ort_output.nsfw_content_detected
         diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
@@ -653,8 +644,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
 
-            ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
+            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator(SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=self.ATOL, rtol=self.RTOL)
 
@@ -675,12 +666,12 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
             # makes sure io binding is not used
             ort_pipeline.use_io_binding = False
-            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
 
             # makes sure io binding is effectively used
             ort_pipeline.use_io_binding = True
-            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            io_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
 
             # makes sure the outputs are the same
@@ -696,18 +687,14 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
 
         height, width, batch_size = 64, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
-
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        for generator_framework in ["np", "pt"]:
-            ort_outputs_1 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
+        ort_outputs_1 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_2 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_3 = pipeline(**inputs, generator=get_generator(SEED + 1))
 
-            self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
-            np.testing.assert_allclose(
-                ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL
-            )
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+        np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(["stable-diffusion", "latent-consistency"])
     @require_diffusers
@@ -730,8 +717,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 32, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
-        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+        ort_output = ort_pipeline(**inputs, generator=get_generator(SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator(SEED))
 
         ort_nsfw_content_detected = ort_output.nsfw_content_detected
         diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
@@ -917,8 +904,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
 
-            ort_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
-            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
+            diffusers_images = diffusers_pipeline(**inputs, generator=get_generator(SEED)).images
 
             np.testing.assert_allclose(ort_images, diffusers_images, atol=self.ATOL, rtol=self.RTOL)
 
@@ -939,12 +926,12 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
             # makes sure io binding is not used
             ort_pipeline.use_io_binding = False
-            images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertEqual(len(diffusion_model._io_binding.get_outputs()), 0)
 
             # makes sure io binding is effectively used
             ort_pipeline.use_io_binding = True
-            io_images = ort_pipeline(**inputs, generator=get_generator("pt", SEED)).images
+            io_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
             self.assertGreaterEqual(len(diffusion_model._io_binding.get_outputs()), 1)
 
             # makes sure the outputs are the same
@@ -963,15 +950,12 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
 
         pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
 
-        for generator_framework in ["np", "pt"]:
-            ort_outputs_1 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_2 = pipeline(**inputs, generator=get_generator(generator_framework, SEED))
-            ort_outputs_3 = pipeline(**inputs, generator=get_generator(generator_framework, SEED + 1))
+        ort_outputs_1 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_2 = pipeline(**inputs, generator=get_generator(SEED))
+        ort_outputs_3 = pipeline(**inputs, generator=get_generator(SEED + 1))
 
-            self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
-            np.testing.assert_allclose(
-                ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL
-            )
+        self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
+        np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(["stable-diffusion"])
     @require_diffusers
@@ -994,8 +978,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         height, width, batch_size = 32, 64, 1
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
-        ort_output = ort_pipeline(**inputs, generator=get_generator("pt", SEED))
-        diffusers_output = pipeline(**inputs, generator=get_generator("pt", SEED))
+        ort_output = ort_pipeline(**inputs, generator=get_generator(SEED))
+        diffusers_output = pipeline(**inputs, generator=get_generator(SEED))
 
         ort_nsfw_content_detected = ort_output.nsfw_content_detected
         diffusers_nsfw_content_detected = diffusers_output.nsfw_content_detected
