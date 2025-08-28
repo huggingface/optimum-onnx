@@ -14,7 +14,7 @@ specific language governing permissions and limitations under the License.
 
 ## Generic ORT Diffusion Pipeline classes
 
-The following classes are available for instantiating a diffusion pipeline class without needing to specify the architecture.
+The following classes are available for instantiating a diffusion pipeline class without needing to specify the task or architecture.
 
 ### ORTDiffusionPipeline
 
@@ -24,19 +24,18 @@ The following classes are available for instantiating a diffusion pipeline class
 ### ORTPipelineForText2Image
 
 [[autodoc]] onnxruntime.ORTPipelineForText2Image
-    - from_pretrained
 
 ### ORTPipelineForImage2Image
 
 [[autodoc]] onnxruntime.ORTPipelineForImage2Image
-    - from_pretrained
 
 ### ORTPipelineForInpainting
 
 [[autodoc]] onnxruntime.ORTPipelineForInpainting
-    - from_pretrained
 
 ## Supported ORT Diffusion Pipeline classes
+
+The following classes are available for instantiating a diffusion pipeline class for a specific task and architecture.
 
 ### ORTStableDiffusionPipeline
 

@@ -34,7 +34,7 @@ The [`~onnxruntime.pipelines.pipeline`] function automatically loads a default m
 1. Start by creating a pipeline by specifying an inference task:
 
 ```python
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> classifier = pipeline(task="text-classification", accelerator="ort")
 ```
@@ -64,7 +64,7 @@ You can check the list of supported architectures [here](https://huggingface.co/
 Once you have picked an appropriate model, you can create the [`~onnxruntime.pipelines.pipeline`] by specifying the model repo:
 
 ```python
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 # The model will be loaded to an ORTModelForQuestionAnswering.
 >>> onnx_qa = pipeline("question-answering", model="deepset/roberta-base-squad2", accelerator="ort")
@@ -82,7 +82,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
@@ -105,7 +105,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 The [`~onnxruntime.pipelines.pipeline`] function is tightly integrated with the [Hugging Face Hub](https://huggingface.co/models) and can load ONNX models directly.
 
 ```python
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> onnx_qa = pipeline("question-answering", model="optimum/roberta-base-squad2", accelerator="ort")
 >>> question = "What's my name?"
@@ -122,7 +122,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
 
@@ -154,7 +154,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ...     ORTModelForSequenceClassification,
 ...     ORTQuantizer
 ... )
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
@@ -194,7 +194,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ...     ORTOptimizer
 ... )
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
->>> from optimum.onnxruntime.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"

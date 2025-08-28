@@ -57,6 +57,7 @@ _import_structure = {
     ],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
+    "pipelines": ["pipeline"],
     "quantization": ["ORTQuantizer"],
     "utils": [
         "ONNX_DECODER_NAME",
@@ -149,6 +150,7 @@ if TYPE_CHECKING:
         ORTModelForVision2Seq,
     )
     from .optimization import ORTOptimizer
+    from .pipelines import pipeline
     from .quantization import ORTQuantizer
     from .utils import (
         ONNX_DECODER_MERGED_NAME,
