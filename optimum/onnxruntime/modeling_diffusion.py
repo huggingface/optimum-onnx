@@ -263,7 +263,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         cls,
         model_name_or_path: str | Path,
         # export options
-        export: bool = False,
+        export: bool | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Sequence[str] | None = None,
@@ -274,15 +274,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # hub options and preloaded models
         **kwargs,
     ):
-        """Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained model.
-        This method can be used to load a model from the Hugging Face Hub or from a local directory.
+        """Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained pipeline repo or directory.
+        This method can be used to export a diffusion pipeline to ONNX and/or load a pipeline with ONNX Runtime from a repo or a directory.
 
         Args:
             model_name_or_path (`str` or `os.PathLike`):
                 Path to a folder containing the model files or a hub repository id.
-            export (`bool`, *optional*, defaults to `False`):
-                Whether to export the model to ONNX format. If set to `True`, the model will be exported and saved
-                in the specified directory.
+            export (`bool`, *optional*, defaults to `None`):
+                Whether to export the model from Diffusers to ONNX. If left to `None`, the model is exported only if no
+                ONNX files are found in the `model_name_or_path` folder. If set to `True`, the model is always exported. If set to
+                `False`, the model is never exported.
             provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 The execution provider for ONNX Runtime. Can be `"CUDAExecutionProvider"`, `"DmlExecutionProvider"`,
                 etc.
@@ -328,7 +329,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         model_save_tmpdir = None
         model_save_path = Path(model_name_or_path)
 
-        # export the model if requested
+        # automatic export unpon missing files
+        if export is None:
+            if "unet" in config and config["unet"] is not None:
+                unet_path = model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME
+                export = not unet_path.is_file()
+            elif "transformer" in config and config["transformer"] is not None:
+                transformer_path = model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER / ONNX_WEIGHTS_NAME
+                export = not transformer_path.is_file()
+
+        # export the model if no ONNX files are found or if asked explicitly
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
