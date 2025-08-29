@@ -335,7 +335,7 @@ def pipeline(  # noqa: D417
     """
     if kwargs.pop("accelerator", None) is not None:
         logger.warning(
-            "The `accelerator` argument should not be passed when using `optimum.onnxruntime.pipelines.pipeline`"
+            "The `accelerator` argument should not be passed when using `optimum.optimum.onnxruntime.pipelines.pipeline`"
             " as ONNX Runtime is the only supported backend. Please remove the `accelerator` argument."
         )
 

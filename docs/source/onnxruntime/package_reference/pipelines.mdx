@@ -10,40 +10,6 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Pipelines
+# ONNX Runtime Pipelines
 
-## Overview
-
-ONNX Runtime pipelines provide a seamless way to use high-performance and cross-platform ONNX exported models with the familiar transformers pipeline interface. 
-This custom implementation automatically loads or exports ONNX Runtime models instead of PyTorch models, delivering significant performance improvements while maintaining the same easy-to-use API.
-
-## What are ONNX Runtime Pipelines?
-
-ONNX Runtime pipelines are a drop-in replacement for [Transformers pipelines](https://huggingface.co/docs/transformers/en/main_classes/pipelines) that automatically use ONNX/ONNX Runtime as the backend for model inference. 
-This means you get:
-
-- **Faster inference**: ONNX Runtime's optimized execution engine provides significant speedups
-- **Cross-platform support**: Works across different hardware accelerators (CPU, GPU, etc.)
-- **Same API**: Identical interface to transformers pipelines - no code changes needed
-- **Automatic model loading**: Seamlessly loads or exports ONNX models
-
-The pipelines support the same tasks as transformers pipelines, including text classification, token classification, question answering, text generation, and more.
-
-## Usage
-
-Simply import from `optimum.onnxruntime` instead of `transformers`:
-
-```python
-- from transformers import pipeline
-+ from optimum.onnxruntime import pipeline
-
-# This will automatically use ONNX Runtime models
-classifier = pipeline("text-classification", model="distilbert-base-uncased")
-result = classifier("I love using ONNX Runtime!")
-```
-
-For more details on pipeline usage and available tasks, refer to the [Transformers pipelines documentation](https://huggingface.co/docs/transformers/en/main_classes/pipelines).
-
-## ONNX Runtime Pipelines
-
-[[autodoc]] onnxruntime.pipelines.pipeline
+[[autodoc]] optimum.onnxruntime.pipelines.pipeline
