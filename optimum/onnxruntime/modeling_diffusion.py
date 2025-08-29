@@ -78,6 +78,11 @@ if is_diffusers_version(">=", "0.25.0"):
 else:
     from diffusers.models.vae import DiagonalGaussianDistribution  # type: ignore
 
+if is_diffusers_version(">=", "0.35.0"):
+    from diffusers.models.cache_utils import CacheMixin
+else:
+    CacheMixin = object
+
 
 logger = logging.getLogger(__name__)
 
@@ -515,7 +520,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         return self.auto_model_class.__call__(self, *args, **kwargs)
 
 
-class ORTModelMixin(ORTSessionMixin, ConfigMixin):
+class ORTModelMixin(ORTSessionMixin, ConfigMixin, CacheMixin):
     config_name: str = CONFIG_NAME
 
     def __init__(
@@ -546,6 +551,11 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin):
         self.save_session(save_directory)
         # save model configuration
         self.save_config(save_directory)
+
+    def named_modules(self):
+        # starting from diffusers 0.35.0 some model parts inherit from `CacheMixin` which uses `named_modules` method
+        # to register some hooks for attention caching, we return empty list here since it can't be used with ONNX Runtime
+        yield from []
 
 
 class ORTUnet(ORTModelMixin):

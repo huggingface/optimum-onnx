@@ -36,6 +36,7 @@ from optimum.exporters.onnx.config import (
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
+    FluxTransformerModelPatcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
     MusicgenModelPatcher,
@@ -1397,6 +1398,7 @@ class FluxTransformerOnnxConfig(SD3TransformerOnnxConfig):
         DummyFluxTransformerVisionInputGenerator,
         DummyFluxTransformerTextInputGenerator,
     )
+    _MODEL_PATCHER = FluxTransformerModelPatcher
 
     @property
     def inputs(self):
