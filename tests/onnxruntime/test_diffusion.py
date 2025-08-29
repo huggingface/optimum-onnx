@@ -32,6 +32,7 @@ from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
 from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, TemporaryHubRepo
+from transformers.utils.hub import http_user_agent
 
 from optimum.onnxruntime import (
     ORTDiffusionPipeline,
@@ -99,7 +100,11 @@ class ORTDiffusionPipelineTest(TestCase):
 
     @require_diffusers
     def test_load_diffusion_pipeline_from_path(self):
-        path = snapshot_download(repo_id=self.TINY_ONNX_STABLE_DIFFUSION, allow_patterns=["*.onnx", "*.json", "*.txt"])
+        path = snapshot_download(
+            repo_id=self.TINY_ONNX_STABLE_DIFFUSION,
+            allow_patterns=["*.onnx", "*.json", "*.txt"],
+            user_agent=http_user_agent(),
+        )
         pipe = ORTDiffusionPipeline.from_pretrained(path, local_files_only=True)
         self.assert_pipeline_sanity(pipe)
 
@@ -111,7 +116,11 @@ class ORTDiffusionPipelineTest(TestCase):
         with self.assertRaises(Exception):  # noqa: B017
             _ = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
 
-        snapshot_download(repo_id=self.TINY_ONNX_STABLE_DIFFUSION, allow_patterns=["*.onnx", "*.json", "*.txt"])
+        snapshot_download(
+            repo_id=self.TINY_ONNX_STABLE_DIFFUSION,
+            allow_patterns=["*.onnx", "*.json", "*.txt"],
+            user_agent=http_user_agent(),
+        )
         pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, local_files_only=True)
         self.assert_pipeline_sanity(pipe)
 
