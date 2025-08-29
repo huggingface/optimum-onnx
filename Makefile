@@ -54,7 +54,7 @@ doc:
 	@test -n "$(VERSION)" || (echo "VERSION is empty." ; exit 1)
 	doc-builder build optimum docs/source/ \
 	--repo_name optimum-onnx \
-	--build_dir $(BUILD_DIR)/ \
+	--build_dir $(BUILD_DIR) \
 	--version $(VERSION) \
 	--version_tag_suffix "" \
 	--html \
