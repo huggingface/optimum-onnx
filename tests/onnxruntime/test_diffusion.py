@@ -128,6 +128,24 @@ class ORTDiffusionPipelineTest(TestCase):
             ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION, provider="FooExecutionProvider")
 
     @require_diffusers
+    def test_automatic_export(self):
+        # export from torch to onnx without export=True
+        pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION)
+        self.assert_pipeline_sanity(pipe)
+
+    @require_diffusers
+    def test_fp16_export(self):
+        for kwargs in ({"torch_dtype": torch.float16}, {"dtype": "fp16"}):
+            pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_TORCH_STABLE_DIFFUSION, **kwargs)
+            self.assert_pipeline_sanity(pipe)
+            self.assertEqual(pipe.dtype, torch.float16)
+            self.assertEqual(pipe.vae.dtype, torch.float16)
+            self.assertEqual(pipe.unet.dtype, torch.float16)
+            self.assertEqual(pipe.vae_encoder.dtype, torch.float16)
+            self.assertEqual(pipe.vae_decoder.dtype, torch.float16)
+            self.assertEqual(pipe.text_encoder.dtype, torch.float16)
+
+    @require_diffusers
     def test_save_diffusion_pipeline(self):
         with TemporaryDirectory() as tmpdirname:
             pipe = ORTDiffusionPipeline.from_pretrained(self.TINY_ONNX_STABLE_DIFFUSION)

@@ -312,6 +312,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
             provider=provider, providers=providers, provider_options=provider_options
         )
 
+        hf_api = HfApi(user_agent=http_user_agent())
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
             "resume_download": kwargs.get("resume_download"),
@@ -332,11 +333,21 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # automatic export unpon missing files
         if export is None:
             if "unet" in config and config["unet"] is not None:
-                unet_path = model_save_path / DIFFUSION_MODEL_UNET_SUBFOLDER / ONNX_WEIGHTS_NAME
-                export = not unet_path.is_file()
+                relative_file_path = Path(DIFFUSION_MODEL_UNET_SUBFOLDER) / ONNX_WEIGHTS_NAME
             elif "transformer" in config and config["transformer"] is not None:
-                transformer_path = model_save_path / DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER / ONNX_WEIGHTS_NAME
-                export = not transformer_path.is_file()
+                relative_file_path = Path(DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER) / ONNX_WEIGHTS_NAME
+
+            absolute_file_path = model_save_path / relative_file_path
+
+            export = not (
+                absolute_file_path.is_file()
+                or hf_api.file_exists(
+                    repo_id=str(model_name_or_path),
+                    filename=str(absolute_file_path),
+                    revision=hub_kwargs.get("revision"),
+                    token=hub_kwargs.get("token"),
+                )
+            )
 
         # export the model if no ONNX files are found or if asked explicitly
         if export:
@@ -385,7 +396,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                     CONFIG_NAME,
                 }
             )
-            model_save_folder = HfApi(user_agent=http_user_agent()).snapshot_download(
+            model_save_folder = hf_api.snapshot_download(
                 repo_id=str(model_name_or_path),
                 allow_patterns=allow_patterns,
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],
