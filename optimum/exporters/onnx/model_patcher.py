@@ -30,7 +30,6 @@ from torch.onnx.symbolic_opset14 import (
     jit_utils,
     symbolic_helper,
 )
-from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.exporters.onnx._traceable_cache import TraceableCache
@@ -41,6 +40,7 @@ if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
     from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+    from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
         ALL_MASK_ATTENTION_FUNCTIONS,
@@ -1266,14 +1266,16 @@ class MoonshineModelPatcher(Seq2SeqModelPatcher):
     def __enter__(self):
         super().__enter__()
 
-        self.original_feat_extract_output_lengths = MoonshinePreTrainedModel._get_feat_extract_output_lengths
-        MoonshinePreTrainedModel._get_feat_extract_output_lengths = _get_feat_extract_output_lengths_patched
+        if is_transformers_version(">=", "4.48"):
+            self.original_feat_extract_output_lengths = MoonshinePreTrainedModel._get_feat_extract_output_lengths
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = _get_feat_extract_output_lengths_patched
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
 
-        MoonshinePreTrainedModel._get_feat_extract_output_lengths = self.original_feat_extract_output_lengths
-        del self.original_feat_extract_output_lengths
+        if is_transformers_version(">=", "4.48"):
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = self.original_feat_extract_output_lengths
+            del self.original_feat_extract_output_lengths
 
 
 # This is a traceabe of the original function,
