@@ -330,12 +330,17 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         model_save_tmpdir = None
         model_save_path = Path(model_name_or_path)
 
-        # automatic export unpon missing files
+        # automatic export upon missing files
         if export is None:
             if "unet" in config and config["unet"] is not None:
                 relative_file_path = Path(DIFFUSION_MODEL_UNET_SUBFOLDER) / ONNX_WEIGHTS_NAME
             elif "transformer" in config and config["transformer"] is not None:
                 relative_file_path = Path(DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER) / ONNX_WEIGHTS_NAME
+            else:
+                raise ValueError(
+                    "Neither 'unet' nor 'transformer' is present in the pipeline config. "
+                    "Please check your config or set `export=True/False` to bypass automatic export."
+                )
 
             absolute_file_path = model_save_path / relative_file_path
 
@@ -343,7 +348,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 absolute_file_path.is_file()
                 or hf_api.file_exists(
                     repo_id=str(model_name_or_path),
-                    filename=str(absolute_file_path),
+                    filename=str(relative_file_path),
                     revision=hub_kwargs.get("revision"),
                     token=hub_kwargs.get("token"),
                 )

@@ -126,7 +126,7 @@ def ort_infer_framework_load_model(
     else:
         raise TypeError(
             f"""Model {model} is not supported. Please provide a valid model either as string or ORTModel.
-            You can also provide non model then a default one will be used"""
+            You can also provide None as the model to use a default one."""
         )
 
     return "pt", ort_model
