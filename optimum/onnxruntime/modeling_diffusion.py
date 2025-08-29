@@ -348,6 +348,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 "device": get_device_for_provider(provider, {}).type,
                 "no_dynamic_axes": kwargs.pop("no_dynamic_axes", False),
             }
+            if kwargs.get("torch_dtype") is not None:
+                if kwargs["torch_dtype"] == torch.bfloat16:
+                    raise ValueError("ONNX Runtime does not support bfloat16.")
+                elif kwargs["torch_dtype"] == torch.float16:
+                    export_kwargs["dtype"] = "fp16"
+                elif kwargs["torch_dtype"] == torch.float32:
+                    export_kwargs["dtype"] = "fp32"
+                else:
+                    raise ValueError(f"torch_dtype {kwargs['torch_dtype']} not supported.")
+
             main_export(
                 model_name_or_path=model_name_or_path,
                 # export related arguments
@@ -1293,4 +1303,9 @@ for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
         # change ~pipelines.{}.{}Output to diffusers.pipelines.{}.{}Output
         ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
             "~pipelines.", "diffusers.pipelines."
+        )
+
+        # remove , torch_dtype=torch.bfloat16 as not supported by ORT
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            ", torch_dtype=torch.bfloat16", ""
         )
