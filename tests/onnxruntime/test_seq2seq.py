@@ -40,7 +40,7 @@ from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
 from optimum.onnx.utils import has_onnx_input
-from optimum.onnxruntime import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq
+from optimum.onnxruntime import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq, pipeline
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.utils import (
     ONNX_DECODER_MERGED_NAME,
@@ -48,7 +48,6 @@ from optimum.onnxruntime.utils import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
 )
-from optimum.pipelines import pipeline as optimum_pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
@@ -728,9 +727,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         texts = self.get_inputs("t5", for_pipeline=True)
 
         # Text2Text generation
-        pipe = optimum_pipeline(
-            "text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
-        )
+        pipe = pipeline("text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
@@ -742,7 +739,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
@@ -767,7 +764,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         # Text2Text generation
-        pipe = optimum_pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
@@ -778,7 +775,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
@@ -983,7 +980,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         audios = self.get_inputs("whisper", for_pipeline=True)
 
         # Automatic Speech Recognition
-        pipe = optimum_pipeline(
+        pipe = pipeline(
             "automatic-speech-recognition", model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
         )
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
@@ -1004,7 +1001,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "automatic-speech-recognition",
                 model=tmpdir,
                 model_kwargs={"use_cache": use_cache, "use_merged": use_merged},
@@ -1034,7 +1031,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         audios = self.get_inputs(model_arch, for_pipeline=True)
 
         # Automatic Speech Recognition
-        pipe = optimum_pipeline(
+        pipe = pipeline(
             "automatic-speech-recognition", model=onnx_model, tokenizer=tokenizer, feature_extractor=feature_extractor
         )
         set_seed(SEED)
@@ -1054,7 +1051,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "automatic-speech-recognition",
                 model=tmpdir,
                 model_kwargs={"use_cache": use_cache, "use_merged": use_merged},
@@ -1257,7 +1254,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         return
 
         # Image-to-Text generation
-        pipe = optimum_pipeline("image-to-text", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
+        pipe = pipeline("image-to-text", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
@@ -1269,7 +1266,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "image-to-text", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
@@ -1297,7 +1294,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         images = self.get_inputs(model_arch, for_pipeline=True)
 
         # Image-to-Text generation
-        pipe = optimum_pipeline(
+        pipe = pipeline(
             "image-to-text",
             model=onnx_model,
             tokenizer=tokenizer,
@@ -1315,11 +1312,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
 
-            # TODO: should be fixed in optimum
-            # The pipeline for image-to-text generation fails to load the tokenizer
-            return
-
-            pipe = optimum_pipeline(
+            pipe = pipeline(
                 "image-to-text", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
