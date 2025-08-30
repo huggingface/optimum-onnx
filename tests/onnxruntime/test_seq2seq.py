@@ -40,7 +40,14 @@ from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
 from optimum.onnx.utils import has_onnx_input
-from optimum.onnxruntime import ORTModelForSeq2SeqLM, ORTModelForSpeechSeq2Seq, ORTModelForVision2Seq, pipeline
+from optimum.onnxruntime import (
+    ORTModelForSeq2SeqLM,
+    ORTModelForSpeechSeq2Seq,
+    ORTModelForVision2Seq,
+)
+from optimum.onnxruntime import (
+    pipeline as ort_pipeline,
+)
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.onnxruntime.utils import (
     ONNX_DECODER_MERGED_NAME,
@@ -723,11 +730,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     # PIPELINE TESTS
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
-    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+    def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
         texts = self.get_inputs("t5", for_pipeline=True)
 
         # Text2Text generation
-        pipe = pipeline("text2text-generation", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
+        pipe = ort_pipeline(self.TASK, model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
@@ -739,32 +746,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline(
-                "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
             local_outputs = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, local_outputs)
 
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": ["t5"], "use_cache": [True], "use_merged": [False, True]}))
-    def test_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        setup_args = {
-            "test_name": test_name,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-            "model_arch": model_arch,
-        }
-        self._setup(setup_args)
-
-        tokenizer = self.get_tokenizer(model_arch)
+    def test_ort_pipeline_with_model_id(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         texts = self.get_inputs(model_arch, for_pipeline=True)
-        onnx_model = self.get_onnx_model(**setup_args)
-        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
 
         # Text2Text generation
-        pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = ort_pipeline(
+            self.TASK, model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+        )
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
@@ -775,8 +773,44 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline(
-                "text2text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            )
+            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
+            set_seed(SEED)
+            local_outputs = pipe(texts, **self.GEN_KWARGS)
+            self.assertEqual(outputs, local_outputs)
+
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(grid_parameters({"model_arch": ["t5"], "use_cache": [True], "use_merged": [False, True]}))
+    def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        setup_args = {
+            "test_name": test_name,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+            "model_arch": model_arch,
+        }
+        self._setup(setup_args)
+
+        tokenizer = self.get_tokenizer(model_arch)
+        onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
+        texts = self.get_inputs(model_arch, for_pipeline=True)
+
+        # Text2Text generation
+        pipe = ort_pipeline(self.TASK, model=onnx_model, tokenizer=tokenizer)
+        set_seed(SEED)
+        outputs = pipe(texts, **self.GEN_KWARGS)
+        self.assertIsInstance(outputs, list)
+        self.assertIsInstance(outputs[0], dict)
+        self.assertIn("generated_text", outputs[0])
+        self.assertIsInstance(outputs[0]["generated_text"], str)
+        self.assertGreater(len(outputs[0]["generated_text"]), 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pipe.save_pretrained(tmpdir)
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
@@ -787,11 +821,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"use_cache": [True]}))
     def test_inference_old_onnx_model(self, test_name: str, use_cache: bool):
+        inputs = self.get_inputs("t5")
         model = self.AUTOMODEL_CLASS.from_pretrained("t5-small").eval()
         onnx_model = self.ORTMODEL_CLASS.from_pretrained("optimum/t5-small", use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
-        inputs = self.get_inputs("t5")
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
@@ -976,32 +1010,22 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
-    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
-        pytest.skip("Skipping because the default model for ASR in pipelines is wav2vec2, which is a CTC model.")
+    def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+        pytest.skip(
+            "Skipping because the default model for ASR in pipelines is a wav2vec2, which is a ctc model, not a seq2seq model."
+        )
 
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
         grid_parameters({"model_arch": ["whisper"], "use_cache": [True], "use_merged": [False, True]})
     )
-    def test_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        setup_args = {
-            "test_name": test_name,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-            "model_arch": model_arch,
-        }
-        self._setup(setup_args)
-
-        tokenizer = self.get_tokenizer(model_arch)
-        feature_extractor = self.get_feature_extractor(model_arch)
-        onnx_model = self.get_onnx_model(**setup_args)
-        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
+    def test_ort_pipeline_with_model_id(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         audios = self.get_inputs(model_arch, for_pipeline=True)
 
         # Automatic Speech Recognition
-        pipe = pipeline(
-            "automatic-speech-recognition", model=onnx_model, tokenizer=tokenizer, feature_extractor=feature_extractor
+        pipe = ort_pipeline(
+            self.TASK, model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
         )
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(audios, generate_kwargs=self.GEN_KWARGS, return_timestamps=True)
         self.assertIsInstance(outputs, list)
@@ -1019,10 +1043,55 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline(
-                "automatic-speech-recognition",
-                model=tmpdir,
-                model_kwargs={"use_cache": use_cache, "use_merged": use_merged},
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            )
+            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
+            set_seed(SEED)
+            outputs_local_model = pipe(audios, generate_kwargs=self.GEN_KWARGS, return_timestamps=True)
+            self.assertEqual(outputs, outputs_local_model)
+
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(
+        grid_parameters({"model_arch": ["whisper"], "use_cache": [True], "use_merged": [False, True]})
+    )
+    def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        setup_args = {
+            "test_name": test_name,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+            "model_arch": model_arch,
+        }
+        self._setup(setup_args)
+
+        tokenizer = self.get_tokenizer(model_arch)
+        feature_extractor = self.get_feature_extractor(model_arch)
+        audios = self.get_inputs(model_arch, for_pipeline=True)
+
+        onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
+
+        # Automatic Speech Recognition
+        pipe = ort_pipeline(self.TASK, model=onnx_model, tokenizer=tokenizer, feature_extractor=feature_extractor)
+        set_seed(SEED)
+        outputs = pipe(audios, generate_kwargs=self.GEN_KWARGS, return_timestamps=True)
+        self.assertIsInstance(outputs, list)
+        self.assertIsInstance(outputs[0], dict)
+        self.assertIn("text", outputs[0])
+        self.assertIsInstance(outputs[0]["text"], str)
+        self.assertGreater(len(outputs[0]["text"]), 0)
+        self.assertIn("chunks", outputs[0])
+        self.assertIsInstance(outputs[0]["chunks"], list)
+        self.assertGreater(len(outputs[0]["chunks"]), 0)
+
+        if not hasattr(pipe, "image_processor"):
+            # Error in pipelines in transformers 4.36
+            pipe.image_processor = None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pipe.save_pretrained(tmpdir)
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
@@ -1102,7 +1171,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     def get_transformers_model(self, model_arch: str, use_cache: bool = True, **kwargs):
         set_seed(SEED)
-        # vision-encoder-decoders and pix2struct models do not support use_cache=True at instantiation
+        # vision-encoder-decoders and pix2struct models do not support passing use_cache=True to from_pretrained
         model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
         model.decoder.config.use_cache = use_cache
 
@@ -1214,11 +1283,16 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
-    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+    def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+        if is_transformers_version("<", "4.38.0"):
+            pytest.skip(
+                "Skipping because vision-encoder-decoder did not work properly with pipelines in transformers < 4.38.0"
+            )
+
         images = self.get_inputs("vision-encoder-decoder", for_pipeline=True)
 
         # Image-to-Text generation
-        pipe = pipeline("image-to-text", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
+        pipe = ort_pipeline(self.TASK, model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
@@ -1230,41 +1304,30 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline(
-                "image-to-text", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
             local_outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
             self.assertEqual(outputs, local_outputs)
 
-    # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
         grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]})
     )
-    def test_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        setup_args = {
-            "test_name": test_name,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-            "model_arch": model_arch,
-        }
-        self._setup(setup_args)
+    def test_ort_pipeline_with_model_id(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if is_transformers_version("<", "4.38.0"):
+            pytest.skip(
+                "Skipping because vision-encoder-decoder did not work properly with pipelines in transformers < 4.38.0"
+            )
 
-        tokenizer = self.get_tokenizer(model_arch)
-        image_processor = self.get_image_processor(model_arch)
-        onnx_model = self.get_onnx_model(**setup_args)
-        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
         images = self.get_inputs(model_arch, for_pipeline=True)
 
         # Image-to-Text generation
-        pipe = pipeline(
-            "image-to-text",
-            model=onnx_model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
-            feature_extractor=image_processor,
+        pipe = ort_pipeline(
+            self.TASK, model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
         )
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
         set_seed(SEED)
         outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
@@ -1275,9 +1338,53 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+            )
+            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
+            set_seed(SEED)
+            local_outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
+            self.assertEqual(outputs, local_outputs)
 
-            pipe = pipeline(
-                "image-to-text", model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
+    # Generation is slow without pkv, and we do compare with/without pkv in a different test
+    @parameterized.expand(
+        grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]})
+    )
+    def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if is_transformers_version("<", "4.38.0"):
+            pytest.skip(
+                "Skipping because vision-encoder-decoder did not work properly with pipelines in transformers < 4.38.0"
+            )
+
+        setup_args = {
+            "test_name": test_name,
+            "use_cache": use_cache,
+            "use_merged": use_merged,
+            "model_arch": model_arch,
+        }
+        self._setup(setup_args)
+
+        tokenizer = self.get_tokenizer(model_arch)
+        image_processor = self.get_image_processor(model_arch)
+        images = self.get_inputs(model_arch, for_pipeline=True)
+
+        onnx_model = self.get_onnx_model(**setup_args)
+        self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_merged=use_merged)
+
+        # Image-to-Text generation
+        pipe = ort_pipeline(self.TASK, model=onnx_model, tokenizer=tokenizer, image_processor=image_processor)
+        set_seed(SEED)
+        outputs = pipe(images, generate_kwargs=self.GEN_KWARGS)
+        self.assertIsInstance(outputs, list)
+        self.assertIsInstance(outputs[0][0], dict)
+        self.assertIn("generated_text", outputs[0][0])
+        self.assertIsInstance(outputs[0][0]["generated_text"], str)
+        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pipe.save_pretrained(tmpdir)
+            pipe = ort_pipeline(
+                self.TASK, model=tmpdir, model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
             )
             self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
             set_seed(SEED)
