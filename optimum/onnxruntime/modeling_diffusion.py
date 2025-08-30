@@ -54,11 +54,7 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
-from optimum.onnxruntime.utils import (
-    get_device_for_provider,
-    np_to_pt_generators,
-    prepare_providers_and_provider_options,
-)
+from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -89,6 +85,24 @@ logger = logging.getLogger(__name__)
 
 # TODO: support from_pipe()
 class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
+    """Base class for all ONNX Runtime Pipelines.
+
+    [`ORTDiffusionPipeline`] stores all components (models, schedulers, and processors) for diffusion pipelines and
+    provides methods for exporting, loading, downloading and saving models. It also includes methods to:
+
+        - move all ONNX Runtime sessions to the device of your choice
+        - enable/disable the progress bar for the denoising iteration
+        - handle ONNX Runtime io binding if used
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **task** (`str`) -- A string that identifies the pipeline's task.
+        - **library** (`str`) -- The library the pipeline is compatible with.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+    """
+
     config_name = DIFFUSION_PIPELINE_CONFIG_FILE_NAME
 
     task = "auto"
@@ -249,7 +263,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         cls,
         model_name_or_path: str | Path,
         # export options
-        export: bool = False,
+        export: bool | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Sequence[str] | None = None,
@@ -260,15 +274,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # hub options and preloaded models
         **kwargs,
     ):
-        """Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained model.
-        This method can be used to load a model from the Hugging Face Hub or from a local directory.
+        """Instantiates a [`ORTDiffusionPipeline`] with ONNX Runtime sessions from a pretrained pipeline repo or directory.
+        This method can be used to export a diffusion pipeline to ONNX and/or load a pipeline with ONNX Runtime from a repo or a directory.
 
         Args:
             model_name_or_path (`str` or `os.PathLike`):
                 Path to a folder containing the model files or a hub repository id.
-            export (`bool`, *optional*, defaults to `False`):
-                Whether to export the model to ONNX format. If set to `True`, the model will be exported and saved
-                in the specified directory.
+            export (`bool`, *optional*, defaults to `None`):
+                Whether to export the model from Diffusers to ONNX. If left to `None`, the model is exported only if no
+                ONNX files are found in the `model_name_or_path` folder. If set to `True`, the model is always exported. If set to
+                `False`, the model is never exported.
             provider (`str`, *optional*, defaults to `"CPUExecutionProvider"`):
                 The execution provider for ONNX Runtime. Can be `"CUDAExecutionProvider"`, `"DmlExecutionProvider"`,
                 etc.
@@ -297,6 +312,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
             provider=provider, providers=providers, provider_options=provider_options
         )
 
+        hf_api = HfApi(user_agent=http_user_agent())
         hub_kwargs = {
             "force_download": kwargs.get("force_download", False),
             "resume_download": kwargs.get("resume_download"),
@@ -314,7 +330,31 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         model_save_tmpdir = None
         model_save_path = Path(model_name_or_path)
 
-        # export the model if requested
+        # automatic export upon missing files
+        if export is None:
+            if "unet" in config and config["unet"] is not None:
+                relative_file_path = Path(DIFFUSION_MODEL_UNET_SUBFOLDER) / ONNX_WEIGHTS_NAME
+            elif "transformer" in config and config["transformer"] is not None:
+                relative_file_path = Path(DIFFUSION_MODEL_TRANSFORMER_SUBFOLDER) / ONNX_WEIGHTS_NAME
+            else:
+                raise ValueError(
+                    "Neither 'unet' nor 'transformer' is present in the pipeline config. "
+                    "Please check your config or set `export=True/False` to bypass automatic export."
+                )
+
+            absolute_file_path = model_save_path / relative_file_path
+
+            export = not (
+                absolute_file_path.is_file()
+                or hf_api.file_exists(
+                    repo_id=str(model_name_or_path),
+                    filename=str(relative_file_path),
+                    revision=hub_kwargs.get("revision"),
+                    token=hub_kwargs.get("token"),
+                )
+            )
+
+        # export the model if no ONNX files are found or if asked explicitly
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
@@ -324,6 +364,16 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 "device": get_device_for_provider(provider, {}).type,
                 "no_dynamic_axes": kwargs.pop("no_dynamic_axes", False),
             }
+            if kwargs.get("torch_dtype") is not None:
+                if kwargs["torch_dtype"] == torch.bfloat16:
+                    raise ValueError("ONNX Runtime does not support bfloat16.")
+                elif kwargs["torch_dtype"] == torch.float16:
+                    export_kwargs["dtype"] = "fp16"
+                elif kwargs["torch_dtype"] == torch.float32:
+                    export_kwargs["dtype"] = "fp32"
+                else:
+                    raise ValueError(f"torch_dtype {kwargs['torch_dtype']} not supported.")
+
             main_export(
                 model_name_or_path=model_name_or_path,
                 # export related arguments
@@ -351,7 +401,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                     CONFIG_NAME,
                 }
             )
-            model_save_folder = HfApi(user_agent=http_user_agent()).snapshot_download(
+            model_save_folder = hf_api.snapshot_download(
                 repo_id=str(model_name_or_path),
                 allow_patterns=allow_patterns,
                 ignore_patterns=["*.msgpack", "*.safetensors", "*.bin", "*.xml"],
@@ -495,29 +545,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 create_pr=create_pr,
                 commit_message=commit_message,
             )
-
-    def __call__(self, *args, **kwargs):
-        # we do this to keep numpy random states support for now
-
-        args = list(args)
-        for i in range(len(args)):
-            new_args = np_to_pt_generators(args[i], self.device)
-            if args[i] is not new_args:
-                logger.warning(
-                    "Converting numpy random state to torch generator is deprecated. "
-                    "Please pass a torch generator directly to the pipeline."
-                )
-
-        for key, value in kwargs.items():
-            new_value = np_to_pt_generators(value, self.device)
-            if value is not new_value:
-                logger.warning(
-                    "Converting numpy random state to torch generator is deprecated. "
-                    "Please pass a torch generator directly to the pipeline."
-                )
-                kwargs[key] = new_value
-
-        return self.auto_model_class.__call__(self, *args, **kwargs)
 
 
 class ORTModelMixin(ORTSessionMixin, ConfigMixin, CacheMixin):
@@ -865,13 +892,15 @@ class ORTVae(ORTParentMixin):
 
 ORT_PIPELINE_DOCSTRING = r"""
     This Pipeline inherits from [`ORTDiffusionPipeline`] and is used to run inference with the ONNX Runtime.
-    The pipeline can be loaded from a pretrained pipeline using the [`ORTDiffusionPipeline.from_pretrained`] method.
+    The pipeline can be loaded from a pretrained pipeline using the generic [`ORTDiffusionPipeline.from_pretrained`] method.
 """
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion and corresponding to [StableDiffusionPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -880,7 +909,9 @@ class ORTStableDiffusionPipeline(ORTDiffusionPipeline, StableDiffusionPipeline):
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion and corresponding to [StableDiffusionImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusionImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "image"
@@ -889,7 +920,9 @@ class ORTStableDiffusionImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionImg
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInpaintPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion and corresponding to [StableDiffusionInpaintPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusionInpaintPipeline).
+    """
 
     task = "inpainting"
     main_input_name = "prompt"
@@ -898,7 +931,9 @@ class ORTStableDiffusionInpaintPipeline(ORTDiffusionPipeline, StableDiffusionInp
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion XL and corresponding to [StableDiffusionXLPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -913,14 +948,15 @@ class ORTStableDiffusionXLPipeline(ORTDiffusionPipeline, StableDiffusionXLPipeli
         text_encoder_projection_dim=None,
     ):
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
-
         add_time_ids = torch.tensor([add_time_ids], dtype=dtype)
         return add_time_ids
 
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionXLImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion XL and corresponding to [StableDiffusionXLImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "prompt"
@@ -956,7 +992,9 @@ class ORTStableDiffusionXLImg2ImgPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionXLInpaintPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusionXLInpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion XL and corresponding to [StableDiffusionXLInpaintPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl#diffusers.StableDiffusionXLInpaintPipeline).
+    """
 
     main_input_name = "image"
     task = "inpainting"
@@ -992,7 +1030,9 @@ class ORTStableDiffusionXLInpaintPipeline(ORTDiffusionPipeline, StableDiffusionX
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyModelPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency#diffusers.LatentConsistencyModelPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-to-image generation using a Latent Consistency Model and corresponding to [LatentConsistencyModelPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelPipeline).
+    """
 
     task = "text-to-image"
     main_input_name = "prompt"
@@ -1001,7 +1041,9 @@ class ORTLatentConsistencyModelPipeline(ORTDiffusionPipeline, LatentConsistencyM
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsistencyModelImg2ImgPipeline):
-    """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.LatentConsistencyModelImg2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/latent_consistency_img2img#diffusers.LatentConsistencyModelImg2ImgPipeline)."""
+    """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using a Latent Consistency Model and corresponding to [LatentConsistencyModelImg2ImgPipeline]
+    (https://huggingface.co/docs/diffusers/api/pipelines/latent_consistency_models#diffusers.LatentConsistencyModelImg2ImgPipeline).
+    """
 
     task = "image-to-image"
     main_input_name = "image"
@@ -1023,7 +1065,7 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Pipeline(ORTDiffusionPipeline, StableDiffusion3Pipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusion3Pipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Stable Diffusion 3 and corresponding to [StableDiffusion3Pipeline](https://huggingface.co/docs/diffusers/en/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Pipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
@@ -1031,12 +1073,11 @@ if is_diffusers_version(">=", "0.29.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3Img2ImgPipeline(ORTDiffusionPipeline, StableDiffusion3Img2ImgPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/img2img#diffusers.StableDiffusion3Img2ImgPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image-to-image generation using Stable Diffusion 3 and corresponding to [StableDiffusion3Img2ImgPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3Img2ImgPipeline)."""
 
         task = "image-to-image"
         main_input_name = "image"
         auto_model_class = StableDiffusion3Img2ImgPipeline
-
 else:
 
     class ORTStableDiffusion3Pipeline(ORTUnavailablePipeline):
@@ -1051,7 +1092,7 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTStableDiffusion3InpaintPipeline(ORTDiffusionPipeline, StableDiffusion3InpaintPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/inpaint#diffusers.StableDiffusion3InpaintPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-guided image inpainting using Stable Diffusion 3 and corresponding to [StableDiffusion3InpaintPipeline](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_3#diffusers.StableDiffusion3InpaintPipeline)."""
 
         task = "inpainting"
         main_input_name = "prompt"
@@ -1059,12 +1100,11 @@ if is_diffusers_version(">=", "0.30.0"):
 
     @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
     class ORTFluxPipeline(ORTDiffusionPipeline, FluxPipeline):
-        """ONNX Runtime-powered stable diffusion pipeline corresponding to [diffusers.FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux/text2img#diffusers.FluxPipeline)."""
+        """ONNX Runtime-powered Pipeline for text-to-image generation using Flux and corresponding to [FluxPipeline](https://huggingface.co/docs/diffusers/api/pipelines/flux#diffusers.FluxPipeline)."""
 
         task = "text-to-image"
         main_input_name = "prompt"
         auto_model_class = FluxPipeline
-
 else:
 
     class ORTStableDiffusion3InpaintPipeline(ORTUnavailablePipeline):
@@ -1176,20 +1216,112 @@ class ORTPipelineForTask(ConfigMixin):
         class_name = config["_class_name"]
 
         ort_pipeline_class = _get_task_ort_class(cls.ort_pipelines_mapping, class_name)
-
         return ort_pipeline_class.from_pretrained(pretrained_model_or_path, **kwargs)
 
 
 class ORTPipelineForText2Image(ORTPipelineForTask):
+    """[`ORTPipelineForText2Image`] is a generic pipeline class that instantiates a text-to-image pipeline class.
+    The specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForText2Image.from_pretrained`] or [`~ORTPipelineForText2Image.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+        diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+        corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForText2Image
     ort_pipelines_mapping = ORT_TEXT2IMAGE_PIPELINES_MAPPING
 
 
 class ORTPipelineForImage2Image(ORTPipelineForTask):
+    """[`ORTPipelineForImage2Image`] is a generic pipeline class that instantiates an image-to-image pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForImage2Image.from_pretrained`] or [`~ORTPipelineForImage2Image.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForImage2Image
     ort_pipelines_mapping = ORT_IMAGE2IMAGE_PIPELINES_MAPPING
 
 
 class ORTPipelineForInpainting(ORTPipelineForTask):
+    """[`ORTPipelineForInpainting`] is a generic pipeline class that instantiates an inpainting pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForInpainting.from_pretrained`] or [`~ORTPipelineForInpainting.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
+
+
+GENERIC_ORT_PIPELINES = [
+    ORTDiffusionPipeline,
+    ORTPipelineForText2Image,
+    ORTPipelineForImage2Image,
+    ORTPipelineForInpainting,
+]
+
+# Documentation updates
+for ort_pipeline_class in SUPPORTED_ORT_PIPELINES:
+    if callable(ort_pipeline_class) and ort_pipeline_class.__call__.__doc__ is not None:
+        # change from diffusers import {}Pipeline to from optimum.onnxruntime import ORT{}Pipeline
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            f"from diffusers import {ort_pipeline_class.auto_model_class.__name__}",
+            f"from optimum.onnxruntime import {ort_pipeline_class.__name__}",
+        )
+        for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
+            ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                f"from diffusers import {generic_ort_pipeline_class.auto_model_class.__name__}",
+                f"from optimum.onnxruntime import {generic_ort_pipeline_class.__name__}",
+            )
+
+        # change {}.from_pretrained to ORT{}.from_pretrained
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            f"{ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
+            f"{ort_pipeline_class.__name__}.from_pretrained",
+        )
+        for generic_ort_pipeline_class in GENERIC_ORT_PIPELINES:
+            ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+                f"{generic_ort_pipeline_class.auto_model_class.__name__}.from_pretrained",
+                f"{generic_ort_pipeline_class.__name__}.from_pretrained",
+            )
+
+        # change ~pipelines.{}.{}Output to diffusers.pipelines.{}.{}Output
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            "~pipelines.", "diffusers.pipelines."
+        )
+
+        # remove , torch_dtype=torch.bfloat16 as not supported by ORT
+        ort_pipeline_class.__call__.__doc__ = ort_pipeline_class.__call__.__doc__.replace(
+            ", torch_dtype=torch.bfloat16", ""
+        )

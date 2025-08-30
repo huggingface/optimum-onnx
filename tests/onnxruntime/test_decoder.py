@@ -52,8 +52,8 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
+    pipeline,
 )
-from optimum.pipelines import pipeline as optimum_pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
@@ -593,7 +593,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
         texts = self.get_inputs("llama", for_pipeline=True)
-        pipe = optimum_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
+        pipe = pipeline("text-generation", model_kwargs={"use_cache": use_cache})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
 
         set_seed(SEED)
@@ -606,7 +606,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
@@ -621,7 +621,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
-        pipe = optimum_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
@@ -632,7 +632,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             local_pipe_outputs = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, local_pipe_outputs)
@@ -640,9 +640,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}, add_test_name=False))
     def test_pipeline_with_hub_model_id(self, model_arch: str, use_cache: bool):
         texts = self.get_inputs(model_arch, for_pipeline=True)
-        pipe = optimum_pipeline(
-            "text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache}
-        )
+        pipe = pipeline("text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache})
 
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
@@ -654,7 +652,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = optimum_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
