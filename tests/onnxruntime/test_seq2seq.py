@@ -977,39 +977,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
-        audios = self.get_inputs("whisper", for_pipeline=True)
-
-        # Automatic Speech Recognition
-        pipe = pipeline(
-            "automatic-speech-recognition", model_kwargs={"use_cache": use_cache, "use_merged": use_merged}
-        )
-        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
-        set_seed(SEED)
-        outputs = pipe(audios, generate_kwargs=self.GEN_KWARGS, return_timestamps=True)
-        self.assertIsInstance(outputs, list)
-        self.assertIsInstance(outputs[0], dict)
-        self.assertIn("text", outputs[0])
-        self.assertIsInstance(outputs[0]["text"], str)
-        self.assertGreater(len(outputs[0]["text"]), 0)
-        self.assertIn("chunks", outputs[0])
-        self.assertIsInstance(outputs[0]["chunks"], list)
-        self.assertGreater(len(outputs[0]["chunks"]), 0)
-
-        if not hasattr(pipe, "image_processor"):
-            # Error in pipelines in transformers 4.36
-            pipe.image_processor = None
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            pipe.save_pretrained(tmpdir)
-            pipe = pipeline(
-                "automatic-speech-recognition",
-                model=tmpdir,
-                model_kwargs={"use_cache": use_cache, "use_merged": use_merged},
-            )
-            self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=use_merged)
-            set_seed(SEED)
-            local_outputs = pipe(audios, generate_kwargs=self.GEN_KWARGS, return_timestamps=True)
-            self.assertEqual(outputs, local_outputs)
+        pytest.skip("Skipping because the default model for ASR in pipelines is wav2vec2, which is a CTC model.")
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
@@ -1248,10 +1216,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
     def test_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
         images = self.get_inputs("vision-encoder-decoder", for_pipeline=True)
-
-        # TODO: should be fixed in optimum
-        # The pipeline for image-to-text generation fails to load the tokenizer
-        return
 
         # Image-to-Text generation
         pipe = pipeline("image-to-text", model_kwargs={"use_cache": use_cache, "use_merged": use_merged})
