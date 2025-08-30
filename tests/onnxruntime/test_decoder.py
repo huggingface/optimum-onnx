@@ -52,7 +52,9 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
-    pipeline,
+)
+from optimum.onnxruntime import (
+    pipeline as ort_pipeline,
 )
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
@@ -306,11 +308,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model = self.ORTMODEL_CLASS.from_pretrained("hf-internal-testing/tiny-random-gpt2")
         self.check_onnx_model_attributes(model, use_cache=True)
 
-    @parameterized.expand(
-        grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}, add_test_name=False)
-    )
+    @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_model_with_external_data(self, use_cache: bool, use_merged: bool):
+    def test_save_load_model_with_external_data(self, test_name: str, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
             # export=True because there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
@@ -591,10 +591,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
-    def test_pipeline_with_default_model(self, test_name: str, use_cache: bool):
-        texts = self.get_inputs("llama", for_pipeline=True)
-        pipe = pipeline("text-generation", model_kwargs={"use_cache": use_cache})
-        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
+    def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool):
+        texts = self.get_inputs("gpt2", for_pipeline=True)
+        pipe = ort_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=True)
+        # default model is gpt2 which has an exported merged onnx model on the same hub repo
 
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
@@ -606,13 +607,33 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = ort_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
-    def test_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool):
+    def test_ort_pipeline_with_hub_model_id(self, test_name: str, model_arch: str, use_cache: bool):
+        texts = self.get_inputs(model_arch, for_pipeline=True)
+        pipe = ort_pipeline("text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache})
+
+        set_seed(SEED)
+        outputs = pipe(texts, **self.GEN_KWARGS)
+        self.assertIsInstance(outputs, list)
+        self.assertIsInstance(outputs[0][0], dict)
+        self.assertIn("generated_text", outputs[0][0])
+        self.assertIsInstance(outputs[0][0]["generated_text"], str)
+        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pipe.save_pretrained(tmpdir)
+            pipe = ort_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            set_seed(SEED)
+            outputs_local_model = pipe(texts, **self.GEN_KWARGS)
+            self.assertEqual(outputs, outputs_local_model)
+
+    @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
+    def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool):
         model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
         self._setup(model_args)
 
@@ -621,7 +642,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
-        pipe = pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
+        pipe = ort_pipeline("text-generation", model=onnx_model, tokenizer=tokenizer)
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
         self.assertIsInstance(outputs, list)
@@ -632,30 +653,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = ort_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
             set_seed(SEED)
             local_pipe_outputs = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, local_pipe_outputs)
-
-    @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}, add_test_name=False))
-    def test_pipeline_with_hub_model_id(self, model_arch: str, use_cache: bool):
-        texts = self.get_inputs(model_arch, for_pipeline=True)
-        pipe = pipeline("text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache})
-
-        set_seed(SEED)
-        outputs = pipe(texts, **self.GEN_KWARGS)
-        self.assertIsInstance(outputs, list)
-        self.assertIsInstance(outputs[0][0], dict)
-        self.assertIn("generated_text", outputs[0][0])
-        self.assertIsInstance(outputs[0][0]["generated_text"], str)
-        self.assertGreater(len(outputs[0][0]["generated_text"]), 0)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            pipe.save_pretrained(tmpdir)
-            pipe = pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
-            set_seed(SEED)
-            outputs_local_model = pipe(texts, **self.GEN_KWARGS)
-            self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand([(False,), (True,)])
     def test_inference_with_old_onnx_model(self, use_cache):
