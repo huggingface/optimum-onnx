@@ -1259,7 +1259,7 @@ def _get_feat_extract_output_lengths_patched(self, input_lengths: torch.LongTens
     output_conv1_length = (input_lengths - 127) // 64 + 1
     output_conv2_length = (output_conv1_length - 7) // 3 + 1
     output_conv3_length = (output_conv2_length - 3) // 2 + 1
-    return output_conv3_length.to(torch.int64)
+    return output_conv3_length
 
 
 class MoonshineModelPatcher(Seq2SeqModelPatcher):

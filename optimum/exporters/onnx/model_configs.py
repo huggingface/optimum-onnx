@@ -1826,10 +1826,17 @@ class MoonshineOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
-            output_conv1_length = "( encoder_sequence_length - 127 ) // 64 + 1"
-            output_conv2_length = f"( {output_conv1_length} - 7 ) // 3 + 1"
-            output_conv3_length = f"( {output_conv2_length} - 3 ) // 2 + 1"
-            common_outputs["last_hidden_state"] = {0: "batch_size", 1: output_conv3_length}
+            if self._behavior is ConfigBehavior.MONOLITH:
+                output_name = "encoder_last_hidden_state"
+            else:
+                output_name = "last_hidden_state"
+            # Moonshine encoder output formula adapted from:
+            # transformers.models.moonshine.modeling_moonshine.MoonshinePreTrainedModel._get_feat_extract_output_lengths
+            # output_conv1_length = int((input_lengths - 127) / 64 + 1)
+            # output_conv2_length = int((output_conv1_length - 7) / 3 + 1)
+            # output_conv3_length = int((output_conv2_length - 3) / 2 + 1)
+            output_sequence_length = "( ( ( encoder_sequence_length - 127 ) // 64 + 1 - 7 ) // 3 + 1 - 3 ) // 2 + 1"
+            common_outputs[output_name] = {0: "batch_size", 1: output_sequence_length}
         return common_outputs
 
 
@@ -1880,7 +1887,11 @@ class WhisperOnnxConfig(AudioToTextOnnxConfig):
 
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
-            common_outputs["last_hidden_state"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+            if self._behavior is ConfigBehavior.MONOLITH:
+                output_name = "encoder_last_hidden_state"
+            else:
+                output_name = "last_hidden_state"
+            common_outputs[output_name] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
         return common_outputs
 
 
@@ -2259,11 +2270,17 @@ class Speech2TextOnnxConfig(AudioToTextOnnxConfig):
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
+            if self._behavior is ConfigBehavior.MONOLITH:
+                output_name = "encoder_last_hidden_state"
+            else:
+                output_name = "last_hidden_state"
+            # Speech2Text encoder output formula adapted from:
+            # Speech2TextPreTrainedModel._get_feat_extract_output_lengths
+            # for i in range(self.config.num_conv_layers):
+            #     input_lengths = (input_lengths - 1) // 2 + 1
             downsample_factor = 2 * self._config.num_conv_layers
-            common_outputs["last_hidden_state"] = {
-                0: "batch_size",
-                1: f"( encoder_sequence_length + {downsample_factor} - 1 ) // {downsample_factor}",
-            }
+            output_sequence_length = f"( encoder_sequence_length + {downsample_factor} - 1 ) // {downsample_factor}"
+            common_outputs[output_name] = {0: "batch_size", 1: output_sequence_length}
         return common_outputs
 
 
@@ -2400,7 +2417,7 @@ class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
     DECODER_NUM_LAYERS = "text_config.num_layers"
     ENCODER_NUM_ATTENTION_HEADS = "vision_config.num_attention_heads"
     DECODER_NUM_ATTENTION_HEADS = "text_config.num_heads"
-    HIDDEN_SIZE = "text_config.hidden_size"  # TODO: Isn't this bug prone?
+    HIDDEN_SIZE = "text_config.hidden_size"
     VOCAB_SIZE = "text_config.vocab_size"
 
 
@@ -2448,7 +2465,12 @@ class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def outputs(self) -> dict[str, dict[int, str]]:
         common_outputs = super().outputs
         if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
-            common_outputs["last_hidden_state"] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+            if self._behavior is ConfigBehavior.MONOLITH:
+                output_name = "encoder_last_hidden_state"
+            else:
+                output_name = "last_hidden_state"
+            common_outputs[output_name] = {0: "batch_size"}  # Remove unnecessary dynamic axis.
+
         return common_outputs
 
     def _create_dummy_input_generator_classes(self, **kwargs) -> list[DummyInputGenerator]:
