@@ -45,6 +45,7 @@ from optimum.exporters.onnx.model_configs import (
     Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
     SmolLM3OnnxConfig,
+    StableLMOnnxConfig,
 )
 from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.exporters.tasks import TasksManager
@@ -121,6 +122,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("internlm2")
     if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("smollm3")
+    if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("stablelm")
 
     # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012

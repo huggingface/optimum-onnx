@@ -223,6 +223,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "qwen3_moe",
             "granite",
             "smollm3",
+            "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
 

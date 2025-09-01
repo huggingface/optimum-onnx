@@ -127,6 +127,7 @@ MODEL_NAMES = {
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "optimum-internal-testing/tiny-random-stable-diffusion-3",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",
+    "stablelm": "hf-internal-testing/tiny-random-StableLmForCausalLM",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swinv2": "hf-internal-testing/tiny-random-Swinv2Model",
     "swin-window": "yujiepan/tiny-random-swin-patch4-window7-224",

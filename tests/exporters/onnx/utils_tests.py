@@ -176,6 +176,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "siglip_vision_model": "hf-internal-testing/tiny-random-SiglipVisionModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "stablelm": "hf-internal-testing/tiny-random-StableLmForCausalLM",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swinv2": "hf-internal-testing/tiny-random-Swinv2Model",
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",

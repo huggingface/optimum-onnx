@@ -441,11 +441,6 @@ class ArceeOnnxConfig(LlamaOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
-@register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
-class HeliumOnnxConfig(LlamaOnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
-
-
 @register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
 class CohereOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
@@ -453,9 +448,19 @@ class CohereOnnxConfig(LlamaOnnxConfig):
     _MODEL_PATCHER = CohereModelPatcher
 
 
+@register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
+class HeliumOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
+
+
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class SmolLM3OnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+@register_tasks_manager_onnx("stablelm", *COMMON_TEXT_GENERATION_TASKS)
+class StableLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
