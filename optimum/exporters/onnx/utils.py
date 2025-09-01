@@ -79,6 +79,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt_neo",
     "gpt_neox",
     "gptj",
+    "helium",
     "imagegpt",
     "internlm2",
     "llama",

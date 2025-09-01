@@ -110,6 +110,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",

@@ -215,6 +215,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "arcee",
             "cohere",
             "gemma",
+            "helium",
             "mistral",
             "llama",
             "qwen2",

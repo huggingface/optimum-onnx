@@ -75,6 +75,7 @@ MODEL_NAMES = {
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "hubert": "hf-internal-testing/tiny-random-HubertModel",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",

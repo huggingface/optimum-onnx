@@ -440,6 +440,9 @@ class ArceeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
+@register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
+class HeliumOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
 
 @register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
 class CohereOnnxConfig(LlamaOnnxConfig):
