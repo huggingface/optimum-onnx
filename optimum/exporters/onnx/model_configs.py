@@ -448,6 +448,7 @@ class DeepSeekV3OnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DeepSeekV3DummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = DeepSeekV3DummyPastKeyValuesGenerator
 
+
 @register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
 class CohereOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")

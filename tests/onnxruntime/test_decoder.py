@@ -30,8 +30,8 @@ from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
     ArceeOnnxConfig,
     BloomOnnxConfig,
-    DeepSeekV3OnnxConfig,
     CohereOnnxConfig,
+    DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
