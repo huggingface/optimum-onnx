@@ -37,6 +37,7 @@ from optimum.exporters.onnx.config import (
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
+    CohereModelPatcher,
     FluxTransformerModelPatcher,
     MgpstrModelPatcher,
     MusicgenModelPatcher,
@@ -447,10 +448,26 @@ class DeepSeekV3OnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DeepSeekV3DummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = DeepSeekV3DummyPastKeyValuesGenerator
 
+@register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
+class CohereOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    _MODEL_PATCHER = CohereModelPatcher
+
+
+@register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
+class HeliumOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
+
 
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class SmolLM3OnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+@register_tasks_manager_onnx("stablelm", *COMMON_TEXT_GENERATION_TASKS)
+class StableLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)

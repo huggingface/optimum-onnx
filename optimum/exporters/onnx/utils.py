@@ -72,6 +72,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "arcee",
     "codegen",
     "deepseek_v3",
+    "cohere",
     "falcon",
     "gemma",
     "gpt2",
@@ -79,6 +80,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt_neo",
     "gpt_neox",
     "gptj",
+    "helium",
     "imagegpt",
     "internlm2",
     "llama",
@@ -90,6 +92,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "qwen3_moe",
     "granite",
     "smollm3",
+    "stablelm",
     "olmo2",
     "olmo",
 }

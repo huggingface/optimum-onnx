@@ -218,7 +218,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if self.config.model_type in {
             "arcee",
             "deepseek_v3",
+            "cohere",
             "gemma",
+            "helium",
             "mistral",
             "llama",
             "qwen2",
@@ -226,6 +228,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "qwen3_moe",
             "granite",
             "smollm3",
+            "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
 
