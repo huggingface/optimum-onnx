@@ -54,6 +54,7 @@ from optimum.utils import (
     ASTDummyAudioInputGenerator,
     BartDummyTextInputGenerator,
     BloomDummyPastKeyValuesGenerator,
+    DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
@@ -438,6 +439,13 @@ class LlamaOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
 class ArceeOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
+
+
+@register_tasks_manager_onnx("deepseek_v3", *COMMON_TEXT_GENERATION_TASKS)
+class DeepSeekV3OnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DeepSeekV3DummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = DeepSeekV3DummyPastKeyValuesGenerator
 
 
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])

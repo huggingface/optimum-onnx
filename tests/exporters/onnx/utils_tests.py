@@ -75,6 +75,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "decision_transformer": "edbeeching/decision-transformer-gym-hopper-medium",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "deepseek_v3": "hf-internal-testing/tiny-random-DeepseekV3ForCausalLM",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",

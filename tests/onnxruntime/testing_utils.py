@@ -49,6 +49,7 @@ MODEL_NAMES = {
     "data2vec-audio": "hf-internal-testing/tiny-random-Data2VecAudioModel",
     "deberta": "hf-internal-testing/tiny-random-DebertaModel",
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
+    "deepseek_v3": "hf-internal-testing/tiny-random-DeepseekV3ForCausalLM",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",

@@ -71,6 +71,7 @@ if TYPE_CHECKING:
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "arcee",
     "codegen",
+    "deepseek_v3",
     "falcon",
     "gemma",
     "gpt2",
