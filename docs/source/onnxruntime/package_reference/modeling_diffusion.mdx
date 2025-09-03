@@ -1,0 +1,103 @@
+<!--Copyright 2025 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# ONNX Runtime Diffusion Pipelines
+
+## Generic ORT Diffusion Pipeline classes
+
+The following classes are available for instantiating a diffusion pipeline class without needing to specify the task or architecture.
+
+### ORTDiffusionPipeline
+
+[[autodoc]] onnxruntime.ORTDiffusionPipeline
+    - from_pretrained
+
+### ORTPipelineForText2Image
+
+[[autodoc]] onnxruntime.ORTPipelineForText2Image
+
+### ORTPipelineForImage2Image
+
+[[autodoc]] onnxruntime.ORTPipelineForImage2Image
+
+### ORTPipelineForInpainting
+
+[[autodoc]] onnxruntime.ORTPipelineForInpainting
+
+## Supported ORT Diffusion Pipeline classes
+
+The following classes are available for instantiating a diffusion pipeline class for a specific task and architecture.
+
+### ORTStableDiffusionPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionPipeline
+    - __call__
+
+### ORTStableDiffusionImg2ImgPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionImg2ImgPipeline
+    - __call__
+
+### ORTStableDiffusionInpaintPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionInpaintPipeline
+    - __call__
+
+### ORTStableDiffusionXLPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionXLPipeline
+    - __call__
+
+### ORTStableDiffusionXLImg2ImgPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionXLImg2ImgPipeline
+    - __call__
+
+### ORTStableDiffusionXLInpaintPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionXLInpaintPipeline
+    - __call__
+
+### ORTStableDiffusionXLImg2ImgPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusionXLImg2ImgPipeline
+    - __call__
+
+### ORTLatentConsistencyModelPipeline
+
+[[autodoc]] onnxruntime.ORTLatentConsistencyModelPipeline
+    - __call__
+
+### ORTLatentConsistencyModelImg2ImgPipeline
+
+[[autodoc]] onnxruntime.ORTLatentConsistencyModelImg2ImgPipeline
+    - __call__
+
+### ORTStableDiffusion3Pipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusion3Pipeline
+    - __call__
+
+### ORTStableDiffusion3Img2ImgPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusion3Img2ImgPipeline
+    - __call__
+
+### ORTStableDiffusion3InpaintPipeline
+
+[[autodoc]] onnxruntime.ORTStableDiffusion3InpaintPipeline
+    - __call__
+
+### ORTFluxPipeline
+
+[[autodoc]] onnxruntime.ORTFluxPipeline
+    - __call__

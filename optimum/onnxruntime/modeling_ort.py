@@ -57,6 +57,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.models.auto.modeling_auto import MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES
 from transformers.utils import cached_file, is_offline_mode
 from typing_extensions import Self
 
@@ -1377,6 +1378,15 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
     auto_model_class = AutoModelForSemanticSegmentation
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Following a breaking change in transformers that relies directly on the mapping name and not on the
+        # greedy model mapping (that can be extended), we need to hardcode the ortmodel in this dictionary.
+        # Other pipelines do not seem to have controlflow depending on the mapping name.
+        # See: https://github.com/huggingface/transformers/pull/24960/files
+        MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES["ort_semantic_segmentation"] = self.__class__.__name__
+
     @add_start_docstrings_to_model_forward(
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + SEMANTIC_SEGMENTATION_EXAMPLE.format(
@@ -1414,6 +1424,10 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 self._io_binding.synchronize_outputs()
 
             logits = output_buffers["logits"].view(output_shapes["logits"])
+
+            pred_masks = None
+            if "pred_masks" in output_buffers:
+                pred_masks = output_buffers["pred_masks"].view(output_shapes["pred_masks"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.model.run(None, onnx_inputs)
@@ -1421,10 +1435,18 @@ class ORTModelForSemanticSegmentation(ORTModel):
 
             logits = model_outputs["logits"]
 
+            pred_masks = None
+            if "pred_masks" in model_outputs:
+                pred_masks = model_outputs["pred_masks"]
+
         if not return_dict:
+            if pred_masks is not None:
+                return (logits, pred_masks)
             return (logits,)
 
         # converts output to namedtuple for pipelines post-processing
+        if pred_masks is not None:
+            return ModelOutput(logits=logits, pred_masks=pred_masks)
         return SemanticSegmenterOutput(logits=logits)
 
 

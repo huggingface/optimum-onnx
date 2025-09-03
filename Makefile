@@ -44,3 +44,19 @@ build_dist:
 
 pypi_upload: build_dist
 	python -m twine upload dist/*
+
+# The documentation will be built first in $(BUILD_DIR)/optimum and then moved to
+# $(BUILD_DIR)/optimum-onnx because optimum-onnx extends optimum with both optimum.onnx 
+# and optimum.onnxruntime building directly in $(BUILD_DIR)/optimum-onnx would lead to 
+# issues with relative links in the documentation.
+doc:
+	@test -n "$(BUILD_DIR)" || (echo "BUILD_DIR is empty." ; exit 1)
+	@test -n "$(VERSION)" || (echo "VERSION is empty." ; exit 1)
+	doc-builder build optimum docs/source/ \
+	--repo_name optimum-onnx \
+	--build_dir $(BUILD_DIR) \
+	--version $(VERSION) \
+	--version_tag_suffix "" \
+	--html \
+	--clean
+	mv $(BUILD_DIR)/optimum $(BUILD_DIR)/optimum-onnx

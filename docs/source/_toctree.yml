@@ -33,6 +33,10 @@
     - sections:
       - local: onnxruntime/package_reference/modeling_ort
         title: ONNX Runtime Models
+      - local: onnxruntime/package_reference/pipelines
+        title: ONNX Runtime Pipelines
+      - local: onnxruntime/package_reference/modeling_diffusion
+        title: ONNX Runtime Diffusion Pipelines
       - local: onnxruntime/package_reference/configuration
         title: Configuration
       - local: onnxruntime/package_reference/optimization
