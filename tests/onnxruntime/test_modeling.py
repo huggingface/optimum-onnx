@@ -89,10 +89,10 @@ from optimum.onnxruntime import (
     ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
     ORTModelForVision2Seq,
+    pipeline,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.pipelines import pipeline
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
@@ -1337,6 +1337,20 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
         gc.collect()
 
+    def test_load_sentence_transformers_model_as_fill_mask(self):
+        model_id = "sparse-encoder-testing/splade-bert-tiny-nq"
+        onnx_model = ORTModelForMaskedLM.from_pretrained(model_id)
+        tokenizer = get_preprocessor(model_id)
+        pipe = pipeline("fill-mask", model=onnx_model, tokenizer=tokenizer)
+        text = f"The capital of France is {tokenizer.mask_token}."
+        outputs = pipe(text)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertIsInstance(outputs[0]["token_str"], str)
+
+        gc.collect()
+
 
 class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
@@ -1930,9 +1944,11 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
     ORTMODEL_CLASS = ORTModelForFeatureExtraction
     TASK = "feature-extraction"
 
-    def get_raw_image(self, model_arch):
-        image_url = "https://picsum.photos/id/237/200/300"
-        return Image.open(requests.get(image_url, stream=True).raw)
+    def get_raw_image(self):
+        # Create a simple 200x300 RGB image with random colors
+        np.random.seed(42)  # For reproducibility
+        image_array = np.random.randint(0, 256, (300, 200, 3), dtype=np.uint8)
+        return Image.fromarray(image_array)
 
     def get_input(self, model_arch, return_tensors="pt"):
         model_id = MODEL_NAMES[model_arch]
@@ -1963,7 +1979,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
             )
             return tokens
 
-        raw_input = self.get_raw_image(model_arch)
+        raw_input = self.get_raw_image()
         return processor(images=raw_input, return_tensors=return_tensors)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)

@@ -57,6 +57,7 @@ _import_structure = {
     ],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
+    "pipelines": ["pipeline"],
     "quantization": ["ORTQuantizer"],
     "utils": [
         "ONNX_DECODER_NAME",
@@ -72,7 +73,7 @@ try:
     if not is_diffusers_available():
         raise OptionalDependencyNotAvailable()  # noqa: TRY301
 except OptionalDependencyNotAvailable:
-    _import_structure[".utils.dummy_diffusers_objects"] = [
+    _import_structure["dummy_objects"] = [
         "ORTDiffusionPipeline",
         "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
@@ -149,6 +150,7 @@ if TYPE_CHECKING:
         ORTModelForVision2Seq,
     )
     from .optimization import ORTOptimizer
+    from .pipelines import pipeline
     from .quantization import ORTQuantizer
     from .utils import (
         ONNX_DECODER_MERGED_NAME,
@@ -163,7 +165,7 @@ if TYPE_CHECKING:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
-        from optimum.utils.dummy_diffusers_objects import (
+        from .dummy_objects import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux

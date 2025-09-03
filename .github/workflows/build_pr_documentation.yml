@@ -9,6 +9,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  UV_SYSTEM_PYTHON: 1
+  UV_TORCH_BACKEND: auto
+
 jobs:
   build_documentation:
     runs-on: ubuntu-22.04
@@ -19,37 +23,29 @@ jobs:
       PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
           cache-dependency-path: "kit/package-lock.json"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Setup environment
         run: |
-          pip install --upgrade pip
-          pip install git+https://github.com/huggingface/doc-builder
-          pip install .[quality,onnxruntime] accelerate
+          pip install --upgrade pip uv
+          uv pip install .[onnxruntime] accelerate diffusers timm
+          uv pip install git+https://github.com/huggingface/doc-builder
 
       - name: Make documentation
         shell: bash
         run: |
-          doc-builder build optimum docs/source/ \
-            --repo_name optimum-onnx \
-            --build_dir onnx-doc-build/ \
-            --version pr_${{ env.PR_NUMBER }} \
-            --version_tag_suffix "" \
-            --html \
-            --clean
-          cd onnx-doc-build
-          mv optimum optimum-onnx
-          echo ${{ env.COMMIT_SHA }} > ./commit_sha
-          echo ${{ env.PR_NUMBER }} > ./pr_number
+          make doc BUILD_DIR=onnx-doc-build VERSION=pr_${{ env.PR_NUMBER }}
+          echo ${{ env.COMMIT_SHA }} > onnx-doc-build/commit_sha
+          echo ${{ env.PR_NUMBER }} > onnx-doc-build/pr_number
 
       - uses: actions/upload-artifact@v4
         with:

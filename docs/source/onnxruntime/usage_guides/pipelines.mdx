@@ -1,56 +1,79 @@
 # Inference pipelines with the ONNX Runtime accelerator
 
-The [`~pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models)
+The [`~optimum.onnxruntime.pipelines.pipeline`] function makes it simple to use models from the [Model Hub](https://huggingface.co/models)
 for accelerated inference on a variety of tasks such as text classification, question answering and image classification.
+
+ONNX Runtime pipelines are a drop-in replacement for [Transformers pipelines](https://huggingface.co/docs/transformers/en/main_classes/pipelines) that automatically use ONNX/ONNX Runtime as the backend for model inference. 
+This means you get:
+
+- **Faster inference**: ONNX Runtime's optimized execution engine provides significant speedups
+- **Cross-platform support**: Works across different hardware accelerators (CPU, GPU, etc.)
+- **Same API**: Identical interface to transformers pipelines - no code changes needed
+- **Automatic model loading**: Seamlessly loads or exports ONNX models
 
 <Tip>
 
 You can also use the
 [pipeline()](https://huggingface.co/docs/transformers/main/en/main_classes/pipelines#pipelines) function from
-Transformers and provide your Optimum model class.
+Transformers and provide your Optimum model and tokenizer/feature-extractor to it.
+
+```python
+>>> from transformers import pipeline
+>>> from optimum.onnxruntime import ORTModelForSequenceClassification
+>>> from transformers import AutoTokenizer
+>>> model = ORTModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+>>> tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
+>>> onnx_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
+>>> onnx_pipeline("I love you")  # doctest: +IGNORE_RESULT
+[{'label': 'POSITIVE', 'score': 0.999870002746582}]
+```
 
 </Tip>
 
 Currently the supported tasks are:
 
-* `feature-extraction`
-* `text-classification`
-* `token-classification`
-* `question-answering`
-* `zero-shot-classification`
-* `text-generation`
-* `text2text-generation`
-* `summarization`
-* `translation`
-* `image-classification`
-* `automatic-speech-recognition`
-* `image-to-text`
+* `audio-classification`: Classify audio inputs into predefined categories.
+* `automatic-speech-recognition`: Convert spoken language into text.
+* `feature-extraction`: Extract features from text or images using pre-trained models.
+* `fill-mask`: Predict missing words in a sentence.
+* `image-classification`: Classify images into predefined categories.
+* `image-segmentation`: Segment images into different regions based on their content.
+* `image-to-image`: Transform images from one domain to another (e.g., style transfer).
+* `image-to-text`: Generate textual descriptions for images.
+* `question-answering`: Answer questions based on a given context.
+* `summarization`: Generate concise summaries of longer text documents.
+* `text2text-generation`: Generate text based on a given input text.
+* `text-classification`: Classify text into predefined categories (e.g., sentiment analysis).
+* `text-generation`: Generate text based on a given prompt.
+* `token-classification`: Classify individual tokens in a text (e.g., named entity recognition).
+* `translation`: Translate text from one language to another.
+* `zero-shot-classification`: Classify text into categories without prior training on those categories.
 
-## Optimum pipeline usage
+## ONNX Runtime pipeline usage
 
-While each task has an associated pipeline class, it is simpler to use the general [`~pipelines.pipeline`] function which wraps all the task-specific pipelines in one object.
-The [`~pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of performing inference for your task.
+While each task has an associated pipeline class, it is simpler to use the general [`~optimum.onnxruntime.pipelines.pipeline`] function which wraps all the task-specific pipelines in one object.
+The [`~optimum.onnxruntime.pipelines.pipeline`] function automatically loads a default model and tokenizer/feature-extractor capable of performing inference for your task.
 
 1. Start by creating a pipeline by specifying an inference task:
 
 ```python
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
->>> classifier = pipeline(task="text-classification", accelerator="ort")
+>>> classifier = pipeline(task="text-classification")
 ```
 
-2. Pass your input text/image to the [`~pipelines.pipeline`] function:
+2. Pass your input text/image to the [`~optimum.onnxruntime.pipelines.pipeline`] function:
 
 ```python
 >>> classifier("I like you. I love you.")  # doctest: +IGNORE_RESULT
 [{'label': 'POSITIVE', 'score': 0.9998838901519775}]
 ```
 
-_Note: The default models used in the [`~pipelines.pipeline`] function are not optimized for inference or quantized, so there won't be a performance improvement compared to their PyTorch counterparts._
+_Note: The default models used in the [`~optimum.onnxruntime.pipelines.pipeline`] function are not optimized for inference or quantized, so there won't be a performance improvement compared to their PyTorch counterparts._
 
 ### Using vanilla Transformers model and converting to ONNX
 
-The [`~pipelines.pipeline`] function accepts any supported model from the [Hugging Face Hub](https://huggingface.co/models).
+The [`~optimum.onnxruntime.pipelines.pipeline`] function accepts any supported model from the [Hugging Face Hub](https://huggingface.co/models).
 There are tags on the Model Hub that allow you to filter for a model you'd like to use for your task.
 
 <Tip>
@@ -61,13 +84,13 @@ You can check the list of supported architectures [here](https://huggingface.co/
 
 </Tip>
 
-Once you have picked an appropriate model, you can create the [`~pipelines.pipeline`] by specifying the model repo:
+Once you have picked an appropriate model, you can create the [`~optimum.onnxruntime.pipelines.pipeline`] by specifying the model repo:
 
 ```python
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 # The model will be loaded to an ORTModelForQuestionAnswering.
->>> onnx_qa = pipeline("question-answering", model="deepset/roberta-base-squad2", accelerator="ort")
+>>> onnx_qa = pipeline("question-answering", model="deepset/roberta-base-squad2")
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -82,7 +105,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("deepset/roberta-base-squad2")
 
@@ -93,7 +116,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 ...     export=True
 ... )
 
->>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
+>>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -102,12 +125,12 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 
 ### Using Optimum models
 
-The [`~pipelines.pipeline`] function is tightly integrated with the [Hugging Face Hub](https://huggingface.co/models) and can load ONNX models directly.
+The [`~optimum.onnxruntime.pipelines.pipeline`] function is tightly integrated with the [Hugging Face Hub](https://huggingface.co/models) and can load ONNX models directly.
 
 ```python
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
->>> onnx_qa = pipeline("question-answering", model="optimum/roberta-base-squad2", accelerator="ort")
+>>> onnx_qa = pipeline("question-answering", model="optimum/roberta-base-squad2")
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -122,14 +145,14 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 ```python
 >>> from transformers import AutoTokenizer
 >>> from optimum.onnxruntime import ORTModelForQuestionAnswering
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> tokenizer = AutoTokenizer.from_pretrained("optimum/roberta-base-squad2")
 
 >>> # Loading directly an ONNX model from a model repo.
 >>> model = ORTModelForQuestionAnswering.from_pretrained("optimum/roberta-base-squad2")
 
->>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer, accelerator="ort")
+>>> onnx_qa = pipeline("question-answering", model=model, tokenizer=tokenizer)
 >>> question = "What's my name?"
 >>> context = "My name is Philipp and I live in Nuremberg."
 
@@ -139,7 +162,7 @@ For example, here is how you can load the [`~onnxruntime.ORTModelForQuestionAnsw
 
 ## Optimizing and quantizing in pipelines
 
-The [`~pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use
+The [`~optimum.onnxruntime.pipelines.pipeline`] function can not only run inference on vanilla ONNX Runtime checkpoints - you can also use
 checkpoints optimized with the [`~optimum.onnxruntime.ORTQuantizer`] and the [`~optimum.onnxruntime.ORTOptimizer`].
 
 Below you can find two examples of how you could use the [`~optimum.onnxruntime.ORTOptimizer`] and the
@@ -154,7 +177,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ...     ORTModelForSequenceClassification,
 ...     ORTQuantizer
 ... )
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
@@ -173,7 +196,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
 
 >>> # Create the transformers pipeline
->>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
+>>> onnx_clx = pipeline("text-classification", model=model)
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
 >>> print(pred)  # doctest: +IGNORE_RESULT
@@ -194,7 +217,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 ...     ORTOptimizer
 ... )
 >>> from optimum.onnxruntime.configuration import OptimizationConfig
->>> from optimum.pipelines import pipeline
+>>> from optimum.onnxruntime import pipeline
 
 >>> # Load the tokenizer and export the model to the ONNX format
 >>> model_id = "distilbert-base-uncased-finetuned-sst-2-english"
@@ -213,7 +236,7 @@ Below you can find two examples of how you could use the [`~optimum.onnxruntime.
 >>> model = ORTModelForSequenceClassification.from_pretrained(save_dir)
 
 # Create the transformers pipeline
->>> onnx_clx = pipeline("text-classification", model=model, accelerator="ort")
+>>> onnx_clx = pipeline("text-classification", model=model)
 >>> text = "I like the new ORT pipeline"
 >>> pred = onnx_clx(text)
 >>> print(pred)  # doctest: +IGNORE_RESULT
