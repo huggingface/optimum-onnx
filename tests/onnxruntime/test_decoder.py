@@ -32,6 +32,7 @@ from optimum.exporters.onnx.model_configs import (
     BloomOnnxConfig,
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
+    Gemma2OnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
@@ -108,6 +109,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen2")
     if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("gemma")
+    if is_transformers_version(">=", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("gemma2")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
     if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):
@@ -210,6 +213,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # We are using its 4.48.0 version, which is more stable.
             # So we remove it from the list of supported architectures in the versions before 4.48.0.
             supported_architectures.remove("nemotron")
+
+        if "gemma2" in supported_architectures and is_transformers_version(
+            "<", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)
+        ):
+            # Gemma 2 was added in transformers v4.42 using HybridCache (tuple of past_key_values never supported), DynamicCache since v4.53
+            supported_architectures.remove("gemma2")
 
         untested_architectures = supported_architectures - tested_architectures
 
