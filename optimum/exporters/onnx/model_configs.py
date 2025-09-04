@@ -512,7 +512,8 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
-    MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
+    # Gemma 2 was added in transformers v4.42 using HybridCache (tuple of past_key_values never supported), DynamicCache since v4.53
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
