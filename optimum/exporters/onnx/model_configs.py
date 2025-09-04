@@ -2338,8 +2338,6 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     *[
         "image-to-text",
         "image-to-text-with-past",
-        "document-question-answering",
-        "document-question-answering-with-past",
     ],
 )
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
@@ -2455,8 +2453,6 @@ class Pix2StructNormalizedConfig(NormalizedSeq2SeqConfig):
     *[
         "image-to-text",
         "image-to-text-with-past",
-        "visual-question-answering",
-        "visual-question-answering-with-past",
     ],
 )
 class Pix2StructOnnxConfig(OnnxSeq2SeqConfigWithPast):
