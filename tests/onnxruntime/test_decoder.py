@@ -169,7 +169,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if batched:
             texts = ["This is me", "Today is a nice day and I am longer"]
         else:
-            texts = "Today is a nice day."
+            texts = "Today is a nice day"
 
         if for_pipeline:
             return texts
@@ -291,9 +291,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if "nemotron" in supported_architectures and is_transformers_version(
             "<=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)
         ):
-            # Nemotron was introduced in Transformers 4.44.0, but it has some issues. Specifically, it did not properly handle legacy cache formats (Lists/Cache), and it also did not return past_key_values when use_cache=True.
+            # Nemotron was introduced in Transformers 4.44.0, but it had some cache issues.
+            # Specifically, it did not properly handle legacy cache formats (Lists/Cache),
+            # and it also did not return past_key_values when use_cache=True.
             # We are using its 4.48.0 version, which is more stable.
-            # So we remove it from the list of supported architectures in the versions before 4.48.0.
             supported_architectures.remove("nemotron")
 
         untested_architectures = supported_architectures - tested_architectures
