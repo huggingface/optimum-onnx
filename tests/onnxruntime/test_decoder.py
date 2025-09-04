@@ -33,6 +33,8 @@ from optimum.exporters.onnx.model_configs import (
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
+    GLM4OnnxConfig,
+    GLMOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
     InternLM2OnnxConfig,
@@ -108,6 +110,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen2")
     if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("gemma")
+    if is_transformers_version(">=", str(GLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("glm")
+    if is_transformers_version(">=", str(GLM4OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("chatglm")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
     if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):
@@ -132,7 +138,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("stablelm")
 
     # base generation kwargs
-    TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
+    TRUST_REMOTE_CODE_MODELS = {"internlm2", "chatglm"}  # noqa: RUF012
     GEN_KWARGS = {"max_new_tokens": 10, "min_new_tokens": 10, "num_beams": 2, "do_sample": False}  # noqa: RUF012
 
     if is_transformers_version(">=", "4.51.0"):
