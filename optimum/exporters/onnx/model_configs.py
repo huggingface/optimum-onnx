@@ -2333,9 +2333,6 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
     )
 
 
-# TODO: donut is not a model type but rather a family of vision encoder decoder models
-# that use donut (swin) as an encoder, but removing this registration breaks tasks manager
-@register_tasks_manager_onnx("donut")
 @register_tasks_manager_onnx(
     "vision-encoder-decoder",
     *[
