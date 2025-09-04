@@ -214,7 +214,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             # So we remove it from the list of supported architectures in the versions before 4.48.0.
             supported_architectures.remove("nemotron")
 
-        if "gemma2" in supported_architectures and is_transformers_version("<", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        if "gemma2" in supported_architectures and is_transformers_version(
+            "<", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)
+        ):
             # Gemma 2 was added in transformers v4.42 using HybridCache (tuple of past_key_values never supported), DynamicCache since v4.53
             supported_architectures.remove("gemma2")
 
