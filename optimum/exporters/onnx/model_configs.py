@@ -456,6 +456,11 @@ class CohereOnnxConfig(LlamaOnnxConfig):
     _MODEL_PATCHER = CohereModelPatcher
 
 
+@register_tasks_manager_onnx("glm", *COMMON_TEXT_GENERATION_TASKS)
+class GLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+
+
 @register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
 class HeliumOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
@@ -505,6 +510,14 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+
+
+@register_tasks_manager_onnx("chatglm", *COMMON_TEXT_GENERATION_TASKS)
+class GLM4OnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        num_key_value_heads="multi_query_group_num", head_dim="kv_channels", allow_new=True
+    )
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
