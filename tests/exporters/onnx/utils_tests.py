@@ -78,7 +78,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
     "deepseek_v3": "hf-internal-testing/tiny-random-DeepseekV3ForCausalLM",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
-    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
@@ -220,14 +219,20 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": {
+        # vit-gpt2
         "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
             "image-to-text",
             "image-to-text-with-past",
         ],
-        "microsoft/trocr-small-handwritten": ["image-to-text", "image-to-text-with-past"],
+        # donut encoder
         "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
-            "document-question-answering",
-            "document-question-answering-with-past",
+            "image-to-text",
+            "image-to-text-with-past",
+        ],
+        # trocr decoder
+        "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr": [
+            "image-to-text",
+            "image-to-text-with-past",
         ],
     },
 }

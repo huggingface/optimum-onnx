@@ -26,6 +26,7 @@ jobs:
           [
             test_timm.py,
             test_decoder.py,
+            test_seq2seq.py,
             test_modeling.py,
             test_diffusion.py,
             test_optimization.py,

@@ -384,7 +384,6 @@ class ORTSessionMixin:
             the output buffers.
         """
         known_axes_values = {}
-
         for input_name in self.input_names:
             input_shape = model_inputs[input_name].shape
 
@@ -421,6 +420,11 @@ class ORTSessionMixin:
         known_output_shapes = known_output_shapes or {}
         known_output_buffers = known_output_buffers or {}
         outputs_to_not_bind = outputs_to_not_bind or set()
+
+        if len(outputs_to_not_bind) > 0:
+            # We clear the IO binding outputs to ensure that session
+            # wouldn't try to put its outputs in previously bound buffers
+            self._io_binding.clear_binding_outputs()
 
         for output_name in self.output_names:
             if output_name in outputs_to_not_bind:
