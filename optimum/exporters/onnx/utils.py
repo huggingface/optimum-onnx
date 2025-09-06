@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable
 
+from optimum.exporters.tasks import TasksManager
 import torch
 from packaging import version
 from transformers.utils import is_torch_available
@@ -47,6 +48,8 @@ from optimum.utils.import_utils import (
     is_transformers_version,
 )
 
+from optimum.exporters.onnx.constants import MULTI_MODAL_TEXT_GENERATION_MODELS
+
 
 logger = logging.get_logger()
 
@@ -75,6 +78,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "cohere",
     "falcon",
     "gemma",
+    "gemma3",
     "gpt2",
     "gpt_bigcode",
     "gpt_neo",
@@ -211,6 +215,22 @@ def _get_submodels_and_onnx_configs(
     legacy: bool = False,
     model_kwargs: dict | None = None,
 ):
+    if (
+        not custom_architecture
+        and library_name == "transformers"
+        and model.config.model_type in MULTI_MODAL_TEXT_GENERATION_MODELS
+    ):
+        return _get_multimodal_submodels_and_onnx_configs(
+            model=model,
+            task=task,
+            monolith=monolith,
+            library_name=library_name,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            model_kwargs=model_kwargs,
+        )
+
     return _get_submodels_and_export_configs(
         model,
         task,
@@ -230,6 +250,42 @@ def _get_submodels_and_onnx_configs(
 
 
 DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx.utils.get_{model_type}_models_for_export` is deprecated and will be removed in a future release, please use `optimum.exporters.utils.get_{model_type}_models_for_export` instead."
+
+
+def _get_multimodal_submodels_and_onnx_configs(
+    model: PreTrainedModel,
+    task: str,
+    monolith: bool,
+    library_name: str,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
+    preprocessors: list[Any] | None = None,
+    model_kwargs: dict | None = None,
+) -> tuple[ExporterConfig, dict[str, tuple]]:
+    submodels_and_configs = {}
+
+    main_config_cls = TasksManager.get_exporter_config_constructor(
+        model=model, task=task, exporter="onnx", library_name=library_name
+    )
+    main_config = main_config_cls(
+        model.config,
+        int_dtype=int_dtype,
+        float_dtype=float_dtype,
+        preprocessors=preprocessors,
+    )
+    if not hasattr(main_config, "SUPPORTED_BEHAVIORS"):
+        message = (
+            f"Multimodal model '{model.config.model_type}' does not have SUPPORTED_BEHAVIORS "
+            "configured in its ONNX config class. Please configure and try again."
+        )
+        raise ValueError(message)
+
+    for behavior in main_config.get_supported_behaviors(task):
+        model_part_config = main_config.with_behavior(behavior)
+        model_part = main_config.get_model_for_behavior(model, behavior)
+        submodels_and_configs[behavior] = (model_part, model_part_config)
+
+    return main_config, submodels_and_configs
 
 
 def get_diffusion_models_for_export(

@@ -26,7 +26,7 @@ from abc import ABC
 from collections import OrderedDict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 import numpy as np
 from transformers.utils import is_accelerate_available, is_torch_available
@@ -124,6 +124,7 @@ class OnnxConfig(ExporterConfig, ABC):
         "image-to-image": OrderedDict(
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
         ),
+        "image-text-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "keypoint-detection": OrderedDict(
             {"heatmaps": {0: "batch_size", 1: "num_keypoints", 2: "height", 3: "width"}}
         ),
@@ -437,6 +438,12 @@ class OnnxConfig(ExporterConfig, ABC):
     ) -> ModelPatcher:
         return self._MODEL_PATCHER(self, model, model_kwargs=model_kwargs)
 
+    @override
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs) -> dict:
+        # Pass along preprocessors down to the constructor of each dummy input generator
+        kwargs["preprocessors"] = self._preprocessors
+        return super().generate_dummy_inputs(framework, **kwargs)
+
 
 class OnnxConfigWithPast(OnnxConfig, ABC):
     """Inherits from [`~exporters.onnx.OnnxConfig`]. A base class to handle the ONNX configuration of decoder-only models."""
@@ -491,7 +498,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     @add_dynamic_docstring(text=GENERATE_DUMMY_DOCSTRING, dynamic_elements=DEFAULT_DUMMY_SHAPES)
     def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
-        dummy_inputs_generators = self._create_dummy_input_generator_classes(**kwargs)
+        dummy_inputs_generators = self._create_dummy_input_generator_classes(**(kwargs | {"preprocessors": self._preprocessors}))
 
         dummy_inputs = {}
         input_names = [key for key in self.inputs if not key.startswith("past_key_values")]

@@ -38,3 +38,5 @@ SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED = [
     "musicgen",
     "whisper",
 ]
+
+MULTI_MODAL_TEXT_GENERATION_MODELS = ["gemma3"]
