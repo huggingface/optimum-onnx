@@ -234,8 +234,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
 
-        elif self.config.model_type == "chatglm":
-            self.num_key_value_heads = self.config.multi_query_group_num
         elif self.config.model_type == "falcon":
             if self.config.new_decoder_architecture or not self.config.multi_query:
                 self.num_key_value_heads = self.config.num_kv_heads

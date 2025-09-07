@@ -76,7 +76,6 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "falcon",
     "gemma",
     "glm",
-    "chatglm",
     "gpt2",
     "gpt_bigcode",
     "gpt_neo",

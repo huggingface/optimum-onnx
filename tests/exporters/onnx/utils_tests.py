@@ -104,7 +104,6 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
-    "chatglm": "katuni4ka/tiny-random-glm4",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",

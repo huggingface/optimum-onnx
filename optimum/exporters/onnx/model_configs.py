@@ -512,14 +512,6 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
-@register_tasks_manager_onnx("chatglm", *COMMON_TEXT_GENERATION_TASKS)
-class GLM4OnnxConfig(GemmaOnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
-        num_key_value_heads="multi_query_group_num", head_dim="kv_channels", allow_new=True
-    )
-
-
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
 class NemotronOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")  # More stable version than 4.44.0
