@@ -206,17 +206,38 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
 
-        self.old_bloom_modeling = (
-            self.config.model_type == "bloom"
-            and self.input_shapes.get("past_key_values.0.key", None) is not None
-            and len(self.input_shapes["past_key_values.0.key"]) == 3  # Old Bloom style
-        )
-        self.old_gpt_bigcode_modeling = (
-            self.config.model_type == "gpt_bigcode"
-            and self.input_shapes.get("past_key_values.0.key_value", None) is not None
-        )
+        if self.can_use_cache:
+            self.old_bloom_modeling = (
+                self.config.model_type == "bloom"
+                and self.input_shapes.get("past_key_values.0.key", None) is not None
+                and len(self.input_shapes["past_key_values.0.key"]) == 3  # Old Bloom style
+            )
+        else:
+            self.old_bloom_modeling = self.config.model_type == "bloom" and is_transformers_version("<", "4.44.0")
 
-        print("Using old_gpt_bigcode_modeling:", self.old_gpt_bigcode_modeling)
+        if self.old_bloom_modeling:
+            logger.warning(
+                "The loaded model uses an old Bloom cache format which was removed in transformers v4.44.0. "
+                "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` in the `from_pretrained` method."
+            )
+
+        if self.can_use_cache:
+            self.old_gpt_bigcode_modeling = (
+                self.config.model_type == "gpt_bigcode"
+                and self.input_shapes.get("past_key_values.0.key_value", None) is not None  # Old GPT BigCode style
+            )
+        else:
+            self.old_gpt_bigcode_modeling = self.config.model_type == "gpt_bigcode" and is_transformers_version(
+                "<", "4.54.0"
+            )
+
+        if self.old_gpt_bigcode_modeling:
+            logger.warning(
+                "The loaded model uses an old GPT BigCode cache format which was removed in transformers v4.54.0. "
+                "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` in the `from_pretrained` method."
+            )
 
         if self.config.model_type == "gemma":
             self.embed_size_per_head = self.config.head_dim
