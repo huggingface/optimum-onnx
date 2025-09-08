@@ -64,8 +64,8 @@ from optimum.utils.logging import get_logger, warn_once
 from optimum.utils.save_utils import maybe_save_preprocessors
 
 
-if is_transformers_version(">=", "4.37.0"):
-    from transformers.models.whisper.modeling_whisper import WhisperGenerationMixin
+if is_transformers_version(">=", "4.49.0"):
+    from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 else:
     WhisperGenerationMixin = WhisperForConditionalGeneration
 
@@ -863,6 +863,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
     """
 
+    _is_stateful = False
     _supports_cache_class = False
 
     _ort_encoder_class = ORTEncoder
@@ -1503,11 +1504,11 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
 
         self.model = DummyWhisperModel()
 
-    # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    def generate(*args, **kwargs):
-        return WhisperGenerationMixin.generate(*args, **kwargs)
+    # force the use of the WhisperGenerationMixin generate and prepare_inputs_for_generation methods
+    def generate(self, *args, **kwargs):
+        return WhisperGenerationMixin.generate(self, *args, **kwargs)
 
-    # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
+    # force the use of the WhisperGenerationMixin prepare_inputs_for_generation method
     def prepare_inputs_for_generation(*args, **kwargs):
         return WhisperGenerationMixin.prepare_inputs_for_generation(*args, **kwargs)
 
@@ -1515,6 +1516,9 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
     @classmethod
     def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
+
+
+print(_ORTModelForWhisper)
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
