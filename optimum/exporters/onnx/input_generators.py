@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optimum.utils import DummyPastKeyValuesGenerator, NormalizedTextConfig, is_transformers_version
 
 

@@ -206,9 +206,21 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
 
+        self.old_bloom_modeling = (
+            self.config.model_type == "bloom"
+            and self.input_shapes.get("past_key_values.0.key", None) is not None
+            and len(self.input_shapes["past_key_values.0.key"]) == 3  # Old Bloom style
+        )
+        self.old_gpt_bigcode_modeling = (
+            self.config.model_type == "gpt_bigcode"
+            and self.input_shapes.get("past_key_values.0.key_value", None) is not None
+        )
+
+        print("Using old_gpt_bigcode_modeling:", self.old_gpt_bigcode_modeling)
+
         if self.config.model_type == "gemma":
             self.embed_size_per_head = self.config.head_dim
-        elif self.config.model_type == "gpt_bigcode":
+        elif self.old_gpt_bigcode_modeling:
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
         else:
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
@@ -230,14 +242,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 self.num_key_value_heads = self.config.num_kv_heads
             else:
                 self.num_key_value_heads = 1
+        elif self.config.model_type == "gpt_bigcode":
+            if self.config.multi_query:
+                self.num_key_value_heads = 1
+            else:
+                self.num_key_value_heads = self.config.num_attention_heads
         else:
             self.num_key_value_heads = self.config.num_attention_heads
-
-        self.old_bloom_modeling = (
-            self.config.model_type == "bloom"
-            and self.input_shapes.get("past_key_values.0.key", None) is not None
-            and len(self.input_shapes["past_key_values.0.key"]) == 3  # Old Bloom style
-        )
 
     @property
     def use_cache(self):
@@ -292,13 +303,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Get the input/output dimensions
         batch_size, seq_len = input_ids.shape
         if past_key_values is not None:
-            if self.config.model_type == "gpt_bigcode":
-                if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
-                else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+            if self.old_gpt_bigcode_modeling:
+                # (before v4.54) GPT BigCode fuses keys and values in one tensor
+                pkv_seq_len = past_key_values[0].shape[-2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                # We use the past value and not key to be compatible with old bloom cache
+                pkv_seq_len = past_key_values[0][1].shape[-2]
         else:
             pkv_seq_len = 0
 
@@ -315,7 +325,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         "The model OPT requires position_ids for batched generation but none were provided. "
                         "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
                     )
-            elif self.config.model_type == "gpt_bigcode":
+            elif self.old_gpt_bigcode_modeling:
                 if attention_mask is not None:
                     # GPT BigCode models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
@@ -342,10 +352,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if len(self.key_value_input_names) > 0 and past_key_values is None:
             # Generates the input pkv for the first forward of the model (merged or with past)
-            if self.config.model_type == "bloom" and self.old_bloom_modeling:
+            if self.old_bloom_modeling:
                 k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
                 v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
-            elif self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+            elif self.old_gpt_bigcode_modeling and self.config.multi_query:
+                # (before v4.54) GPT BigCode squeezes the num_key_value_heads dimension when multi_query is True
                 k_shape = v_shape = (batch_size, 0, self.embed_size_per_head)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
@@ -370,11 +381,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if use_cache and self.use_io_binding:
             # Infers the shape of the output pkv
             batch_size, seq_len = input_ids.shape
-            if self.config.model_type == "bloom" and self.old_bloom_modeling:
+            if self.old_bloom_modeling:
                 num_key_value_heads_batch_size, embed_size_per_head = past_key_values[0].shape[:2]
                 k_shape = (num_key_value_heads_batch_size, embed_size_per_head, pkv_seq_len + seq_len)
                 v_shape = (num_key_value_heads_batch_size, pkv_seq_len + seq_len, embed_size_per_head)
-            elif self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+            elif self.old_gpt_bigcode_modeling and self.config.multi_query:
+                # (before v4.54) GPT BigCode squeezes the num_key_value_heads dimension when multi_query is True
                 embed_size_per_head = past_key_values[0].shape[-1]
                 k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head)
             else:
@@ -420,9 +432,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             if use_cache:
                 past_key_values = tuple(model_outputs.pop(name) for name in self.key_value_output_names)
 
-        if use_cache and self.config.model_type != "gpt_bigcode":
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer
-            past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
+        if use_cache:
+            if self.old_gpt_bigcode_modeling:
+                # `n_layers` fused key-value tensors
+                past_key_values = past_key_values
+            else:
+                # `n_layers` tuples of key and value tensors
+                past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
 
         return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=past_key_values)
 
@@ -444,13 +460,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if past_key_values is not None:
-            if self.config.model_type == "gpt_bigcode":
-                if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
-                else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+            if self.old_gpt_bigcode_modeling:
+                # (before v4.54) GPT BigCode fuses keys and values in one tensor
+                pkv_seq_len = past_key_values[0].shape[-2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                # We use the past value and not key to be compatible with bloom cache
+                pkv_seq_len = past_key_values[0][1].shape[-2]
 
             if input_ids.shape[1] > pkv_seq_len:
                 remove_prefix_length = pkv_seq_len
