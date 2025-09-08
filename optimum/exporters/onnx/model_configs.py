@@ -35,6 +35,7 @@ from optimum.exporters.onnx.config import (
     VisionOnnxConfig,
 )
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.input_generators import GPTBigCodeDummyPastKeyValuesGenerator
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
     FluxTransformerModelPatcher,
@@ -81,7 +82,6 @@ from optimum.utils import (
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
-    GPTBigCodeDummyPastKeyValuesGenerator,
     LongformerDummyTextInputGenerator,
     MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
@@ -555,7 +555,7 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if is_transformers_version(">=", "4.45"):
+        if is_transformers_version(">=", "4.54"):
             super().add_past_key_values(inputs_or_outputs, direction)
         else:
             if direction not in ["inputs", "outputs"]:
@@ -580,7 +580,7 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
                 }
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        if is_transformers_version(">=", "4.45"):
+        if is_transformers_version(">=", "4.54"):
             super().flatten_past_key_values(flattened_output, name, idx, t)
         else:
             flattened_output[f"{name}.{idx}.key_value"] = t
