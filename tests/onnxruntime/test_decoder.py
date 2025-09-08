@@ -30,10 +30,14 @@ from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
     ArceeOnnxConfig,
     BloomOnnxConfig,
+    CohereOnnxConfig,
+    DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
     GraniteOnnxConfig,
+    HeliumOnnxConfig,
     InternLM2OnnxConfig,
     MPTOnnxConfig,
+    NemotronOnnxConfig,
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
     OPTOnnxConfig,
@@ -43,6 +47,7 @@ from optimum.exporters.onnx.model_configs import (
     Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
     SmolLM3OnnxConfig,
+    StableLMOnnxConfig,
 )
 from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.exporters.tasks import TasksManager
@@ -87,6 +92,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     if is_transformers_version(">=", str(ArceeOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("arcee")
+    if is_transformers_version(">=", str(CohereOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("cohere")
     if is_transformers_version(">=", str(OPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("opt")
     if is_transformers_version(">=", str(PhiOnnxConfig.MIN_TRANSFORMERS_VERSION)):
@@ -103,8 +110,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("gemma")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
+    if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("nemotron")
     if is_transformers_version(">=", str(GraniteOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("granite")
+    if is_transformers_version(">=", str(HeliumOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("helium")
     if is_transformers_version(">=", str(Phi3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("phi3")
     if is_transformers_version(">=", str(Qwen3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
@@ -115,6 +126,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("internlm2")
     if is_transformers_version(">=", str(SmolLM3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("smollm3")
+    if is_transformers_version(">=", str(DeepSeekV3OnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("deepseek_v3")
+    if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("stablelm")
 
     # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
@@ -187,6 +202,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         transformers_architectures = set(CONFIG_MAPPING_NAMES.keys())
         onnx_architectures = set(TasksManager.get_supported_model_type_for_task(task=self.TASK, exporter="onnx"))
         supported_architectures = onnx_architectures & transformers_architectures
+
+        if "nemotron" in supported_architectures and is_transformers_version(
+            "<=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)
+        ):
+            # Nemotron was introduced in Transformers 4.44.0, but it has some issues. Specifically, it did not properly handle legacy cache formats (Lists/Cache), and it also did not return past_key_values when use_cache=True.
+            # We are using its 4.48.0 version, which is more stable.
+            # So we remove it from the list of supported architectures in the versions before 4.48.0.
+            supported_architectures.remove("nemotron")
+
         untested_architectures = supported_architectures - tested_architectures
 
         if len(untested_architectures) > 0:

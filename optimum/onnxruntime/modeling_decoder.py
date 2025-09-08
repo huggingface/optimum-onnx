@@ -239,23 +239,33 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To re-export your model, simply set `export=True` in the `from_pretrained` method."
             )
 
-        if self.config.model_type == "gemma":
+        if self.config.model_type in {"gemma", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
         elif self.old_gpt_bigcode_modeling:
+            # (before v4.54) GPT BigCode fuses keys and values in one tensor, doubling the head dimension
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
+        elif self.config.model_type == "deepseek_v3":
+            # For deepseek_v3, keys and values have different head dimensions
+            self.qk_head_dim = self.config.qk_rope_head_dim + self.config.qk_nope_head_dim
+            self.v_head_dim = self.config.v_head_dim
         else:
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
 
         if self.config.model_type in {
             "arcee",
+            "deepseek_v3",
+            "cohere",
             "gemma",
+            "helium",
             "mistral",
             "llama",
+            "nemotron",
             "qwen2",
             "qwen3",
             "qwen3_moe",
             "granite",
             "smollm3",
+            "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
         elif self.config.model_type == "falcon":
@@ -374,11 +384,16 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if len(self.key_value_input_names) > 0 and past_key_values is None:
             # Generates the input pkv for the first forward of the model (merged or with past)
             if self.old_bloom_modeling:
+                # (before v4.44) Bloom squeezes the batch_size and num_key_value_heads dimensions into one
                 k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
                 v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
             elif self.old_gpt_bigcode_modeling and self.config.multi_query:
-                # (before v4.54) GPT BigCode squeezes the num_key_value_heads dimension when multi_query is True
+                # (before v4.54) When multi_query is True, GPT BigCode squeezes the num_key_value_heads dimension
                 k_shape = v_shape = (batch_size, 0, self.embed_size_per_head)
+            elif self.config.model_type == "deepseek_v3":
+                # Deepseek V3 uses different head dimensions for keys and values
+                k_shape = (batch_size, self.num_key_value_heads, 0, self.qk_head_dim)
+                v_shape = (batch_size, self.num_key_value_heads, 0, self.v_head_dim)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
             k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
@@ -410,6 +425,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 # (before v4.54) GPT BigCode squeezes the num_key_value_heads dimension when multi_query is True
                 embed_size_per_head = past_key_values[0].shape[-1]
                 k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head)
+            elif self.config.model_type == "deepseek_v3":
+                # Deepseek V3 uses different head dimensions for keys and values
+                k_shape = (batch_size, self.num_key_value_heads, pkv_seq_len + seq_len, self.qk_head_dim)
+                v_shape = (batch_size, self.num_key_value_heads, pkv_seq_len + seq_len, self.v_head_dim)
             else:
                 embed_size_per_head = past_key_values[0].shape[-1]
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)

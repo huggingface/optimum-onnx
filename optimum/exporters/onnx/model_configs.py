@@ -38,6 +38,7 @@ from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECO
 from optimum.exporters.onnx.input_generators import GPTBigCodeDummyPastKeyValuesGenerator
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
+    CohereModelPatcher,
     FluxTransformerModelPatcher,
     MgpstrModelPatcher,
     MusicgenModelPatcher,
@@ -55,6 +56,7 @@ from optimum.utils import (
     ASTDummyAudioInputGenerator,
     BartDummyTextInputGenerator,
     BloomDummyPastKeyValuesGenerator,
+    DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
@@ -440,9 +442,33 @@ class ArceeOnnxConfig(LlamaOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
+@register_tasks_manager_onnx("deepseek_v3", *COMMON_TEXT_GENERATION_TASKS)
+class DeepSeekV3OnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DeepSeekV3DummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = DeepSeekV3DummyPastKeyValuesGenerator
+
+
+@register_tasks_manager_onnx("cohere", *COMMON_TEXT_GENERATION_TASKS)
+class CohereOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    _MODEL_PATCHER = CohereModelPatcher
+
+
+@register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
+class HeliumOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
+
+
 @register_tasks_manager_onnx("smollm3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class SmolLM3OnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+@register_tasks_manager_onnx("stablelm", *COMMON_TEXT_GENERATION_TASKS)
+class StableLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
 @register_tasks_manager_onnx("olmo", *COMMON_TEXT_GENERATION_TASKS)
@@ -479,6 +505,12 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+
+
+@register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
+class NemotronOnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")  # More stable version than 4.44.0
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
 
 
 @register_tasks_manager_onnx("granite", *COMMON_TEXT_GENERATION_TASKS)
