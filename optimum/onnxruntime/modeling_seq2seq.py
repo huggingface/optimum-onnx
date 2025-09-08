@@ -34,6 +34,7 @@ from transformers import (
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
+from transformers.cache_utils import Cache
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
@@ -500,6 +501,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
+
+        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
+        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
+            past_key_values = None
 
         # Flatten the past_key_values
         if past_key_values is not None:
@@ -1350,6 +1355,10 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> dict:
+        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
+        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
+            past_key_values = None
+
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
