@@ -53,8 +53,8 @@ from optimum.onnxruntime import (
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
+    pipeline,
 )
-from optimum.pipelines import pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token

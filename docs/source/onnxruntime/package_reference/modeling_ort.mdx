@@ -10,7 +10,7 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 -->
 
-# Models
+# ONNX Runtime Models
 
 ## Generic model classes
 
@@ -32,6 +32,7 @@ The following ORT classes are available for the following natural language proce
 ### ORTModelForMaskedLM
 
 [[autodoc]] onnxruntime.ORTModelForMaskedLM
+    - forward
 
 ### ORTModelForSeq2SeqLM
 
@@ -41,18 +42,22 @@ The following ORT classes are available for the following natural language proce
 ### ORTModelForSequenceClassification
 
 [[autodoc]] onnxruntime.ORTModelForSequenceClassification
+    - forward
 
 ### ORTModelForTokenClassification
 
 [[autodoc]] onnxruntime.ORTModelForTokenClassification
+    - forward
 
 ### ORTModelForMultipleChoice
 
 [[autodoc]] onnxruntime.ORTModelForMultipleChoice
+    - forward
 
 ### ORTModelForQuestionAnswering
 
 [[autodoc]] onnxruntime.ORTModelForQuestionAnswering
+    - forward
 
 ## Computer vision
 
@@ -61,10 +66,12 @@ The following ORT classes are available for the following computer vision tasks.
 ### ORTModelForImageClassification
 
 [[autodoc]] onnxruntime.ORTModelForImageClassification
+    - forward
 
 ### ORTModelForSemanticSegmentation
 
 [[autodoc]] onnxruntime.ORTModelForSemanticSegmentation
+    - forward
 
 ## Audio
 
@@ -73,14 +80,17 @@ The following ORT classes are available for the following audio tasks.
 ### ORTModelForAudioClassification
 
 [[autodoc]] onnxruntime.ORTModelForAudioClassification
+    - forward
 
 ### ORTModelForAudioFrameClassification
 
 [[autodoc]] onnxruntime.ORTModelForAudioFrameClassification
+    - forward
 
 ### ORTModelForCTC
 
 [[autodoc]] onnxruntime.ORTModelForCTC
+    - forward
 
 ### ORTModelForSpeechSeq2Seq
 
@@ -90,6 +100,7 @@ The following ORT classes are available for the following audio tasks.
 ### ORTModelForAudioXVector
 
 [[autodoc]] onnxruntime.ORTModelForAudioXVector
+    - forward
 
 ## Multimodal
 
@@ -116,40 +127,3 @@ The following ORT classes are available for the following custom tasks.
 #### ORTModelForFeatureExtraction
 
 [[autodoc]] onnxruntime.ORTModelForFeatureExtraction
-
-## Stable Diffusion
-
-#### ORTDiffusionPipeline
-
-[[autodoc]] onnxruntime.ORTDiffusionPipeline
-    - __call__
-
-#### ORTStableDiffusionPipeline
-
-[[autodoc]] onnxruntime.ORTStableDiffusionPipeline
-    - __call__
-
-#### ORTStableDiffusionImg2ImgPipeline
-
-[[autodoc]] onnxruntime.ORTStableDiffusionImg2ImgPipeline
-    - __call__
-
-#### ORTStableDiffusionInpaintPipeline
-
-[[autodoc]] onnxruntime.ORTStableDiffusionInpaintPipeline
-    - __call__
-
-#### ORTStableDiffusionXLPipeline
-
-[[autodoc]] onnxruntime.ORTStableDiffusionXLPipeline
-    - __call__
-
-#### ORTStableDiffusionXLImg2ImgPipeline
-
-[[autodoc]] onnxruntime.ORTStableDiffusionXLImg2ImgPipeline
-    - __call__
-
-#### ORTLatentConsistencyModelPipeline
-
-[[autodoc]] onnxruntime.ORTLatentConsistencyModelPipeline
-    - __call__

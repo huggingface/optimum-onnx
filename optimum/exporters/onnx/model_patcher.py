@@ -33,7 +33,7 @@ from torch.onnx.symbolic_opset14 import (
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.exporters.onnx._traceable_cache import TraceableCache
-from optimum.utils import is_transformers_version, logging
+from optimum.utils import is_diffusers_version, is_transformers_version, logging
 
 
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
@@ -55,6 +55,8 @@ if is_transformers_version(">=", "4.53"):
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
 
+if is_diffusers_version(">=", "0.35.0"):
+    import diffusers.models.transformers.transformer_flux
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
@@ -302,6 +304,21 @@ def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None
     return norm
 
 
+def onnx_compatible_rms_norm(input, normalized_shape, weight=None, eps=None):
+    if eps is None:
+        eps = torch.finfo(input.dtype).eps
+
+    axis = -len(normalized_shape)
+    mean_square = torch.mean(torch.square(input), dim=axis, keepdim=True)
+    rms = torch.sqrt(mean_square + eps)
+    output = input / rms
+
+    if weight is not None:
+        output = output * weight
+
+    return output
+
+
 # A patched version of https://github.com/huggingface/transformers/blob/v4.53.2/src/transformers/masking_utils.py#L602
 # That returns a tensor of zeros with the same shape as position_ids indicating no packed sequence indices.
 def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Tensor:
@@ -410,6 +427,7 @@ def noop_bfloat16_casting(self):
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
+    PatchingSpec(torch, "rms_norm", onnx_compatible_rms_norm, torch.rms_norm),
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
     PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, torch.linalg.norm),
     PatchingSpec(torch.Tensor, "bfloat16", noop_bfloat16_casting, torch.Tensor.bfloat16),
@@ -1217,3 +1235,69 @@ class Qwen3MoeModelPatcher(DecoderModelPatcher):
 
         if is_transformers_version(">=", "4.53"):
             Qwen3MoeSparseMoeBlock.forward = self.original_moe_forward
+
+
+# A patched version of diffusers.models.transformers.transformer_flux.apply_rotary_emb
+# that doesn't reshape the input tensor `x` (which results in a constant shape in the exported ONNX graph)
+def patched_apply_rotary_emb(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor | tuple[torch.Tensor],
+    use_real: bool = True,
+    use_real_unbind_dim: int = -1,
+    sequence_dim: int = 2,
+):
+    if use_real:
+        cos, sin = freqs_cis  # [S, D]
+        if sequence_dim == 2:
+            cos = cos[None, None, :, :]
+            sin = sin[None, None, :, :]
+        elif sequence_dim == 1:
+            cos = cos[None, :, None, :]
+            sin = sin[None, :, None, :]
+        else:
+            raise ValueError(f"`sequence_dim={sequence_dim}` but should be 1 or 2.")
+
+        cos, sin = cos.to(x.device), sin.to(x.device)
+
+        if use_real_unbind_dim == -1:
+            # Used for flux, cogvideox, hunyuan-dit
+            # x_real, x_imag = x.reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, H, S, D//2]
+            # We avoid using reshape here because for some reason it gets exported with constant shape.
+            x_real = x[..., 0::2]
+            x_imag = x[..., 1::2]
+            x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
+        elif use_real_unbind_dim == -2:
+            # Used for Stable Audio, OmniGen, CogView4 and Cosmos
+            # x_real, x_imag = x.reshape(*x.shape[:-1], 2, -1).unbind(-2)  # [B, H, S, D//2]
+            # We avoid using reshape here because for some reason it gets exported with constant shape.
+            x_real = x[..., 0::2, :]
+            x_imag = x[..., 1::2, :]
+            x_rotated = torch.cat([-x_imag, x_real], dim=-1)
+        else:
+            raise ValueError(f"`use_real_unbind_dim={use_real_unbind_dim}` but should be -1 or -2.")
+
+        out = (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
+
+        return out
+    else:
+        # used for lumina
+        x_rotated = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+        freqs_cis = freqs_cis.unsqueeze(2)
+        x_out = torch.view_as_real(x_rotated * freqs_cis).flatten(3)
+
+        return x_out.type_as(x)
+
+
+class FluxTransformerModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_diffusers_version(">=", "0.35.0"):
+            self.original_apply_rotary_emb = diffusers.models.transformers.transformer_flux.apply_rotary_emb
+            diffusers.models.transformers.transformer_flux.apply_rotary_emb = patched_apply_rotary_emb
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_diffusers_version(">=", "0.35.0"):
+            diffusers.models.transformers.transformer_flux.apply_rotary_emb = self.original_apply_rotary_emb
