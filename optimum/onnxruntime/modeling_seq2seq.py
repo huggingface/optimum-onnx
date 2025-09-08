@@ -64,6 +64,11 @@ from optimum.utils.logging import get_logger, warn_once
 from optimum.utils.save_utils import maybe_save_preprocessors
 
 
+if is_transformers_version(">=", "4.37.0"):
+    from transformers.models.whisper.modeling_whisper import WhisperGenerationMixin
+else:
+    WhisperGenerationMixin = WhisperForConditionalGeneration
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -1488,7 +1493,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             return super()._from_pretrained(model_id, config, **kwargs)
 
 
-class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
+class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
     """Whisper implements its own generate() method."""
 
     auto_model_class = WhisperForConditionalGeneration
@@ -1500,11 +1505,11 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
     def generate(*args, **kwargs):
-        return WhisperForConditionalGeneration.generate(*args, **kwargs)
+        return WhisperGenerationMixin.generate(*args, **kwargs)
 
     # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
     def prepare_inputs_for_generation(*args, **kwargs):
-        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
+        return WhisperGenerationMixin.prepare_inputs_for_generation(*args, **kwargs)
 
     # this is needed to avoid circular calls
     @classmethod
