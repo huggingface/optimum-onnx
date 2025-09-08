@@ -412,6 +412,9 @@ def traceable_scaled_dot_product_attention(
     if isinstance(is_causal, torch.Tensor):
         is_causal = is_causal.item()
 
+    if "enable_gqa" in kwargs:
+        kwargs.pop("enable_gqa")
+
     attn_weights = original_scaled_dot_product_attention(
         query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, **kwargs
     )

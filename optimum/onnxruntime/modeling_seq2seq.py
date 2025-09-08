@@ -34,7 +34,6 @@ from transformers import (
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
-from transformers.cache_utils import Cache
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
@@ -501,14 +500,6 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
     ) -> Seq2SeqLMOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
-
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
 
         # Flatten the past_key_values
         if past_key_values is not None:
@@ -1222,6 +1213,13 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                     "Generation config file not found, using a generation config created from the model config."
                 )
 
+        if hasattr(config, "is_decoder"):
+            config.is_decoder = False
+        if hasattr(config, "is_encoder_decoder"):
+            config.is_encoder_decoder = True
+        if hasattr(config, "_attn_implementation"):
+            config._attn_implementation = "onnxruntime"
+
         return cls(
             config=config,
             encoder_session=encoder_session,
@@ -1299,6 +1297,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             **kwargs,
         )
 
+    def _prepare_cache_for_generation(self, *args, **kwargs):
+        return
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
@@ -1324,14 +1325,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
@@ -1367,14 +1360,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> dict:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
@@ -1450,14 +1435,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         cache_position: torch.Tensor | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_features=input_features, attention_mask=attention_mask)
@@ -1483,7 +1460,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
     def prepare_inputs_for_generation(
         self,
-        decoder_input_ids,
+        input_ids,
         past_key_values=None,
         attention_mask=None,
         head_mask=None,
@@ -1493,22 +1470,20 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         encoder_outputs=None,
         **kwargs,
     ):
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
-        # cut decoder_input_ids if past is used
         if past_key_values is not None:
-            decoder_input_ids = decoder_input_ids[:, -1:]
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
 
         return {
+            "decoder_input_ids": input_ids,
             "encoder_outputs": encoder_outputs,
             "past_key_values": past_key_values,
-            "decoder_input_ids": decoder_input_ids,
             "attention_mask": attention_mask,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
@@ -1559,9 +1534,6 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
         return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
 
-print(_ORTModelForWhisper)
-
-
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
     """VisionEncoderDecoder Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports trocr and vision-encoder-decoder."""
@@ -1588,14 +1560,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
@@ -1630,14 +1594,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> dict:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
@@ -1701,14 +1657,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(flattened_patches=flattened_patches, attention_mask=attention_mask)
@@ -1748,14 +1696,6 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         encoder_outputs=None,
         **kwargs,
     ) -> dict:
-        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
-        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
-            past_key_values = None
-
-        # Sometimes past_key_values is passed as an empty tuple :/
-        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
-            past_key_values = None
-
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
             # Some generation methods already pass only the last input ID
