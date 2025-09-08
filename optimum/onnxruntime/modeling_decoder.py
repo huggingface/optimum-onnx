@@ -331,6 +331,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
             past_key_values = None
 
+        # Sometimes past_key_values is passed as an empty tuple :/
+        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
+            past_key_values = None
+
         # Get the input/output dimensions
         batch_size, seq_len = input_ids.shape
         if past_key_values is not None:
@@ -499,6 +503,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache=None,
         **kwargs,
     ):
+        # Sometimes past_key_values is passed as a Cache object populated with Nones :/
+        if isinstance(past_key_values, Cache) and past_key_values.get_seq_length() == 0:
+            past_key_values = None
+
+        # Sometimes past_key_values is passed as an empty tuple :/
+        if isinstance(past_key_values, tuple) and len(past_key_values) == 0:
+            past_key_values = None
+
         if past_key_values is not None:
             if self.old_gpt_bigcode_modeling:
                 # (before v4.54) GPT BigCode fuses keys and values in one tensor
