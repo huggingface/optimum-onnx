@@ -12,7 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: true
+  UV_TORCH_BACKEND: auto
   TRANSFORMERS_IS_CI: true
+  HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
 jobs:
   build:
@@ -47,20 +50,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime] diffusers
+          pip install --upgrade pip uv
+          uv pip install .[tests,onnxruntime] diffusers
 
       - name: Install transformers ${{ matrix.transformers-version }}
         run: |
           if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
-            pip install "transformers==4.36.*" "diffusers<0.32.0" "pytest<8.0.0"
+            uv pip install "transformers==4.36.*" "diffusers<0.32.0" "pytest<8.0.0"
           elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
-            pip install "transformers==4.45.*" "diffusers<0.33.0"
+            uv pip install "transformers==4.45.*" "diffusers<0.33.0"
+          elif [ "${{ matrix.transformers_version }}" != 'latest' ]; then
+            uv pip install "transformers==${{ matrix.transformers_version }}"            
           fi
 
       - name: Test with pytest
         run: |
           pytest tests/onnxruntime/${{ matrix.test_file }} --durations=0 -vvvv -n auto
-        env:
-          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
