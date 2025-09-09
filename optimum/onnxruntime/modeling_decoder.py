@@ -604,6 +604,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_merged: bool | None = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
+        dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModelForCausalLM:
