@@ -20,7 +20,7 @@ from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
-from transformers.cache_utils import Cache
+from transformers.cache_utils import Cache, DynamicCache, EncoderDecoderCache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
@@ -388,8 +388,11 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue("past_key_values" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.past_key_values, tuple)
 
-            if isinstance(outputs.past_key_values, Cache):
+            if isinstance(outputs.past_key_values, DynamicCache):
                 outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
+            elif isinstance(outputs.past_key_values, EncoderDecoderCache):
+                # GPT BigCode was refactored to return encoder-decoder cache :/
+                outputs.past_key_values = outputs.past_key_values.self_attention_cache.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0"):
                 # before 4.39.0, transformers used different masking strategies depending on whether
