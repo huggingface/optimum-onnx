@@ -54,6 +54,12 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
+if is_transformers_version(">=", "4.54"):
+    # check_model_inputs does not support passing use_cache as a positional argument
+    # TODO: this should be fixed in transformers directly
+    from optimum.exporters.onnx._generic_decorator import check_model_inputs_patched
+
+    transformers.utils.generic.check_model_inputs = check_model_inputs_patched
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
