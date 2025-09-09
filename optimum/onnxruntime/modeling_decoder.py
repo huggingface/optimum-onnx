@@ -238,7 +238,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 "To re-export your model, simply set `export=True` in the `from_pretrained` method."
             )
 
-        if self.config.model_type in {"gemma", "nemotron"}:
+        if self.config.model_type in {"gemma", "gpt_oss", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
         elif self.old_gpt_bigcode_modeling:
             # (before v4.54) GPT BigCode fuses keys and values in one tensor, doubling the head dimension
@@ -255,6 +255,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "deepseek_v3",
             "cohere",
             "gemma",
+            "gpt_oss",
             "helium",
             "mistral",
             "llama",

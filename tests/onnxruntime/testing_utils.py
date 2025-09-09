@@ -73,6 +73,7 @@ MODEL_NAMES = {
     "gpt_bigcode-multi_query-False": "optimum-internal-testing/tiny-random-gpt_bigcode-multi_query-False",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gpt_oss": "optimum-internal-testing/tiny-random-gpt-oss",
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",

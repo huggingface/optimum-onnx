@@ -108,6 +108,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gpt_oss": "optimum-internal-testing/tiny-random-gpt-oss",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",

@@ -33,6 +33,7 @@ from optimum.exporters.onnx.model_configs import (
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
+    GPTOssOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
     InternLM2OnnxConfig,
@@ -133,6 +134,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("deepseek_v3")
     if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("stablelm")
+    if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("gpt_oss")
 
     # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
