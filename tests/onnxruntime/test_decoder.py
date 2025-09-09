@@ -20,7 +20,7 @@ from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
-from transformers.cache_utils import Cache, DynamicCache, EncoderDecoderCache
+from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
@@ -64,6 +64,8 @@ from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
+if is_transformers_version(">=", "4.43.0"):
+    from transformers.cache_utils import EncoderDecoderCache
 
 logger = get_logger(__name__)
 
@@ -390,8 +392,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             if isinstance(outputs.past_key_values, DynamicCache):
                 outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
-            elif isinstance(outputs.past_key_values, EncoderDecoderCache):
-                # GPT BigCode was refactored to return encoder-decoder cache :/
+            elif is_transformers_version(">=", "4.43.0") and isinstance(outputs.past_key_values, EncoderDecoderCache):
                 outputs.past_key_values = outputs.past_key_values.self_attention_cache.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0"):
