@@ -24,22 +24,19 @@ jobs:
         transformers_version: [latest, 4.36.*, 4.45.*, 4.54.*, 4.55.*]
         test_file:
           [
-            test_timm.py,
             test_decoder.py,
-            test_modeling.py,
             test_diffusion.py,
+            test_modeling.py,
             test_optimization.py,
             test_quantization.py,
+            test_seq2seq.py,
+            test_timm.py,
             test_utils.py,
           ]
 
     runs-on: ${{ matrix.runs-on }}
 
     steps:
-      - name: Free Disk Space (Ubuntu)
-        if: matrix.test_file == 'test_modeling.py'
-        uses: jlumbroso/free-disk-space@main
-
       - name: Checkout code
         uses: actions/checkout@v5
 
