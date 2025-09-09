@@ -1,7 +1,7 @@
 from collections import defaultdict
 from functools import wraps
 
-from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, logger, model_addition_debugger_context
+from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, logger
 
 
 def check_model_inputs_patched(func):
@@ -63,13 +63,9 @@ def check_model_inputs_patched(func):
             def wrapped_forward(*args, **kwargs):
                 if key == "hidden_states" and len(collected_outputs[key]) == 0:
                     collected_outputs[key] += (args[0],)
-                if kwargs.get("debug_io", False):
-                    with model_addition_debugger_context(
-                        module, kwargs.get("debug_io_dir", "~/model_debug"), kwargs.get("prune_layers")
-                    ):
-                        output = orig_forward(*args, **kwargs)
-                else:
-                    output = orig_forward(*args, **kwargs)
+
+                output = orig_forward(*args, **kwargs)
+
                 if not isinstance(output, tuple):
                     collected_outputs[key] += (output,)
                 elif output[index] is not None:
