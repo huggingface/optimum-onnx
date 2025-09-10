@@ -56,8 +56,7 @@ if is_transformers_version(">=", "4.53"):
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
 if is_transformers_version(">=", "4.54"):
-    from optimum.exporters.onnx._generic_decorator import check_model_inputs_patched
-
+    from optimum.exporters.onnx._traceable_decorator import check_model_inputs_patched
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
 
@@ -652,15 +651,12 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 if "encoder_outputs" in signature.parameters:
                     encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
 
-                    # convert encoder_outputs to ModelOutput if needed
                     if (
                         encoder_outputs_index < len(args)  # encoder_outputs is in args
                         and isinstance(args[encoder_outputs_index], (list, tuple))
                         and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
                     ):
-                        args = list(args)
                         args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
-                        args = tuple(args)
                     elif (
                         "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
                         and isinstance(kwargs["encoder_outputs"], (list, tuple))
