@@ -51,18 +51,28 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip uv
-          uv pip install .[tests,onnxruntime] diffusers
+          uv pip install .[tests,onnxruntime]
+
+      - name: Install diffusers for transformers ${{ matrix.transformers-version }}
+        run: |
+          if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
+            uv pip install "diffusers<0.32.0"
+          elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
+            uv pip install "diffusers<0.33.0"
+          else
+            uv pip install diffusers
+          fi
 
       - name: Install transformers ${{ matrix.transformers-version }}
         run: |
           if [ "${{ matrix.transformers_version }}" == '4.36.*' ]; then
-            uv pip install "transformers==4.36.*" "diffusers<0.32.0" "pytest<8.0.0"
+            uv pip install "transformers==4.36.*" "pytest<8.0.0"
           elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
-            uv pip install "transformers==4.45.*" "diffusers<0.33.0"
+            uv pip install "transformers==4.45.*"
           elif [ "${{ matrix.transformers_version }}" != 'latest' ]; then
             uv pip install "transformers==${{ matrix.transformers_version }}"            
           fi
 
       - name: Test with pytest
         run: |
-          pytest tests/onnxruntime/${{ matrix.test_file }} --durations=0 -vvvv -n auto
+          pytest tests/onnxruntime/${{ matrix.test_file }} -vvvv -n auto

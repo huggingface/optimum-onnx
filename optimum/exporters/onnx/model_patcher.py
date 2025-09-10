@@ -474,14 +474,8 @@ class ModelPatcher:
                 check_model_inputs_patched(self.orig_forward.__wrapped__), self._model
             )
 
+        self.real_config = config
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-
-        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
-        if config.__class__.__name__ == "OnnxConfigWithLoss":
-            self.real_config = config._onnx_config
-        else:
-            self.real_config = config
-
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         @functools.wraps(self.orig_forward)
@@ -521,6 +515,23 @@ class ModelPatcher:
                             raise ValueError(
                                 f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
                             )
+
+            if is_transformers_version(">=", "4.54"):
+                if "encoder_outputs" in signature.parameters:
+                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+
+                    if (
+                        encoder_outputs_index < len(args)  # encoder_outputs is in args
+                        and isinstance(args[encoder_outputs_index], (list, tuple))
+                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
+                    ):
+                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
+                    elif (
+                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
+                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
+                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
+                    ):
+                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -646,23 +657,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.super_patched_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
-
-            if is_transformers_version(">=", "4.54"):
-                if "encoder_outputs" in signature.parameters:
-                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
-
-                    if (
-                        encoder_outputs_index < len(args)  # encoder_outputs is in args
-                        and isinstance(args[encoder_outputs_index], (list, tuple))
-                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
-                    ):
-                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
-                    elif (
-                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
-                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
-                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
-                    ):
-                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
 
             outputs = self.super_patched_forward(*args, **kwargs)
 
