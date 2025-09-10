@@ -30,6 +30,7 @@ from torch.onnx.symbolic_opset14 import (
     jit_utils,
     symbolic_helper,
 )
+from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.exporters.onnx._traceable_cache import TraceableCache
@@ -55,11 +56,7 @@ if is_transformers_version(">=", "4.53"):
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
 if is_transformers_version(">=", "4.54"):
-    # check_model_inputs does not support passing use_cache as a positional argument
-    # TODO: this should be fixed in transformers directly
     from optimum.exporters.onnx._generic_decorator import check_model_inputs_patched
-
-    transformers.utils.generic.check_model_inputs = check_model_inputs_patched
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
@@ -473,6 +470,10 @@ class ModelPatcher:
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
+        if hasattr(self.orig_forward, "__wrapped__"):
+            self.orig_forward = types.MethodType(
+                check_model_inputs_patched(self.orig_forward.__wrapped__), self._model
+            )
 
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
 
@@ -646,6 +647,26 @@ class Seq2SeqModelPatcher(ModelPatcher):
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.super_patched_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            if is_transformers_version(">=", "4.54"):
+                if "encoder_outputs" in signature.parameters:
+                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+
+                    # convert encoder_outputs to ModelOutput if needed
+                    if (
+                        encoder_outputs_index < len(args)  # encoder_outputs is in args
+                        and isinstance(args[encoder_outputs_index], (list, tuple))
+                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
+                    ):
+                        args = list(args)
+                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
+                        args = tuple(args)
+                    elif (
+                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
+                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
+                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
+                    ):
+                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
 
             outputs = self.super_patched_forward(*args, **kwargs)
 

@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from functools import wraps
 
@@ -5,38 +6,31 @@ from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, log
 
 
 def check_model_inputs_patched(func):
-    """Decorator to intercept specific layer outputs without using hooks.
-    Compatible with torch.compile (Dynamo tracing).
-    """
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        use_cache = kwargs.get("use_cache")
-        if use_cache is None:
-            use_cache = getattr(self.config, "use_cache", False)
+        use_cache = (
+            kwargs["use_cache"] if kwargs.get("use_cache") is not None else getattr(self.config, "use_cache", None)
+        )
+        if use_cache is not None:
+            if getattr(self, "gradient_checkpointing", False) and self.training and use_cache:
+                logger.warning_once(
+                    "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`."
+                )
+                use_cache = False
+
+            # Prevent passing use_cache twice
+            if "use_cache" in func.__code__.co_varnames:
+                use_cache_idx = func.__code__.co_varnames.index("use_cache") - 1  # minus 1 for 'self'
+                if len(args) > use_cache_idx:
+                    args = list(args)
+                    args[use_cache_idx] = use_cache
+                    args = tuple(args)
+                else:
+                    kwargs["use_cache"] = use_cache
 
         return_dict = kwargs.pop("return_dict", None)
         if return_dict is None:
             return_dict = getattr(self.config, "return_dict", True)
-
-        if getattr(self, "gradient_checkpointing", False) and self.training and use_cache:
-            logger.warning_once(
-                "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`."
-            )
-            use_cache = False
-
-        ####################################################################################################
-        # Prevent passing use_cache twice
-        use_cache_idx = (
-            func.__code__.co_varnames.index("use_cache") - 1 if "use_cache" in func.__code__.co_varnames else -1
-        )
-        if use_cache_idx >= 0 and len(args) > use_cache_idx:
-            args = list(args)
-            args[use_cache_idx] = use_cache
-            args = tuple(args)
-        else:
-            kwargs["use_cache"] = use_cache
-        ####################################################################################################
 
         all_args = kwargs.copy()
         if "kwargs" in all_args:
@@ -44,6 +38,9 @@ def check_model_inputs_patched(func):
                 all_args[k] = v
 
         capture_flags = _CAN_RECORD_REGISTRY.get(str(self.__class__), {})  # there is a weak ref for executorch
+        if capture_flags is None:
+            capture_flags = {}
+
         recordable_keys = {
             f"output_{k}": all_args.get(
                 f"output_{k}",
@@ -55,17 +52,37 @@ def check_model_inputs_patched(func):
             )
             for k in capture_flags
         }
+
+        # We let cross attentions to be saved separately because some models add `cross-attn` layer
+        # when certain condtions are met. Let's output cross attention if attentions are requested (for BC)
+        if "output_attentions" in recordable_keys:
+            recordable_keys["output_cross_attentions"] = recordable_keys["output_attentions"]
+
         collected_outputs = defaultdict(tuple)
         monkey_patched_layers = []
+
+        # Check attention implementation is properly set for capturing attention outputs
+        if recordable_keys.get("output_attentions", False):
+            supported_attn = ["eager", "eager_paged", "flex_attention"]
+            config_attn = getattr(self.config, "_attn_implementation", None)
+            sub_configs = [getattr(self.config, key, None) for key in self.config.sub_configs]
+            sub_configs_attn = [
+                getattr(config, "_attn_implementation", None) for config in sub_configs if config is not None
+            ]
+            if config_attn not in supported_attn or any(attn not in supported_attn for attn in sub_configs_attn):
+                warnings.warn(
+                    f"`output_attentions=True` is not supported with `attn_implementation` other than {supported_attn}. "
+                    "Please use `model.set_attn_implementation('eager')` to enable capturing attention outputs.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         def make_capture_wrapper(module, orig_forward, key, index):
             @wraps(orig_forward)
             def wrapped_forward(*args, **kwargs):
                 if key == "hidden_states" and len(collected_outputs[key]) == 0:
                     collected_outputs[key] += (args[0],)
-
                 output = orig_forward(*args, **kwargs)
-
                 if not isinstance(output, tuple):
                     collected_outputs[key] += (output,)
                 elif output[index] is not None:
@@ -113,10 +130,11 @@ def check_model_inputs_patched(func):
         # Inject collected outputs into model output
         for key in collected_outputs:
             if key == "hidden_states":
-                collected_outputs[key] = collected_outputs[key][:-1]
                 if hasattr(outputs, "vision_hidden_states"):
+                    collected_outputs[key] = collected_outputs[key][:-1]
                     collected_outputs[key] += (outputs.vision_hidden_states,)
                 elif hasattr(outputs, "last_hidden_state"):
+                    collected_outputs[key] = collected_outputs[key][:-1]
                     collected_outputs[key] += (outputs.last_hidden_state,)
 
                 outputs[key] = collected_outputs[key]

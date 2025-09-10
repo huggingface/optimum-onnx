@@ -115,7 +115,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
-    "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
+    # "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel", # The mode is broken on transformers :/
     "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
