@@ -42,4 +42,4 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/onnx/test_export_cli.py -vvvv -n auto -k "moonshine"
+          pytest tests/exporters/onnx/test_export_cli.py -vvvv -n auto
