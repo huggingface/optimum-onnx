@@ -24,7 +24,7 @@ jobs:
       matrix:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
-        transformers_version: [latest, 4.36.*, 4.45.*, 4.54.*]
+        transformers_version: [latest, 4.36.*, 4.45.*]
         test_file:
           [
             test_decoder.py,
