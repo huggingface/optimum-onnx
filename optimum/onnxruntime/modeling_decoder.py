@@ -750,6 +750,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     setattr(generation_config, param_name, param_value)
                     setattr(config, param_name, None)
 
+        # set cache_implementation to None when use_cache is False to be able to ensure generation_config is valid
+        if use_cache is False and getattr(generation_config, "cache_implementation", None) is not None:
+            generation_config.cache_implementation = None
+
         providers, provider_options = prepare_providers_and_provider_options(
             provider=provider, providers=providers, provider_options=provider_options
         )
