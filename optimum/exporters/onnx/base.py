@@ -124,6 +124,8 @@ class OnnxConfig(ExporterConfig, ABC):
         "image-to-image": OrderedDict(
             {"reconstruction": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
         ),
+        "image-text-to-text": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
+        "image-text-to-text-with-past": OrderedDict({"logits": {0: "batch_size", 1: "sequence_length"}}),
         "keypoint-detection": OrderedDict(
             {"heatmaps": {0: "batch_size", 1: "num_keypoints", 2: "height", 3: "width"}}
         ),

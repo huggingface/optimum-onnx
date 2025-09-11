@@ -15,13 +15,16 @@
 
 from __future__ import annotations
 
+import enum
 from collections import OrderedDict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.model_patcher import ModelPatcher
+from optimum.exporters.tasks import TasksManager
 from optimum.utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -465,3 +468,258 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1]._decoder_onnx_config.is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+
+class VLMConfigBehavior(str, enum.Enum):
+    """Specifies the behavior of the [`~exporters.onnx.base.VLMDecoderOnnxConfig`].
+
+    - MONOLITH: the config can be used to export the entire multimodal model as a single file.
+    - VISION_ENCODER: the config can be used to export the underlying vision encoder.
+    - MULTIMODAL_PROJECTOR: the config can be used to export the underlying multimodal projector.
+    - TEXT_ENCODER: the config can be used to export the underlying text encoder, mapping inputs ids to embeddings.
+    - LANGUAGE_MODEL: the config can be used to export the underlying language model. Note: this does not
+        include the language model head.
+    """
+
+    MONOLITH = "monolith"
+    VISION_ENCODER = "vision_encoder"
+    MULTIMODAL_PROJECTOR = "multimodal_projector"
+    TEXT_ENCODER = "text_encoder"
+    LANGUAGE_MODEL = "language_model"
+    LANGUAGE_MODEL_WITH_HEAD = "language_model_with_head"
+
+
+class VLMDecoderOnnxConfig(TextDecoderOnnxConfig):
+    """Base config for decoder-based vision language models."""
+
+    DUMMY_INPUT_GENERATOR_CLASSES = TextAndVisionOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES
+    SUPPORTED_BEHAVIORS: ClassVar[list[VLMConfigBehavior]] = list(VLMConfigBehavior)
+
+    def __init__(
+        self,
+        config: PretrainedConfig,
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        use_past: bool = False,
+        use_past_in_inputs: bool = False,
+        preprocessors: list[Any] | None = None,
+        legacy: bool = False,
+        behavior: VLMConfigBehavior = VLMConfigBehavior.MONOLITH,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            use_past=use_past,
+            use_past_in_inputs=use_past_in_inputs,
+            preprocessors=preprocessors,
+            legacy=legacy,
+        )
+        self._behavior = behavior
+
+    @property
+    def behavior(self) -> VLMConfigBehavior:
+        """The behavior property."""
+        return self._behavior
+
+    @behavior.setter
+    def behavior(self, value: str | VLMConfigBehavior) -> None:
+        if isinstance(value, str):
+            try:
+                value = VLMConfigBehavior(value)
+            except ValueError:
+                raise ValueError(
+                    f"behavior must be one of {self.SUPPORTED_BEHAVIORS}, but got {value} instead."
+                ) from None
+
+        self._behavior = value
+
+    def get_supported_behaviors(self, task: str) -> list[VLMConfigBehavior]:
+        """Get supported behaviors for this model.
+
+        The supported behaviors are task-dependent. For instance, "text-generation" is handled by
+        the language model and associated head.
+        """
+        if "image-text-to-text" in task:
+            # All parts of the model
+            return [
+                VLMConfigBehavior.VISION_ENCODER,
+                VLMConfigBehavior.MULTIMODAL_PROJECTOR,
+                VLMConfigBehavior.TEXT_ENCODER,
+                VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD,
+            ]
+
+        elif "text-generation" in task:
+            # Only text-related components needed
+            return [
+                VLMConfigBehavior.TEXT_ENCODER,
+                VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD,
+            ]
+
+        elif "feature-extraction" in task:
+            # Same as image-text-to-text but without the LM head
+            return [
+                VLMConfigBehavior.VISION_ENCODER,
+                VLMConfigBehavior.MULTIMODAL_PROJECTOR,
+                VLMConfigBehavior.TEXT_ENCODER,
+                VLMConfigBehavior.LANGUAGE_MODEL,
+            ]
+
+        else:
+            message = f"Invalid task for {self.__class__.__name__}: {task}"
+            raise ValueError(message)
+
+    def with_behavior(self, behavior: VLMConfigBehavior) -> Self:
+        if behavior == VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD:
+            model_config = self._config.text_config
+            model_type = model_config.model_type
+
+            if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+                raise ValueError(
+                    f"Unsupported language model type provided `{model_type}`. Please define custom export config"
+                )
+
+            lm_task = "text-generation-with-past" if self.use_past else "text-generation"
+            exporter_config_constructor = TasksManager.get_exporter_config_constructor(
+                exporter="onnx",
+                model_type=model_type,
+                task=lm_task,
+            )
+            return exporter_config_constructor(
+                model_config,
+                int_dtype=self.int_dtype,
+                float_dtype=self.float_dtype,
+                use_past=self.use_past,
+                use_past_in_inputs=self.use_past_in_inputs,
+            )
+
+        elif behavior in [
+            VLMConfigBehavior.MONOLITH,
+            VLMConfigBehavior.TEXT_ENCODER,
+            VLMConfigBehavior.VISION_ENCODER,
+            VLMConfigBehavior.MULTIMODAL_PROJECTOR,
+            VLMConfigBehavior.LANGUAGE_MODEL,
+        ]:
+            # TODO: check if we need to handle vision encoder part similarly, with config.vision_config
+            return type(self)(
+                config=self._config,
+                task=self.task,
+                int_dtype=self.int_dtype,
+                float_dtype=self.float_dtype,
+                use_past=self.use_past,
+                use_past_in_inputs=self.use_past_in_inputs,
+                preprocessors=self._preprocessors,
+                legacy=self.legacy,
+                behavior=behavior,
+            )
+
+        message = f"Behavior must be one of {self.SUPPORTED_BEHAVIORS}, but got {behavior} instead."
+        raise ValueError(message)
+
+    def get_model_for_behavior(self, model: PreTrainedModel, behavior: VLMConfigBehavior):
+        if behavior != self.behavior:
+            raise ValueError(
+                f"Config behavior {self.behavior} does not match the requested behavior {behavior}. Please run `.with_behavior` first."
+            )
+
+        if behavior == VLMConfigBehavior.LANGUAGE_MODEL:
+            return model.language_model
+
+        if behavior == VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD:
+            # No default way to get just the LM and LM head, so we get entire model.
+            return model
+
+        if behavior == VLMConfigBehavior.VISION_ENCODER:
+            vision_encoder = model.vision_tower
+            vision_encoder.config = model.config.vision_config
+            return vision_encoder
+
+        if behavior == VLMConfigBehavior.MULTIMODAL_PROJECTOR:
+            multi_modal_projector = model.multi_modal_projector
+            # TODO: check if multimodal projector actually acceps the base config, not config.vision_config
+            multi_modal_projector.config = model.config
+            return multi_modal_projector
+
+        if behavior == VLMConfigBehavior.MONOLITH:
+            return model
+
+        if behavior == VLMConfigBehavior.TEXT_ENCODER:
+            return model.get_input_embeddings()
+
+        message = f"Behavior must be one of {self.SUPPORTED_BEHAVIORS}, but got {behavior} instead."
+        raise ValueError(message)
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        if self.behavior == VLMConfigBehavior.VISION_ENCODER:
+            return {"pixel_values": {0: "batch_size"}}
+
+        if self.behavior == VLMConfigBehavior.MULTIMODAL_PROJECTOR:
+            # Should be batch_size, number of tokens per image, and hidden size of the vision encoder
+            return {
+                "vision_outputs": {
+                    0: "batch_size",
+                    1: "num_patch_tokens",
+                    2: "hidden_size",
+                }
+            }
+
+        if self.behavior in (
+            VLMConfigBehavior.LANGUAGE_MODEL,
+            VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD,
+        ):
+            return super().inputs
+
+        if self.behavior == VLMConfigBehavior.MONOLITH:
+            inputs = super().inputs
+
+            # text-generation task should not include images.
+            if "image-text-to-text" in self.task:
+                # No need to add channel and image dimensions
+                inputs["pixel_values"] = {0: "batch_size"}
+
+            return inputs
+
+        if self.behavior == VLMConfigBehavior.TEXT_ENCODER:
+            return super().inputs
+
+        message = f"Behavior must be one of {self.SUPPORTED_BEHAVIORS}, but got {self.behavior} instead."
+        raise ValueError(message)
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        if self.behavior in (
+            VLMConfigBehavior.VISION_ENCODER,
+            VLMConfigBehavior.LANGUAGE_MODEL,
+        ):
+            return {"last_hidden_state": {0: "batch_size"}}
+
+        if self.behavior == VLMConfigBehavior.MULTIMODAL_PROJECTOR:
+            return {
+                "image_features": {
+                    0: "batch_size",
+                    1: "mm_tokens_per_image",
+                    2: "text_hidden_size",
+                }
+            }
+
+        if self.behavior == VLMConfigBehavior.TEXT_ENCODER:
+            return {"inputs_embeds": {0: "batch_size", 1: "sequence_length"}}
+
+        return super().outputs
+
+    def patch_model_for_export(
+        self, model: PreTrainedModel, model_kwargs: dict[str, Any] | None = None
+    ) -> ModelPatcher:
+        if self.behavior in (
+            VLMConfigBehavior.LANGUAGE_MODEL,
+            VLMConfigBehavior.LANGUAGE_MODEL_WITH_HEAD,
+            VLMConfigBehavior.MONOLITH,
+        ):
+            if model_kwargs is None:
+                model_kwargs = {}
+            model_kwargs["use_cache"] = self.use_past
+
+        return super().patch_model_for_export(model=model, model_kwargs=model_kwargs)

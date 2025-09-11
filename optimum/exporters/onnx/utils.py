@@ -21,6 +21,8 @@ import torch
 from packaging import version
 from transformers.utils import is_torch_available
 
+from optimum.exporters.onnx.constants import VLM_TEXT_GENERATION_MODELS
+from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import (
     _get_submodels_and_export_configs,
 )
@@ -75,6 +77,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "cohere",
     "falcon",
     "gemma",
+    "gemma3",
     "gpt2",
     "gpt_bigcode",
     "gpt_neo",
@@ -211,6 +214,23 @@ def _get_submodels_and_onnx_configs(
     legacy: bool = False,
     model_kwargs: dict | None = None,
 ):
+    if (
+        not custom_architecture
+        and library_name == "transformers"
+        and model.config.model_type in VLM_TEXT_GENERATION_MODELS
+        and not monolith
+    ):
+        return _get_vlm_submodels_and_onnx_configs(
+            model=model,
+            task=task,
+            custom_onnx_configs=custom_onnx_configs,
+            library_name=library_name,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+            model_kwargs=model_kwargs,
+        )
+
     return _get_submodels_and_export_configs(
         model,
         task,
@@ -230,6 +250,50 @@ def _get_submodels_and_onnx_configs(
 
 
 DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx.utils.get_{model_type}_models_for_export` is deprecated and will be removed in a future release, please use `optimum.exporters.utils.get_{model_type}_models_for_export` instead."
+
+
+def _get_vlm_submodels_and_onnx_configs(
+    model: PreTrainedModel,
+    task: str,
+    custom_onnx_configs: dict,
+    library_name: str,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
+    preprocessors: list[Any] | None = None,
+    model_kwargs: dict | None = None,
+) -> tuple[ExporterConfig, dict[str, tuple]]:
+    submodels_and_configs = {}
+
+    main_config_cls = TasksManager.get_exporter_config_constructor(
+        model=model, task=task, exporter="onnx", library_name=library_name
+    )
+    main_config = main_config_cls(
+        model.config,
+        int_dtype=int_dtype,
+        float_dtype=float_dtype,
+        preprocessors=preprocessors,
+    )
+    if not hasattr(main_config, "get_supported_behaviors"):
+        message = (
+            f"VLM '{model.config.model_type}' does not have a `get_supported_behaviors` "
+            "method configured in its ONNX config class. Please configure and try again."
+        )
+        raise ValueError(message)
+
+    for behavior in main_config.get_supported_behaviors(task):
+        submodel_config = main_config.with_behavior(behavior)
+        submodel = submodel_config.get_model_for_behavior(model, behavior)
+        submodels_and_configs[behavior] = (submodel, submodel_config)
+
+    # Override config if custom config is provided
+    for key, custom_onnx_config in custom_onnx_configs.items():
+        if key not in submodels_and_configs:
+            message = f"Invalid custom config key '{key}'. Please use one of {', '.join(submodels_and_configs)}."
+            raise ValueError(message)
+        submodel = submodels_and_configs[key][0]
+        submodels_and_configs[key] = (submodel, custom_onnx_config)
+
+    return main_config, submodels_and_configs
 
 
 def get_diffusion_models_for_export(

@@ -33,13 +33,18 @@ from optimum.exporters.onnx.config import (
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
+    VLMConfigBehavior,
+    VLMDecoderOnnxConfig,
 )
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.input_generators import Gemma3DummyInputGenerator
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
     CohereModelPatcher,
     FluxTransformerModelPatcher,
+    Gemma3LMModelPatcher,
     MgpstrModelPatcher,
+    ModelPatcher,
     MusicgenModelPatcher,
     Qwen3MoeModelPatcher,
     SAMModelPatcher,
@@ -142,6 +147,27 @@ COMMON_TEXT2TEXT_GENERATION_TASKS = [
     "text2text-generation-with-past",
 ]
 
+COMMON_VLM_TEXT_GENERATION_TASKS = [
+    *COMMON_TEXT_GENERATION_TASKS,
+    "image-text-to-text",
+    "image-text-to-text-with-past",
+]
+
+
+def init_model_configs():
+    """Initialize custom model configs on the task manager."""
+    # Hacky but works, would be cleaner to expose this behavior in the TasksManager
+    TasksManager._CUSTOM_CLASSES[("pt", "gemma3", "image-text-to-text")] = (
+        "transformers",
+        "Gemma3ForConditionalGeneration",
+    )
+    TasksManager._CUSTOM_CLASSES[("pt", "gemma3", "image-text-to-text-with-past")] = (
+        "transformers",
+        "Gemma3ForConditionalGeneration",
+    )
+
+
+init_model_configs()
 
 register_tasks_manager_onnx = TasksManager.create_register("onnx")
 
@@ -505,6 +531,52 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
+
+
+@register_tasks_manager_onnx("gemma3_text", *[*COMMON_TEXT_GENERATION_TASKS])
+class Gemma3TextDecoderOnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_layers="num_hidden_layers")
+    _MODEL_PATCHER = Gemma3LMModelPatcher
+
+    def get_model_for_behavior(self, model: PreTrainedModel, behavior: VLMConfigBehavior):
+        # Unused
+        _ = behavior
+        return model.language_model
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        output = {"last_hidden_state": {0: "batch_size"}}
+        if self.use_past:
+            self.add_past_key_values(output, "outputs")
+
+        return output
+
+    def patch_model_for_export(
+        self, model: PreTrainedModel, model_kwargs: dict[str, Any] | None = None
+    ) -> ModelPatcher:
+        model_kwargs = model_kwargs or {}
+        model_kwargs["use_cache"] = self.use_past
+
+        return super().patch_model_for_export(model, model_kwargs=model_kwargs)
+
+
+@register_tasks_manager_onnx("gemma3", *COMMON_VLM_TEXT_GENERATION_TASKS)
+class Gemma3OnnxConfig(VLMDecoderOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        Gemma3DummyInputGenerator,
+        DummyVisionInputGenerator,
+        GemmaDummyPastKeyValuesGenerator,
+    )
+    DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
+    NORMALIZED_CONFIG_CLASS = NormalizedTextAndVisionConfig.with_args(
+        text_config="text_config",
+        vision_config="vision_config",
+        head_dim="text_config.head_dim",
+        num_key_value_heads="text_config.num_key_value_heads",
+        allow_new=True,
+    )
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
