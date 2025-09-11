@@ -208,11 +208,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.old_bloom_modeling = self.config.model_type == "bloom" and (
             len(self.input_shapes.get("past_key_values.0.key", ())) == 3
             or len(self.output_shapes.get("past_key_values.0.key", ())) == 3
+            or is_transformers_version("<", "4.44.0")
         )  # Old Bloom style
 
         self.old_gpt_bigcode_modeling = self.config.model_type == "gpt_bigcode" and (
             self.input_shapes.get("past_key_values.0.key_value", None) is not None
             or self.output_shapes.get("past_key_values.0.key_value", None) is not None
+            or is_transformers_version("<", "4.54.0")
         )  # Old GPT BigCode style
 
         if self.config.model_type in {"gemma", "gpt_oss", "nemotron"}:
