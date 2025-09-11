@@ -33,9 +33,13 @@ from torch.onnx.symbolic_opset14 import (
 from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from optimum.exporters.onnx._traceable_cache import TraceableCache
 from optimum.utils import is_diffusers_version, is_transformers_version, logging
 
+
+if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
+    from optimum.exporters.onnx._traceable_cache import TraceableCache
+if is_transformers_version(">=", "4.54"):
+    from optimum.exporters.onnx._traceable_decorator import traceable_check_model_inputs
 
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
@@ -55,8 +59,7 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
-if is_transformers_version(">=", "4.54"):
-    from optimum.exporters.onnx._traceable_decorator import check_model_inputs_patched
+
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
 
@@ -469,9 +472,12 @@ class ModelPatcher:
 
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
-        if hasattr(self.orig_forward, "__wrapped__"):
+
+        if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
+            # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
+            # we fix thoses issues in a PR https://github.com/huggingface/transformers/pull/40811
             self.orig_forward = types.MethodType(
-                check_model_inputs_patched(self.orig_forward.__wrapped__), self._model
+                traceable_check_model_inputs(self.orig_forward.__wrapped__), self._model
             )
 
         self.real_config = config

@@ -66,7 +66,7 @@ from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
 
-if is_transformers_version(">=", "4.54.0"):
+if is_transformers_version(">=", "4.54"):
     from transformers.cache_utils import EncoderDecoderCache
 
 logger = get_logger(__name__)
@@ -396,7 +396,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             if isinstance(outputs.past_key_values, DynamicCache):
                 outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
-            elif is_transformers_version(">=", "4.54.0") and isinstance(outputs.past_key_values, EncoderDecoderCache):
+            elif is_transformers_version(">=", "4.54") and isinstance(outputs.past_key_values, EncoderDecoderCache):
                 outputs.past_key_values = outputs.past_key_values.self_attention_cache.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0"):

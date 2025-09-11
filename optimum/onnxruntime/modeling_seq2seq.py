@@ -65,6 +65,8 @@ from optimum.utils.save_utils import maybe_save_preprocessors
 
 
 if is_transformers_version(">=", "4.49.0"):
+    # Because of some type hint logic added in PreTrainedModel we use
+    # WhisperGenerationMixin instead of always using WhisperForConditionalGeneration
     from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
 else:
     WhisperGenerationMixin = WhisperForConditionalGeneration

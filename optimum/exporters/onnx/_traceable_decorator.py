@@ -5,7 +5,7 @@ from functools import wraps
 from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, logger
 
 
-def check_model_inputs_patched(func):
+def traceable_check_model_inputs(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         use_cache = (
@@ -37,7 +37,9 @@ def check_model_inputs_patched(func):
             for k, v in all_args["kwargs"].items():
                 all_args[k] = v
 
-        capture_flags = _CAN_RECORD_REGISTRY.get(str(self.__class__)) or {}  # there is a weak ref for executorch
+        capture_flags = _CAN_RECORD_REGISTRY.get(str(self.__class__), {})  # there is a weak ref for executorch
+        if capture_flags is None:
+            capture_flags = {}
 
         recordable_keys = {
             f"output_{k}": all_args.get(
