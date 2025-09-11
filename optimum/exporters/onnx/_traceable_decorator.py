@@ -37,9 +37,7 @@ def check_model_inputs_patched(func):
             for k, v in all_args["kwargs"].items():
                 all_args[k] = v
 
-        capture_flags = _CAN_RECORD_REGISTRY.get(str(self.__class__), {})  # there is a weak ref for executorch
-        if capture_flags is None:
-            capture_flags = {}
+        capture_flags = _CAN_RECORD_REGISTRY.get(str(self.__class__)) or {}  # there is a weak ref for executorch
 
         recordable_keys = {
             f"output_{k}": all_args.get(
