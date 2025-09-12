@@ -20,7 +20,7 @@ from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
-from transformers.cache_utils import Cache
+from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 from transformers.onnx.utils import get_preprocessor
@@ -33,6 +33,7 @@ from optimum.exporters.onnx.model_configs import (
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
+    GPTOssOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
     InternLM2OnnxConfig,
@@ -64,6 +65,9 @@ from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
+
+if is_transformers_version(">=", "4.54"):
+    from transformers.cache_utils import EncoderDecoderCache
 
 logger = get_logger(__name__)
 
@@ -130,6 +134,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("deepseek_v3")
     if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("stablelm")
+    if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("gpt_oss")
 
     # base generation kwargs
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
@@ -388,8 +394,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertTrue("past_key_values" in onnx_outputs)
             self.assertIsInstance(onnx_outputs.past_key_values, tuple)
 
-            if isinstance(outputs.past_key_values, Cache):
+            if isinstance(outputs.past_key_values, DynamicCache):
                 outputs.past_key_values = outputs.past_key_values.to_legacy_cache()
+            elif is_transformers_version(">=", "4.54") and isinstance(outputs.past_key_values, EncoderDecoderCache):
+                outputs.past_key_values = outputs.past_key_values.self_attention_cache.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0"):
                 # before 4.39.0, transformers used different masking strategies depending on whether

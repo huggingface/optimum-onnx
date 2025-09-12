@@ -64,6 +64,13 @@ from optimum.utils.logging import get_logger, warn_once
 from optimum.utils.save_utils import maybe_save_preprocessors
 
 
+if is_transformers_version(">=", "4.49.0"):
+    # Because of some type hint logic added in PreTrainedModel we use
+    # WhisperGenerationMixin instead of always using WhisperForConditionalGeneration
+    from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
+else:
+    WhisperGenerationMixin = WhisperForConditionalGeneration
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -858,6 +865,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
 
     """
 
+    _is_stateful = False
     _supports_cache_class = False
 
     _ort_encoder_class = ORTEncoder
@@ -1057,6 +1065,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
         use_merged: bool | None = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
+        dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ):
@@ -1207,6 +1216,13 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
                     "Generation config file not found, using a generation config created from the model config."
                 )
 
+        if hasattr(config, "is_decoder"):
+            config.is_decoder = False
+        if hasattr(config, "is_encoder_decoder"):
+            config.is_encoder_decoder = True
+        if hasattr(config, "_attn_implementation"):
+            config._attn_implementation = "onnxruntime"
+
         return cls(
             config=config,
             encoder_session=encoder_session,
@@ -1283,6 +1299,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel):
             model_save_dir=model_save_dir,
             **kwargs,
         )
+
+    def _prepare_cache_for_generation(self, *args, **kwargs):
+        return
 
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
@@ -1444,7 +1463,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
 
     def prepare_inputs_for_generation(
         self,
-        decoder_input_ids,
+        input_ids,
         past_key_values=None,
         attention_mask=None,
         head_mask=None,
@@ -1454,14 +1473,20 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
         encoder_outputs=None,
         **kwargs,
     ):
-        # cut decoder_input_ids if past is used
         if past_key_values is not None:
-            decoder_input_ids = decoder_input_ids[:, -1:]
+            past_length = past_key_values[0][0].shape[2]
+            # Some generation methods already pass only the last input ID
+            if input_ids.shape[1] > past_length:
+                remove_prefix_length = past_length
+            else:
+                # Default to old behavior: keep only final ID
+                remove_prefix_length = input_ids.shape[1] - 1
+            input_ids = input_ids[:, remove_prefix_length:]
 
         return {
+            "decoder_input_ids": input_ids,
             "encoder_outputs": encoder_outputs,
             "past_key_values": past_key_values,
-            "decoder_input_ids": decoder_input_ids,
             "attention_mask": attention_mask,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
@@ -1488,7 +1513,7 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration, GenerationMixin
             return super()._from_pretrained(model_id, config, **kwargs)
 
 
-class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
+class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
     """Whisper implements its own generate() method."""
 
     auto_model_class = WhisperForConditionalGeneration
@@ -1498,13 +1523,13 @@ class _ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerat
 
         self.model = DummyWhisperModel()
 
-    # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    def generate(*args, **kwargs):
-        return WhisperForConditionalGeneration.generate(*args, **kwargs)
+    # force the use of the WhisperGenerationMixin generate and prepare_inputs_for_generation methods
+    def generate(self, *args, **kwargs):
+        return WhisperGenerationMixin.generate(self, *args, **kwargs)
 
-    # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
+    # force the use of the WhisperGenerationMixin prepare_inputs_for_generation method
     def prepare_inputs_for_generation(*args, **kwargs):
-        return WhisperForConditionalGeneration.prepare_inputs_for_generation(*args, **kwargs)
+        return WhisperGenerationMixin.prepare_inputs_for_generation(*args, **kwargs)
 
     # this is needed to avoid circular calls
     @classmethod
@@ -1538,6 +1563,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration, GenerationMixin):
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
+        # Encode if needed : first prediction pass
         if encoder_outputs is None:
             encoder_outputs = self.encoder(pixel_values=pixel_values)
 
@@ -1634,11 +1660,9 @@ class ORTModelForPix2Struct(ORTModelForConditionalGeneration, GenerationMixin):
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
         **kwargs,
     ) -> Seq2SeqLMOutput:
+        # Encode if needed : first prediction pass
         if encoder_outputs is None:
-            encoder_outputs = self.encoder(
-                flattened_patches=flattened_patches,
-                attention_mask=attention_mask,
-            )
+            encoder_outputs = self.encoder(flattened_patches=flattened_patches, attention_mask=attention_mask)
 
         model = (
             self.decoder
