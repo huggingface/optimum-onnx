@@ -210,12 +210,24 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             or len(self.output_shapes.get("past_key_values.0.key", ())) == 3
             or is_transformers_version("<", "4.44.0")
         )  # Old Bloom style
+        if self.can_use_cache and self.old_bloom_modeling:
+            logger.warning(
+                "The loaded Bloom ONNX model uses an old cache format that squeezes the batch_size and num_key_value_heads dimensions into one. "
+                "We strongly encourage to re-export the model with a newer version of Optimum and Transformers for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+            )
 
         self.old_gpt_bigcode_modeling = self.config.model_type == "gpt_bigcode" and (
             self.input_shapes.get("past_key_values.0.key_value", None) is not None
             or self.output_shapes.get("past_key_values.0.key_value", None) is not None
             or is_transformers_version("<", "4.54.0")
         )  # Old GPT BigCode style
+        if self.can_use_cache and self.old_gpt_bigcode_modeling:
+            logger.warning(
+                "The loaded GPT BigCode ONNX model uses an old cache format that fuses keys and values in one tensor. "
+                "We strongly encourage to re-export the model with a newer version of Optimum and Transformers for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+            )
 
         if self.config.model_type in {"gemma", "gpt_oss", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
