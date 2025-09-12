@@ -18,6 +18,10 @@ from functools import wraps
 from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, logger
 
 
+# This is a fixed version of transformers.utils.generic.check_model_inputs
+# that fixes issues related to onnx export and tracing
+# - adds support for positional args (use_cache), without which use_cache end up being passed twice
+# - fixes issue with default capture_flags being None for some models
 def traceable_check_model_inputs(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
