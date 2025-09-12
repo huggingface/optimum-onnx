@@ -21,7 +21,7 @@ from onnxruntime import InferenceSession
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig, set_seed
-from transformers.cache_utils import Cache
+from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 
@@ -33,6 +33,7 @@ from optimum.exporters.onnx.model_configs import (
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
+    GPTOssOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
     InternLM2OnnxConfig,
@@ -131,6 +132,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("deepseek_v3")
     if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("stablelm")
+    if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("gpt_oss")
 
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
@@ -262,10 +265,17 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.assertIsInstance(outputs1.past_key_values, (tuple, list, Cache))
             self.assertIsInstance(outputs2.past_key_values, (tuple, list, Cache))
 
-            if isinstance(outputs1.past_key_values, Cache):
+            if isinstance(outputs1.past_key_values, DynamicCache):
                 outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
-            if isinstance(outputs2.past_key_values, Cache):
+            elif is_transformers_version(">=", "4.54") and onnx_model.config.model_type == "gpt_bigcode":
+                # error in latest transformers versions where GPTBigCode returns an EncoderDecoderCache
+                outputs1.past_key_values = outputs1.past_key_values.self_attention_cache.to_legacy_cache()
+
+            if isinstance(outputs2.past_key_values, DynamicCache):
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
+            elif is_transformers_version(">=", "4.54") and onnx_model.config.model_type == "gpt_bigcode":
+                # error in latest transformers versions where GPTBigCode returns an EncoderDecoderCache
+                outputs2.past_key_values = outputs2.past_key_values.self_attention_cache.to_legacy_cache()
 
             if is_transformers_version("<", "4.39.0") and "attention_mask" in inputs:
                 self.mask_past_key_values(onnx_model, outputs1.past_key_values, inputs["attention_mask"])

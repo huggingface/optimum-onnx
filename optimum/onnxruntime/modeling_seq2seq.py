@@ -69,6 +69,14 @@ if is_transformers_version(">=", "4.48.0"):
 else:
     MoonshineForConditionalGeneration = None
 
+if is_transformers_version(">=", "4.49.0"):
+    # Because of some type hint logic added in PreTrainedModel we use
+    # WhisperGenerationMixin instead of always using WhisperForConditionalGeneration
+    from transformers.models.whisper.generation_whisper import WhisperGenerationMixin
+else:
+    WhisperGenerationMixin = WhisperForConditionalGeneration
+
+
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
 
@@ -781,6 +789,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
 
     """
 
+    _is_stateful = False
     _supports_cache_class = False
 
     _library_name = "transformers"
@@ -946,6 +955,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         use_merged: bool | None = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
+        dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModelForConditionalGeneration:
@@ -1027,6 +1037,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
             config.is_decoder = False
         if hasattr(config, "is_encoder_decoder"):
             config.is_encoder_decoder = True
+        if hasattr(config, "_attn_implementation"):
+            config._attn_implementation = "onnxruntime"
 
         if generation_config is None:
             try:
@@ -1236,13 +1248,18 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         )
         return self.can_use_cache
 
+    def _prepare_cache_for_generation(self, *args, **kwargs):
+        return
+
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
     """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5."""
 
-    auto_model_class = AutoModelForSeq2SeqLM
     main_input_name = "input_ids"
+    auto_model_class = AutoModelForSeq2SeqLM
+
+    _ort_encoder_class = ORTEncoder
 
     @add_start_docstrings_to_model_forward(
         SEQ2SEQ_ONNX_MODEL_DOCSTRING
@@ -1318,6 +1335,15 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
         # See: https://github.com/huggingface/transformers/pull/24960/files
         MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES["ort_speechseq2seq"] = self.__class__.__name__
 
+    @classmethod
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
+        if config.model_type == "whisper":
+            return ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
+        elif config.model_type == "moonshine":
+            return ORTModelForMoonshine._from_pretrained(model_id, config, **kwargs)
+        else:
+            return super()._from_pretrained(model_id, config, **kwargs)
+
     @add_start_docstrings_to_model_forward(
         SPEECH_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + AUTOMATIC_SPEECH_RECOGNITION_EXAMPLE.format(
@@ -1373,21 +1399,12 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
-    @classmethod
-    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
-        if config.model_type == "whisper":
-            return ORTModelForWhisper._from_pretrained(model_id, config, **kwargs)
-        elif config.model_type == "moonshine":
-            return ORTModelForMoonshine._from_pretrained(model_id, config, **kwargs)
-        else:
-            return super()._from_pretrained(model_id, config, **kwargs)
 
-
-# TODO: remove WhisperForConditionalGeneration and replace it with WhisperGenerationMixin when min versions allow it
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
-class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGeneration):
+class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperGenerationMixin):
     """Whisper sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports whisper."""
 
+    main_input_name = "input_features"
     auto_model_class = WhisperForConditionalGeneration
 
     def __init__(self, *args, **kwargs):
@@ -1396,9 +1413,9 @@ class ORTModelForWhisper(ORTModelForSpeechSeq2Seq, WhisperForConditionalGenerati
         self.model = DummyWhisperModel()
 
     # force the use of the WhisperForConditionalGeneration generate and prepare_inputs_for_generation methods
-    generate = WhisperForConditionalGeneration.generate
+    generate = WhisperGenerationMixin.generate
     # force the use of the WhisperForConditionalGeneration prepare_inputs_for_generation method
-    prepare_inputs_for_generation = WhisperForConditionalGeneration.prepare_inputs_for_generation
+    prepare_inputs_for_generation = WhisperGenerationMixin.prepare_inputs_for_generation
 
     # this is needed to avoid circular calls
     @classmethod
@@ -1413,6 +1430,11 @@ class ORTModelForMoonshine(ORTModelForSpeechSeq2Seq):
     auto_model_class = MoonshineForConditionalGeneration
 
     _ort_encoder_class = ORTEncoderForMoonshine
+
+    # this is needed to avoid circular calls
+    @classmethod
+    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
+        return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
 
     @add_start_docstrings_to_model_forward(
         MOONSHINE_ONNX_MODEL_DOCSTRING
@@ -1469,17 +1491,13 @@ class ORTModelForMoonshine(ORTModelForSpeechSeq2Seq):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
         )
 
-    @classmethod
-    def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):
-        return super(ORTModelForSpeechSeq2Seq, cls)._from_pretrained(model_id, config, **kwargs)
-
 
 @add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
 class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
     """Vision sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports vision encoder-decoder and pix2struct."""
 
-    auto_model_class = AutoModelForVision2Seq
     main_input_name = "pixel_values"
+    auto_model_class = AutoModelForVision2Seq
 
     _ort_encoder_class = ORTEncoderForVision
 
@@ -1551,8 +1569,8 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
 class ORTModelForPix2Struct(ORTModelForVision2Seq):
     """Pix2Struct model with a language modeling head for ONNX Runtime inference. This class officially supports pix2struct."""
 
-    auto_model_class = Pix2StructForConditionalGeneration
     main_input_name = "flattened_patches"
+    auto_model_class = Pix2StructForConditionalGeneration
 
     _ort_encoder_class = ORTEncoderForPix2Struct
 

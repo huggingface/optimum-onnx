@@ -30,11 +30,16 @@ from torch.onnx.symbolic_opset14 import (
     jit_utils,
     symbolic_helper,
 )
+from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from optimum.exporters.onnx._traceable_cache import TraceableCache
 from optimum.utils import is_diffusers_version, is_transformers_version, logging
 
+
+if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
+    from optimum.exporters.onnx._traceable_cache import TraceableCache
+if is_transformers_version(">=", "4.54"):
+    from optimum.exporters.onnx._traceable_decorator import traceable_check_model_inputs
 
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
@@ -413,6 +418,9 @@ def traceable_scaled_dot_product_attention(
     if isinstance(is_causal, torch.Tensor):
         is_causal = is_causal.item()
 
+    if "enable_gqa" in kwargs:
+        kwargs.pop("enable_gqa")
+
     attn_weights = original_scaled_dot_product_attention(
         query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, **kwargs
     )
@@ -466,9 +474,17 @@ class ModelPatcher:
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
-        self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-        self.real_config = config
+        if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
+            # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
+            # we fix thoses issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
+            # issues are: support for positional args (use_cache for instance) and fix for _CAN_RECORD_REGISTRY
+            # explicitly mapping to None for some models
+            self.orig_forward = types.MethodType(
+                traceable_check_model_inputs(self.orig_forward.__wrapped__), self._model
+            )
 
+        self.real_config = config
+        self.model_kwargs = model_kwargs if model_kwargs is not None else {}
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         @functools.wraps(self.orig_forward)
@@ -508,6 +524,23 @@ class ModelPatcher:
                             raise ValueError(
                                 f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
                             )
+
+            if is_transformers_version(">=", "4.54"):
+                # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
+                if "encoder_outputs" in signature.parameters:
+                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+                    if (
+                        encoder_outputs_index < len(args)  # encoder_outputs is in args
+                        and isinstance(args[encoder_outputs_index], (list, tuple))
+                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
+                    ):
+                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
+                    elif (
+                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
+                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
+                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
+                    ):
+                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -795,8 +828,7 @@ class SAMModelPatcher(ModelPatcher):
                         input_boxes=None,  # Not supported in the ONNX export
                         input_masks=None,  # Not supported in the ONNX export
                     )
-
-                    low_res_masks, iou_predictions, _ = model.mask_decoder(
+                    outputs = model.mask_decoder(
                         image_embeddings=image_embeddings,
                         image_positional_embeddings=image_positional_embeddings,
                         sparse_prompt_embeddings=sparse_embeddings,
@@ -804,8 +836,8 @@ class SAMModelPatcher(ModelPatcher):
                         multimask_output=True,  # Not supported in the ONNX export
                         attention_similarity=None,  # Not supported in the ONNX export
                         target_embedding=None,  # Not supported in the ONNX export
-                        output_attentions=False,
                     )
+                    low_res_masks, iou_predictions = outputs[:2]
 
                     if not return_dict:
                         return (iou_predictions, low_res_masks)

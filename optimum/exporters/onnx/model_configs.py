@@ -33,6 +33,7 @@ from optimum.exporters.onnx.config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
+from optimum.exporters.onnx.input_generators import GPTBigCodeDummyPastKeyValuesGenerator
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
@@ -84,7 +85,6 @@ from optimum.utils import (
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
-    GPTBigCodeDummyPastKeyValuesGenerator,
     LongformerDummyTextInputGenerator,
     MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
@@ -106,8 +106,6 @@ from optimum.utils import (
 )
 from optimum.utils.normalized_config import NormalizedConfigManager
 
-
-# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig
@@ -501,6 +499,11 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
+@register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
+class GPTOssOnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")
+
+
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
 class NemotronOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.48.0")  # More stable version than 4.44.0
@@ -581,26 +584,35 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_sequence_length"
-            name = "past_key_values"
+        if is_transformers_version(">=", "4.54"):
+            super().add_past_key_values(inputs_or_outputs, direction)
         else:
-            decoder_sequence_name = "past_sequence_length + sequence_length"
-            name = "present"
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        if self._normalized_config.multi_query:
-            decoder_sequence_dim = 1
-        else:
-            decoder_sequence_dim = 2
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + sequence_length"
+                name = "present"
 
-        for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", decoder_sequence_dim: decoder_sequence_name}
+            if self._normalized_config.multi_query:
+                decoder_sequence_dim = 1
+            else:
+                decoder_sequence_dim = 2
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                    0: "batch_size",
+                    decoder_sequence_dim: decoder_sequence_name,
+                }
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.key_value"] = t
+        if is_transformers_version(">=", "4.54"):
+            super().flatten_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 @register_tasks_manager_onnx("falcon", *[*COMMON_TEXT_GENERATION_TASKS, "question-answering", "token-classification"])

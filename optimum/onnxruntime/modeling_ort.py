@@ -259,6 +259,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         session_options: SessionOptions | None = None,
         # inference options
         use_io_binding: bool | None = None,
+        dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModel:
