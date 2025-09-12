@@ -475,7 +475,9 @@ class ModelPatcher:
 
         if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
             # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
-            # we fix thoses issues in a PR https://github.com/huggingface/transformers/pull/40811
+            # we fix thoses issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
+            # issues are: support for positional args (use_cache for instance) and fix for _CAN_RECORD_REGISTRY
+            # explicitly mapping to None for some models
             self.orig_forward = types.MethodType(
                 traceable_check_model_inputs(self.orig_forward.__wrapped__), self._model
             )
@@ -523,9 +525,9 @@ class ModelPatcher:
                             )
 
             if is_transformers_version(">=", "4.54"):
+                # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
                 if "encoder_outputs" in signature.parameters:
                     encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
-
                     if (
                         encoder_outputs_index < len(args)  # encoder_outputs is in args
                         and isinstance(args[encoder_outputs_index], (list, tuple))
