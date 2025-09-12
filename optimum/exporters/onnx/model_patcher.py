@@ -45,6 +45,7 @@ if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
     from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+    from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
         ALL_MASK_ATTENTION_FUNCTIONS,
@@ -654,9 +655,12 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
         allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
-        # sometimes the text_config has use_cache set to False
-        if allow_past_in_outputs and hasattr(model.config, "text_config"):
-            model.config.text_config.use_cache = True
+        # sometimes the text_config/decoder is set to False
+        if allow_past_in_outputs:
+            if hasattr(model.config, "text_config"):
+                model.config.text_config.use_cache = True
+            elif hasattr(model.config, "decoder"):
+                model.config.decoder.use_cache = True
 
         # Re-use the patched forward method from the parent class
         self.super_patched_forward = self.patched_forward
@@ -679,7 +683,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                            # Who cares about the encoder outputs in the decoder?
                             continue
                         else:
                             filtered_outputs[name] = value
@@ -695,6 +698,24 @@ class Seq2SeqModelPatcher(ModelPatcher):
             return filtered_outputs
 
         self.patched_forward = patched_forward
+
+
+class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            logger.warning(
+                "BigBirdPegasus model is using block sparse attention, which is not supported in ONNX export. "
+                "The model will be exported with original full attention."
+            )
+            self._model.set_attention_type("original_full")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            self._model.set_attention_type("block_sparse")
 
 
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
@@ -1264,8 +1285,33 @@ class Qwen3MoeModelPatcher(DecoderModelPatcher):
             Qwen3MoeSparseMoeBlock.forward = self.original_moe_forward
 
 
-# A patched version of diffusers.models.transformers.transformer_flux.apply_rotary_emb
-# that doesn't reshape the input tensor `x` (which results in a constant shape in the exported ONNX graph)
+# This is a traceable version of the original function,
+# the original results in a constant integer due to the use of int(expr)
+def _get_feat_extract_output_lengths_patched(self, input_lengths: torch.LongTensor):
+    output_conv1_length = (input_lengths - 127) // 64 + 1
+    output_conv2_length = (output_conv1_length - 7) // 3 + 1
+    output_conv3_length = (output_conv2_length - 3) // 2 + 1
+    return output_conv3_length
+
+
+class MoonshineModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.48"):
+            self.original_feat_extract_output_lengths = MoonshinePreTrainedModel._get_feat_extract_output_lengths
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = _get_feat_extract_output_lengths_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.48"):
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = self.original_feat_extract_output_lengths
+            del self.original_feat_extract_output_lengths
+
+
+# This is a traceabe of the original function,
+# the original results in a constant shape due to the use of *x.shape[:-1]
 def patched_apply_rotary_emb(
     x: torch.Tensor,
     freqs_cis: torch.Tensor | tuple[torch.Tensor],
@@ -1328,6 +1374,7 @@ class FluxTransformerModelPatcher(ModelPatcher):
 
         if is_diffusers_version(">=", "0.35.0"):
             diffusers.models.transformers.transformer_flux.apply_rotary_emb = self.original_apply_rotary_emb
+            del self.original_apply_rotary_emb
 
 
 def patched_cohere_rotary_forward(self, x, position_ids):

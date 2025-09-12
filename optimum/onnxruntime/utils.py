@@ -34,7 +34,6 @@ from transformers.utils import logging
 
 import onnxruntime as ort
 from onnxruntime.transformers.io_binding_helper import TypeHelper
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 if TYPE_CHECKING:
@@ -150,10 +149,6 @@ class ORTConfigManager:
 
 def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
-
-
-def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str, provider_options: dict) -> torch.device:

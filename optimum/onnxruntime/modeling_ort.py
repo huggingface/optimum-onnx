@@ -154,52 +154,12 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     def __init__(
         self,
-        *args,
+        *,
         config: PretrainedConfig = None,
         session: InferenceSession = None,
         use_io_binding: bool | None = None,
         model_save_dir: str | Path | TemporaryDirectory | None = None,
-        **kwargs,
     ):
-        # DEPRECATED BEHAVIOR
-        if args:
-            logger.warning(
-                "Instantiating an ORTModel with positional arguments is deprecated and will be removed in the next version. "
-                "Please use the keyword arguments {config, session, use_io_binding, model_save_dir} instead."
-            )
-            # old signature is ORTModel(model, config, use_io_binding, model_save_dir, preprocessors)
-            session = args[0]
-            if len(args) > 1:
-                config = args[1]
-            if len(args) > 2:
-                use_io_binding = args[2]
-            if len(args) > 3:
-                model_save_dir = args[3]
-            if len(args) > 4:
-                _ = args[4]
-
-        if kwargs.get("model") is not None:
-            logger.warning(
-                "Passing the inference session as `model` argument to an ORTModel is deprecated. "
-                "Please use `session` instead."
-            )
-            session = kwargs.pop("model")
-        if kwargs:
-            logger.warning(
-                f"Some keyword arguments were passed to the ORTModel constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
-                "These arguments will be ignored in the current version and will raise an error in the next version."
-            )
-
-        if config is None:
-            raise ValueError(
-                "The parameter config is required. Please pass a config or use the from_pretrained method."
-            )
-        if session is None:
-            raise ValueError(
-                "The parameter session is required. Please pass a session or use the from_pretrained method."
-            )
-        ## END OF DEPRECATED BEHAVIOR
-
         super().__init__(model=session, config=config)
         self.initialize_ort_attributes(session=session, use_io_binding=use_io_binding)
 
@@ -572,7 +532,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         """Returns whether this model can generate sequences with `.generate()`."""
         return isinstance(self, GenerationMixin)
 
-    def _warn_on_unhandled_inputs(self, kwargs: dict[str, Any]) -> None:
+    def warn_on_unhandled_inputs(self, kwargs: dict[str, Any]) -> None:
         """Warn about unhandled input arguments.
 
         Args:
@@ -652,9 +612,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         # Determine the tensor type from any available tensor input
         tensor_inputs = [
             input_ids,
@@ -703,14 +661,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
-
-            if "last_hidden_state" in self.output_names:
-                last_hidden_state = model_outputs["last_hidden_state"]
-            else:
-                # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
-                last_hidden_state = next(iter(model_outputs.values()))
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         if not return_dict:
             return (last_hidden_state,)
@@ -778,9 +731,7 @@ class ORTModelForMaskedLM(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -807,7 +758,7 @@ class ORTModelForMaskedLM(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -879,9 +830,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -909,7 +858,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             start_logits = model_outputs["start_logits"]
@@ -998,8 +947,7 @@ class ORTModelForSequenceClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        self.warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1027,7 +975,7 @@ class ORTModelForSequenceClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1101,8 +1049,7 @@ class ORTModelForTokenClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        self.warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1130,7 +1077,7 @@ class ORTModelForTokenClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1197,8 +1144,7 @@ class ORTModelForMultipleChoice(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        self.warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1226,7 +1172,7 @@ class ORTModelForMultipleChoice(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1298,8 +1244,7 @@ class ORTModelForImageClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        self.warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
@@ -1322,7 +1267,7 @@ class ORTModelForImageClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1403,9 +1348,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1431,7 +1374,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 pred_masks = output_buffers["pred_masks"].view(output_shapes["pred_masks"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1520,8 +1463,7 @@ class ORTModelForAudioClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        self.warn_on_unhandled_inputs(kwargs)
 
         if self.config.model_type == "whisper":
             assert input_features is not None, "input_features must be provided for this model"
@@ -1554,7 +1496,7 @@ class ORTModelForAudioClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1611,32 +1553,30 @@ class ORTModelForCTC(ORTModel):
     def forward(
         self,
         input_values: torch.Tensor | np.ndarray | None = None,
+        input_features: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        if self.config.model_type == "mctct":
+            assert input_features is not None, "input_features must be provided for this model"
+            input_name = "input_features"
+            model_input = input_features
+        else:
+            assert input_values is not None, "input_values must be provided for this model"
+            input_name = "input_values"
+            model_input = input_values
 
-        use_torch = isinstance(input_values, torch.Tensor)
+        self.warn_on_unhandled_inputs(kwargs)
+        use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
-            "input_values": input_values,
+            input_name: model_input,
         }
 
         if self.use_io_binding:
-            batch_size = input_values.shape[0]
-            sequence_length = input_values.shape[-1]
-
-            for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
-                sequence_length = (sequence_length - kernel_size) // stride + 1
-
-            known_output_shapes = {"logits": [batch_size, sequence_length, self.config.vocab_size]}
-
-            output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs, known_output_shapes=known_output_shapes
-            )
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
@@ -1649,7 +1589,7 @@ class ORTModelForCTC(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1718,9 +1658,7 @@ class ORTModelForAudioXVector(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1744,7 +1682,7 @@ class ORTModelForAudioXVector(ORTModel):
 
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1806,9 +1744,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1830,7 +1766,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1885,9 +1821,7 @@ class ORTModelForImageToImage(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
-
+        self.warn_on_unhandled_inputs(kwargs)
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1896,19 +1830,7 @@ class ORTModelForImageToImage(ORTModel):
         }
 
         if self.use_io_binding:
-            batch_size, num_channels, height, width = pixel_values.shape
-
-            output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs,
-                known_output_shapes={
-                    "reconstruction": [
-                        batch_size,
-                        num_channels,
-                        height * self.config.upscale,
-                        width * self.config.upscale,
-                    ]
-                },
-            )
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
@@ -1921,7 +1843,7 @@ class ORTModelForImageToImage(ORTModel):
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             reconstruction = model_outputs["reconstruction"]
@@ -1994,7 +1916,7 @@ class ORTModelForCustomTasks(ORTModel):
             model_outputs = {name: output_buffers[name].view(shape) for name, shape in output_shapes.items()}
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
         # converts output to namedtuple for pipelines post-processing
