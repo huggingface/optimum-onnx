@@ -472,7 +472,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             # The encoder-decoder-bert-bert model is missing these attributes
             model.generation_config.decoder_start_token_id = 1
 
-        if model_arch == "encoder-decoder":
+        if model_arch == "encoder-decoder" and is_transformers_version("<", "4.54"):
             # EncoderDecoderModel does not implement the `_reorder_cache` method
             # So we use the one defined in the ORTModelForSeq2SeqLM class
             model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
@@ -1175,9 +1175,11 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
         model.decoder.config.use_cache = use_cache
 
-        if model_arch == "vision-encoder-decoder":
+        if model_arch == "vision-encoder-decoder" and is_transformers_version("<", "4.54.0"):
             # VisionEncoderDecoderModel does not implement the `_reorder_cache` method
             # So we use the one defined in the ORT class
+            # Starting from transformers 4.54.0, VisionEncoderDecoderModel uses the encoder
+            # decoder cache class to perform cache reordering
             model._reorder_cache = self.ORTMODEL_CLASS._reorder_cache
 
         if model_arch == "pix2struct" and is_transformers_version("<", "4.50.0"):

@@ -420,6 +420,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 # `n_layers` tuples of key and value tensors
                 past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
+        else:
+            past_key_values = None
 
         return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=past_key_values)
 
@@ -452,6 +454,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 remove_prefix_length = past_seq_len
             else:
                 remove_prefix_length = input_ids.shape[1] - 1
+
             input_ids = input_ids[:, remove_prefix_length:]
 
         # falcon, gpt_bigcode, and other models used to override the prepare_inputs_for_generation method to add this logic
