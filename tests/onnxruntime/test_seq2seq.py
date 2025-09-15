@@ -574,20 +574,38 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             remove_directory(tmpdirname)
 
     def test_load_model_from_hub(self):
-        # TODO: create, export and push a tiny random t5 model to the hub
-        # one merged, one not merged, and one without cache support
-        # see test_decoder.py for an example
-        pass
+        model_id = "optimum-internal-testing/tiny-random-T5Model"
+        # already exported model (in onnx folder)
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id)
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
+        # already exported legacy model (in onnx-legacy branch)
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx-legacy")
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
 
-    def test_trust_remote_code(self):
-        # TODO: create a t5 model with custom remote code and test it
-        # see test_decoder.py for an example
-        pass
+        # export combinations
+        model_id = "hf-internal-testing/tiny-random-T5Model"
+        for use_cache in {True, False}:
+            for use_merged in {True, False}:
+                model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
+                self.check_onnx_model_attributes(model, use_cache=use_cache, use_merged=use_merged)
 
     def test_load_model_from_hub_infer_onnx_model(self):
-        # TODO: add a test for the different arguments of from_pretrained like subfolder, revision, filename, etc.
-        # see test_decoder.py for an example
-        pass
+        model_id = "optimum-internal-testing/tiny-random-T5Model"
+        filenames = {
+            "encoder_file_name": "encoder_model_quantized.onnx",
+            "decoder_file_name": "decoder_model_quantized.onnx",
+            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
+        }
+
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="optimized", subfolder="onnx", **filenames)
+        self.assertEqual({part.path.name for part in model.parts}, set(filenames.values()))
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+        self.assertTrue("onnx" in str(model.model_save_dir))
+
+        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="optimized", subfolder="subfolder", **filenames)
+        self.assertEqual({part.model_path.name for part in model.parts}, set(filenames.values()))
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+        self.assertTrue("subfolder" in str(model.model_save_dir))
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(
