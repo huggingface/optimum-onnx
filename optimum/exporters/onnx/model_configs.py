@@ -33,7 +33,10 @@ from optimum.exporters.onnx.config import (
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
 )
-from optimum.exporters.onnx.input_generators import GPTBigCodeDummyPastKeyValuesGenerator
+from optimum.exporters.onnx.input_generators import (
+    DummyMoonshineAudioInputGenerator,
+    GPTBigCodeDummyPastKeyValuesGenerator,
+)
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
@@ -58,7 +61,6 @@ from optimum.utils import (
     BloomDummyPastKeyValuesGenerator,
     DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
-    DummyAudioInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -1805,30 +1807,6 @@ class ASTOnnxConfig(OnnxConfig):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {"input_values": {0: "batch_size"}}
-
-
-class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("input_values", "attention_mask")
-
-    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
-        if input_name == "input_values":  # raw waveform
-            return self.random_float_tensor(
-                shape=[self.batch_size, self.sequence_length],
-                min_value=-1,
-                max_value=1,
-                framework=framework,
-                dtype=float_dtype,
-            )
-        elif input_name == "attention_mask":  # attention mask
-            return self.random_int_tensor(
-                shape=[self.batch_size, self.sequence_length],
-                min_value=0,
-                max_value=2,
-                framework=framework,
-                dtype=int_dtype,
-            )
-        else:
-            raise ValueError(f"Unsupported input name: {input_name}")
 
 
 @register_tasks_manager_onnx(

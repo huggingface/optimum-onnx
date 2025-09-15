@@ -59,13 +59,14 @@ from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForCausalLM,
 )
-from optimum.onnxruntime import (
-    pipeline as ort_pipeline,
-)
+from optimum.onnxruntime import pipeline as ort_pipeline
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.logging import get_logger
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
+
+if is_transformers_version(">=", "4.54"):
+    from transformers.cache_utils import EncoderDecoderCache
 
 logger = get_logger(__name__)
 
@@ -267,13 +268,13 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
             if isinstance(outputs1.past_key_values, DynamicCache):
                 outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
-            elif is_transformers_version(">=", "4.54") and onnx_model.config.model_type == "gpt_bigcode":
+            elif is_transformers_version(">=", "4.54") and isinstance(outputs1.past_key_values, EncoderDecoderCache):
                 # error in latest transformers versions where GPTBigCode returns an EncoderDecoderCache
                 outputs1.past_key_values = outputs1.past_key_values.self_attention_cache.to_legacy_cache()
 
             if isinstance(outputs2.past_key_values, DynamicCache):
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
-            elif is_transformers_version(">=", "4.54") and onnx_model.config.model_type == "gpt_bigcode":
+            elif is_transformers_version(">=", "4.54") and isinstance(outputs2.past_key_values, EncoderDecoderCache):
                 # error in latest transformers versions where GPTBigCode returns an EncoderDecoderCache
                 outputs2.past_key_values = outputs2.past_key_values.self_attention_cache.to_legacy_cache()
 
