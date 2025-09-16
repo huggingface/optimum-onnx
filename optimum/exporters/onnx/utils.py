@@ -80,6 +80,7 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "gpt_bigcode",
     "gpt_neo",
     "gpt_neox",
+    "gpt_oss",
     "gptj",
     "granite",
     "helium",

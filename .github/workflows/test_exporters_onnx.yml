@@ -11,7 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: true
+  UV_TORCH_BACKEND: auto
   TRANSFORMERS_IS_CI: true
+  HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
 jobs:
   build:
@@ -28,16 +31,15 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime] diffusers
+          pip install --upgrade pip uv
+          uv pip install .[tests,onnxruntime] diffusers
 
       - name: Test with pytest
         run: |
-          pytest tests/exporters/onnx/test_export.py -vvvv --durations=0 -n auto
+          pytest tests/exporters/onnx/test_export.py -vvvv -n auto
