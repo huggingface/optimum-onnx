@@ -583,7 +583,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             target_file_name=file_name,
         )
 
-        legacy = False
         # TODO: remove this block once legacy merged/unmerged models are no longer supported
         # if the inferred file_path is neither the user-provided file_name nor the standard_file_name,
         # we try to infer the file path a second time, prioritizing merged models (kinda like seq2seq models)
@@ -591,8 +590,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # we disable logging to avoid meaningless warnings from _infer_file_path in this block
             original_logging_level = logger.level
             logger.setLevel(logging.ERROR)
+            legacy = False
             if use_merged is not False:
-                # if use_merged is None or True, we first try to load a merged model
+                # if use_merged is None or True, we try to load a merged model
                 try:
                     file_path = cls._infer_file_path(
                         DECODER_MERGED_ONNX_FILE_PATTERN,
@@ -607,7 +607,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         raise
             if use_merged is not True:
                 try:
-                    # if use_merged is None or False, we then try to load a non-merged model
+                    # if use_merged is None or False, we try to load a non-merged model
                     file_path = cls._infer_file_path(
                         DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN,
                         onnx_files=onnx_files,
@@ -621,12 +621,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         raise
             logger.setLevel(original_logging_level)
 
-        if legacy:
-            logger.warning(
-                f"You are loading a legacy {'merged' if use_merged else 'non-merged'} decoder-only ONNX model from {file_path}. "
-                "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
-                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
-            )
+            if legacy:
+                logger.warning(
+                    f"You are loading a legacy {'merged' if use_merged else 'non-merged'} decoder-only ONNX model from {file_path}. "
+                    "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                    "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+                )
 
         model_path = cls._cached_file(
             model_id,
