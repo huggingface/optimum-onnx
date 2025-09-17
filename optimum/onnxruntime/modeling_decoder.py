@@ -246,6 +246,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "deepseek_v3",
             "cohere",
             "gemma",
+            "glm",
+            "granite",
             "gpt_oss",
             "helium",
             "mistral",
@@ -254,7 +256,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "qwen2",
             "qwen3",
             "qwen3_moe",
-            "granite",
             "smollm3",
             "stablelm",
         }:

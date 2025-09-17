@@ -33,6 +33,7 @@ from optimum.exporters.onnx.model_configs import (
     CohereOnnxConfig,
     DeepSeekV3OnnxConfig,
     GemmaOnnxConfig,
+    GLMOnnxConfig,
     GPTOssOnnxConfig,
     GraniteOnnxConfig,
     HeliumOnnxConfig,
@@ -112,6 +113,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen2")
     if is_transformers_version(">=", str(GemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("gemma")
+    if is_transformers_version(">=", str(GLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("glm")
     if is_transformers_version(">=", str(MPTOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("mpt")
     if is_transformers_version(">=", str(NemotronOnnxConfig.MIN_TRANSFORMERS_VERSION)):

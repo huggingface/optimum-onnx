@@ -456,6 +456,11 @@ class CohereOnnxConfig(LlamaOnnxConfig):
     _MODEL_PATCHER = CohereModelPatcher
 
 
+@register_tasks_manager_onnx("glm", *COMMON_TEXT_GENERATION_TASKS)
+class GLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+
+
 @register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
 class HeliumOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
