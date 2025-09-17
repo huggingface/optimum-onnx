@@ -84,10 +84,8 @@ class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
                 dtype=float_dtype,
             )
         elif input_name == "attention_mask":  # attention mask
-            return self.random_int_tensor(
+            return self.random_mask_tensor(
                 shape=[self.batch_size, self.sequence_length],
-                min_value=0,
-                max_value=2,
                 framework=framework,
                 dtype=int_dtype,
             )
