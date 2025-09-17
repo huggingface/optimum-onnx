@@ -44,13 +44,6 @@ if TYPE_CHECKING:
 
 logger = logging.get_logger(__name__)
 
-ONNX_WEIGHTS_NAME = "model.onnx"
-
-ONNX_ENCODER_NAME = "encoder_model.onnx"
-ONNX_DECODER_NAME = "decoder_model.onnx"
-ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
-ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
-
 
 def is_cupy_available():
     """Checks if CuPy is available."""

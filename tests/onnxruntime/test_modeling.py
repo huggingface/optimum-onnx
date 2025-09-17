@@ -56,9 +56,6 @@ from transformers.utils import http_user_agent
 
 from optimum.exporters import TasksManager
 from optimum.onnxruntime import (
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
     ORTModelForAudioClassification,
     ORTModelForAudioFrameClassification,
@@ -72,13 +69,11 @@ from optimum.onnxruntime import (
     ORTModelForMultipleChoice,
     ORTModelForQuestionAnswering,
     ORTModelForSemanticSegmentation,
-    ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
     pipeline,
 )
 from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
@@ -97,9 +92,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
-        self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
-        self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_hub_infer_onnx_model(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
@@ -141,64 +133,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 "hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx"
             )
 
-    def test_load_model_seq2seq_from_hub_infer_onnx_model(self):
-        model_id = "hf-internal-testing/tiny-random-T5Model"
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
-        model_parts = {part.model_path.name for part in model.parts}
-        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
-        self.assertTrue(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False)
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertEqual(model_parts, expected_model_parts)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False, use_cache=False)
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx"}
-        self.assertFalse(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertEqual(model_parts, expected_model_parts)
-
-        model_id = "optimum-internal-testing/tiny-random-T5Model"
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
-        model_parts = {part.model_path.name for part in model.parts}
-        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
-        self.assertTrue(model.use_cache)
-        self.assertTrue(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="onnx-legacy")
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
-        self.assertEqual(model_parts, expected_model_parts)
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-
-        file_names = {
-            "encoder_file_name": "encoder_model_quantized.onnx",
-            "decoder_file_name": "decoder_model_quantized.onnx",
-            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
-        }
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="optimized", subfolder="onnx", **file_names)
-        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            model_id, revision="optimized", subfolder="subfolder", **file_names
-        )
-        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertTrue("subfolder" in str(model.model_save_dir))
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model.save_pretrained(tmpdirname)
-            self.assertTrue(set(file_names.values()).issubset(set(os.listdir(tmpdirname))))
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname)
-
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
@@ -221,19 +155,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
-    def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder")
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_model_from_cache(self):
         _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID)  # caching
 
@@ -248,23 +169,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         with self.assertRaises(Exception):  # noqa: B017
             _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
-
-    def test_load_seq2seq_model_from_cache(self):
-        _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID)  # caching
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
-
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    def test_load_seq2seq_model_from_empty_cache(self):
-        dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
-        remove_directory(dirpath)
-
-        with self.assertRaises(Exception):  # noqa: B017
-            _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -302,50 +206,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_unknown_provider(self):
         with self.assertRaises(ValueError):
             ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
-
-    def test_load_seq2seq_model_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    def test_load_seq2seq_model_without_past_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertTrue(model.decoder_with_past is None)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_load_seq2seq_model_cuda_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_load_seq2seq_model_rocm_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-
-    def test_load_seq2seq_model_cpu_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cpu"))
-
-    def test_load_seq2seq_model_unknown_provider(self):
-        with self.assertRaises(ValueError):
-            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
         ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
@@ -465,13 +325,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, session_options=options)
         self.assertEqual(model.model.get_session_options().intra_op_num_threads, 3)
 
-    def test_passing_session_options_seq2seq(self):
-        options = onnxruntime.SessionOptions()
-        options.intra_op_num_threads = 3
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, session_options=options)
-        self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
-        self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
-
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
@@ -529,231 +382,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model.to("cuda:1")
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    def test_passing_provider_options_seq2seq(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "1",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="CUDAExecutionProvider",
-            provider_options={"do_copy_in_default_stream": 0},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "0",
-        )
-
-        # two providers case
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
-                "trt_engine_cache_enable"
-            ],
-            "0",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-            provider_options={"trt_engine_cache_enable": True},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
-                "trt_engine_cache_enable"
-            ],
-            "1",
-        )
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_passing_provider_options_seq2seq_rocm_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="ROCMExecutionProvider")
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["ROCMExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "1",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="ROCMExecutionProvider",
-            provider_options={"do_copy_in_default_stream": 0},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["ROCMExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "0",
-        )
-
-    def test_seq2seq_model_on_cpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        cpu = torch.device("cpu")
-        model.to(cpu)
-        self.assertEqual(model.device, cpu)
-        self.assertEqual(model.encoder.device, cpu)
-        self.assertEqual(model.decoder.device, cpu)
-        self.assertEqual(model.decoder_with_past.device, cpu)
-        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-
-    # test string device input for to()
-    def test_seq2seq_model_on_cpu_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        cpu = torch.device("cpu")
-        model.to("cpu")
-        self.assertEqual(model.device, cpu)
-        self.assertEqual(model.encoder.device, cpu)
-        self.assertEqual(model.decoder.device, cpu)
-        self.assertEqual(model.decoder_with_past.device, cpu)
-        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_seq2seq_model_on_gpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
-        model.to(gpu)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_seq2seq_model_on_rocm_ep(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
-        model.to(gpu)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-
-    @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
-    def test_seq2seq_model_on_gpu_id(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to(torch.device("cuda:1"))
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to(1)
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda:1")
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_seq2seq_model_on_gpu_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda")
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_seq2seq_model_on_rocm_ep_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda")
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-
     def test_load_model_from_hub_private(self):
         token = os.environ.get("HF_HUB_READ_TOKEN", None)
 
@@ -778,28 +406,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
-    def test_save_seq2seq_model(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-            model.save_pretrained(tmpdirname)
-            folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder, decoder and decoder with past are present in folder
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-            self.assertTrue(CONFIG_NAME in folder_contents)
-
-    def test_save_seq2seq_model_without_past(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
-            model.save_pretrained(tmpdirname)
-            folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder and decoder present in folder
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
-            self.assertTrue(CONFIG_NAME in folder_contents)
-
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
     def test_save_load_ort_model_with_external_data(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -813,32 +419,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
             # verify loading from local folder works
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
-            remove_directory(tmpdirname)
-
-    @parameterized.expand([(False,), (True,)])
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["t5"], export=True, use_cache=use_cache, use_io_binding=use_cache
-            )
-            model.save_pretrained(tmpdirname)
-
-            # verify external data is exported
-            folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-
-            if use_cache:
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
-
-            # verify loading from local folder works
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                tmpdirname, export=False, use_cache=use_cache, use_io_binding=use_cache
-            )
             remove_directory(tmpdirname)
 
     @require_hf_token
@@ -869,26 +449,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from hub works
             model = ORTModelForSequenceClassification.from_pretrained(
                 MODEL_NAMES["bert"] + "-onnx",
-                export=False,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-            )
-
-    @require_hf_token
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_push_seq2seq_model_with_external_data_to_hub(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], export=True)
-            model.save_pretrained(
-                tmpdirname + "/onnx",
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
-                private=True,
-                push_to_hub=True,
-            )
-
-            # verify loading from hub works
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["mbart"] + "-onnx",
                 export=False,
                 token=os.environ.get("HF_AUTH_TOKEN", None),
             )

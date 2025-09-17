@@ -19,7 +19,8 @@ from typing import Optional
 import numpy as np
 import pytest
 import torch
-from onnxruntime import InferenceSession
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from onnxruntime import InferenceSession, SessionOptions
 from parameterized import parameterized
 from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
@@ -41,20 +42,17 @@ from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
-    ORTModelForSeq2SeqLM,
-    ORTModelForSpeechSeq2Seq,
-    ORTModelForVision2Seq,
-)
-from optimum.onnxruntime import (
-    pipeline as ort_pipeline,
-)
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.onnxruntime.utils import (
     ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
+    ORTModelForSeq2SeqLM,
+    ORTModelForSpeechSeq2Seq,
+    ORTModelForVision2Seq,
 )
+from optimum.onnxruntime import pipeline as ort_pipeline
+from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
+from optimum.utils import CONFIG_NAME
 from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token
 
@@ -178,11 +176,6 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
                 f"For the task `{self.TASK}`, the ONNX exporter supports {supported_architectures} but some of them are not "
                 f"tested: {untested_architectures}.\n"
             )
-
-    def _test_load_vanilla_transformers_which_is_not_supported(self):
-        with self.assertRaises(Exception) as context:
-            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["bert"], export=True)
-        self.assertIn("only supports the tasks", str(context.exception))
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     def _test_compare_logits_to_transformers(
@@ -421,6 +414,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     TASK = "text2text-generation"
     ORTMODEL_CLASS = ORTModelForSeq2SeqLM
     AUTOMODEL_CLASS = AutoModelForSeq2SeqLM
+    ONNX_MODEL_ID = "optimum-internal-testing/tiny-random-T5Model"
 
     # UTILITIES
     def get_tokenizer(self, model_arch: str):
@@ -516,19 +510,71 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     def test_find_untested_architectures(self):
         self._test_find_untested_architectures()
 
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        self._test_load_vanilla_transformers_which_is_not_supported()
+    def test_load_model_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES["vit"], export=True)
+        self.assertIn("only supports the tasks", str(context.exception))
 
-    @parameterized.expand(
-        grid_parameters({"model_arch": ["t5"], "use_cache": [False, True], "use_merged": [False, True]})
-    )
+    def test_load_model_from_hub(self):
+        # already exported model with merge
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, use_cache=True, use_merged=True)
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
+        # already exported model without merge
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="onnx-legacy")
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+
+    def test_load_model_infer_onnx_model(self):
+        filenames = {
+            "encoder_file_name": "encoder_model_quantized.onnx",
+            "decoder_file_name": "decoder_model_quantized.onnx",
+            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
+        }
+        # revision with onnx models in subfolder
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            self.ONNX_MODEL_ID, revision="optimized", subfolder="onnx", **filenames
+        )
+        self.assertEqual({part.path.name for part in model.parts}, set(filenames.values()))
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+        self.assertTrue("onnx" in str(model.model_save_dir))
+
+        # custom filenames in subfolder
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            self.ONNX_MODEL_ID, revision="optimized", subfolder="subfolder", **filenames
+        )
+        self.assertEqual({part.path.name for part in model.parts}, set(filenames.values()))
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+        self.assertTrue("subfolder" in str(model.model_save_dir))
+
+    def test_load_model_from_cache(self):
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)  # caching the model
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, local_files_only=True)
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
+
+        remove_directory(os.path.join(HUGGINGFACE_HUB_CACHE, "models--" + self.ONNX_MODEL_ID.replace("/", "--")))
+        with self.assertRaises(Exception):  # noqa: B017
+            _ = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, local_files_only=True)
+
+    def test_load_model_with_provider(self):
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
+        self.assertEqual(model.providers, ["CPUExecutionProvider"])
+        self.assertEqual(model.provider, "CPUExecutionProvider")
+        self.assertEqual(model.device, torch.device("cpu"))
+        with self.assertRaises(ValueError):
+            _ = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
+
+    def test_load_model_with_session_options(self):
+        options = SessionOptions()
+        options.intra_op_num_threads = 3
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, session_options=options)
+        self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
+        self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
+
+    @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_model_with_external_data(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
-    ):
+    def test_save_load_model_with_external_data(self, test_name: str, use_cache: bool, use_merged: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model = self.ORTMODEL_CLASS.from_pretrained(
-                MODEL_NAMES[model_arch], use_cache=use_cache, use_merged=use_merged, export=True
+                MODEL_NAMES["t5"], use_cache=use_cache, use_merged=use_merged, export=True
             )
             model.save_pretrained(tmpdirname)
             # verify external data is exported
@@ -573,39 +619,23 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             model.generate(**self.GEN_KWARGS)
             remove_directory(tmpdirname)
 
-    def test_load_model_from_hub(self):
-        model_id = "optimum-internal-testing/tiny-random-T5Model"
-        # already exported model (in onnx folder)
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id)
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
-        # already exported legacy model (in onnx-legacy branch)
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx-legacy")
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
-
-        # export combinations
-        model_id = "hf-internal-testing/tiny-random-T5Model"
-        for use_cache in {True, False}:
-            for use_merged in {True, False}:
-                model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
-                self.check_onnx_model_attributes(model, use_cache=use_cache, use_merged=use_merged)
-
-    def test_load_model_from_hub_infer_onnx_model(self):
-        model_id = "optimum-internal-testing/tiny-random-T5Model"
-        filenames = {
-            "encoder_file_name": "encoder_model_quantized.onnx",
-            "decoder_file_name": "decoder_model_quantized.onnx",
-            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
-        }
-
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="optimized", subfolder="onnx", **filenames)
-        self.assertEqual({part.path.name for part in model.parts}, set(filenames.values()))
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
-        self.assertTrue("onnx" in str(model.model_save_dir))
-
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="optimized", subfolder="subfolder", **filenames)
-        self.assertEqual({part.model_path.name for part in model.parts}, set(filenames.values()))
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
-        self.assertTrue("subfolder" in str(model.model_save_dir))
+    @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
+    def test_save_model_model(self, test_name: str, use_cache: bool, use_merged: bool):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            model_id = MODEL_NAMES["t5"]
+            model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, use_merged=use_merged)
+            model.save_pretrained(tmpdirname)
+            folder_contents = os.listdir(tmpdirname)
+            # Verify config and ONNX exported encoder, decoder and decoder with past are present in folder
+            self.assertIn(CONFIG_NAME, folder_contents)
+            self.assertIn(ONNX_ENCODER_NAME, folder_contents)
+            if use_merged:
+                self.assertIn(ONNX_DECODER_MERGED_NAME, folder_contents)
+                self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
+            else:
+                self.assertIn(ONNX_DECODER_NAME, folder_contents)
+                if use_cache:
+                    self.assertIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(
@@ -949,9 +979,6 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     # def test_find_untested_architectures(self):
     #     self._test_find_untested_architectures()
 
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        self._test_load_vanilla_transformers_which_is_not_supported()
-
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(
         grid_parameters(
@@ -1223,9 +1250,6 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
         self._test_find_untested_architectures()
-
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        self._test_load_vanilla_transformers_which_is_not_supported()
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(

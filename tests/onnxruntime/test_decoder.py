@@ -17,7 +17,8 @@ import unittest
 from typing import Optional
 
 import torch
-from onnxruntime import InferenceSession
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from onnxruntime import InferenceSession, SessionOptions
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig, set_seed
@@ -149,6 +150,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     TASK = "text-generation"
     ORTMODEL_CLASS = ORTModelForCausalLM
     AUTOMODEL_CLASS = AutoModelForCausalLM
+    ONNX_MODEL_ID = "optimum-internal-testing/tiny-random-llama"
 
     # UTILITIES
     def get_tokenizer(self, model_arch: str):
@@ -335,14 +337,40 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIn("only supports the tasks", str(context.exception))
 
     def test_load_model_from_hub(self):
+        # already exported model without merge
         model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
-
+        # already exported model with merge
         model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
-
+        # export on the fly and load
         model = self.ORTMODEL_CLASS.from_pretrained("hf-internal-testing/tiny-random-gpt2")
+        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+
+    def test_load_model_from_cache(self):
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)  # caching the model
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, local_files_only=True)
         self.check_onnx_model_attributes(model, use_cache=True)
+
+        remove_directory(os.path.join(HUGGINGFACE_HUB_CACHE, "models--" + self.ONNX_MODEL_ID.replace("/", "--")))
+        with self.assertRaises(Exception):  # noqa: B017
+            _ = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, local_files_only=True)
+
+    def test_load_model_with_provider(self):
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, provider="CPUExecutionProvider")
+        self.assertEqual(model.providers, ["CPUExecutionProvider"])
+        self.assertEqual(model.provider, "CPUExecutionProvider")
+        self.assertEqual(model.device, torch.device("cpu"))
+
+        with self.assertRaises(ValueError):
+            _ = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
+
+    def test_load_model_with_session_options(self):
+        options = SessionOptions()
+        options.intra_op_num_threads = 3
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, session_options=options)
+        self.assertEqual(model.session.get_session_options().intra_op_num_threads, 3)
+        self.assertEqual(model.session.get_session_options().intra_op_num_threads, 3)
 
     @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
@@ -389,35 +417,39 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**inputs)
         self.compare_logits(inputs, outputs, onnx_outputs, onnx_model=onnx_model)
 
-    def test_load_model_from_hub_infer_onnx_model(self):
-        model_id = "optimum-internal-testing/tiny-random-llama"
+    def test_load_model_infer_onnx_model(self):
         # export from hub
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id)
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)
         self.assertEqual(model.path.name, "model.onnx")
-        # load from hub
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx")
+        # load from hub (onnx file exists)
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="onnx")
         self.assertEqual(model.path.name, "model.onnx")
-        # load from hub with revision
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx")
+        # load from hub with revision (prioritize non-legacy model)
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="merged-onnx")
+        self.assertEqual(model.path.name, "model.onnx")
+        # load from hub with revision and subfolder (prioritize merged model among non-legacy models)
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            self.ONNX_MODEL_ID, revision="merged-onnx", subfolder="onnx_legacy"
+        )
         self.assertEqual(model.path.name, "decoder_model_merged.onnx")
-        # load from hub with revision and subfolder
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="merged-onnx", subfolder="subfolder")
+        # load from hub with revision and subfolder (prioritize standard model name)
+        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.path.name, "model.onnx")
         # load from hub with revision and file_name
-        model = self.ORTMODEL_CLASS.from_pretrained(model_id, revision="onnx", file_name="model_optimized.onnx")
-        self.assertEqual(model.path.name, "model_optimized.onnx")
-        # revision + file_name (decoder with past)
         model = self.ORTMODEL_CLASS.from_pretrained(
-            model_id, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
+            self.ONNX_MODEL_ID, revision="onnx", file_name="model_optimized.onnx"
+        )
+        self.assertEqual(model.path.name, "model_optimized.onnx")
+        # load from hub with revision and file_name
+        model = self.ORTMODEL_CLASS.from_pretrained(
+            self.ONNX_MODEL_ID, revision="merged-onnx", file_name="decoder_with_past_model.onnx"
         )
         self.assertEqual(model.path.name, "decoder_with_past_model.onnx")
-
-        # TODO: something went wrong here
-        # revision + subfolder + file_name (target file exists but it loaded a different one)
+        # load from hub with revision, subfolder and file_name
         model = self.ORTMODEL_CLASS.from_pretrained(
-            model_id, revision="merged-onnx", subfolder="subfolder", file_name="optimized_model.onnx"
+            self.ONNX_MODEL_ID, revision="merged-onnx", subfolder="subfolder", file_name="model_optimized.onnx"
         )
-        self.assertEqual(model.path.name, "model.onnx")
+        self.assertEqual(model.path.name, "model_optimized.onnx")
 
         with self.assertRaises(FileNotFoundError):
             self.ORTMODEL_CLASS.from_pretrained(

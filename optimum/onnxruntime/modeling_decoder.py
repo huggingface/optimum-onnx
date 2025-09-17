@@ -16,8 +16,6 @@
 from __future__ import annotations
 
 import logging
-import os
-import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -28,7 +26,6 @@ from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
@@ -37,7 +34,11 @@ from optimum.onnxruntime.constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+    ONNX_DECODER_MERGED_NAME,
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
     ONNX_FILE_PATTERN,
+    ONNX_WEIGHTS_NAME,
 )
 from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
@@ -257,7 +258,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         input_ids: torch.LongTensor,
         attention_mask: torch.LongTensor | None = None,
         past_key_values: tuple[tuple[torch.Tensor]] | None = None,
-        input_embeds: torch.FloatTensor | None = None,
         position_ids: torch.LongTensor | None = None,
         use_cache: bool | None = None,
         **kwargs,
@@ -395,7 +395,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 self.session.run_with_iobinding(self._io_binding)
                 self._io_binding.synchronize_outputs()
 
-            loss = output_buffers.pop("loss", None)
             logits = output_buffers.pop("logits").view(output_shapes["logits"])
 
             if use_cache:
@@ -407,7 +406,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            loss = model_outputs.pop("loss", None)
             logits = model_outputs.pop("logits")
 
             if use_cache:
@@ -423,7 +421,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         else:
             past_key_values = None
 
-        return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=past_key_values)
+        return CausalLMOutputWithPast(logits=logits, past_key_values=past_key_values)
 
     def prepare_inputs_for_generation(self, *args, **kwargs):
         if is_transformers_version("<", "4.46.0"):
@@ -557,103 +555,98 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModelForCausalLM:
+        if use_merged is not None:
+            logger.warning(
+                "Passing `use_merged` to `ORTModelForCausalLM.from_pretrained` is deprecated and will be removed in a future version. "
+                "Please rather use `file_name` and/or `subfolder` to select the appropriate ONNX file to load."
+                "Merged decoder-only models are legacy and we recommend to re-export your model with a newer version of Optimum to get "
+                "better performance and more reliable generation."
+            )
+
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            token=token,
             revision=revision,
+            token=token,
         )
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
+        if Path(model_id).is_dir():
+            onnx_files = [f.relative_to(model_id) for f in onnx_files]
 
-        if len(onnx_files) == 1:
-            subfolder = onnx_files[0].parent
-            _file_name = onnx_files[0].name
-            if file_name and file_name != _file_name:
-                raise FileNotFoundError(f"Trying to load {file_name} but only found {_file_name}")
-            file_name = _file_name
-        else:
-            model_files = []
-            # Check first for merged models and then for decoder / decoder_with_past models
-            if use_merged is not False:
-                model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
-                use_merged = len(model_files) != 0
-
-            if use_merged is False:
-                pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
-                model_files = [p for p in onnx_files if re.search(pattern, str(p))]
-
-            # if file_name is specified we don't filter legacy models
-            if not model_files or file_name:
-                model_files = onnx_files
-            else:
-                logger.warning(
-                    f"Legacy models found in {model_files} will be loaded. "
-                    "Legacy models will be deprecated in the next version of optimum, please re-export your model"
-                )
-            _file_name = model_files[0].name
-            subfolder = model_files[0].parent
-
-            defaut_file_name = file_name or "model.onnx"
-            for file in model_files:
-                if file.name == defaut_file_name:
-                    _file_name = file.name
-                    subfolder = file.parent
-                    break
-
-            file_name = _file_name
-
-            if len(model_files) > 1:
-                logger.warning(
-                    f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
-                    "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                    f"Loading the file {file_name} in the subfolder {subfolder}."
-                )
-
-        if os.path.isdir(model_id):
-            model_id = subfolder
-            subfolder = ""
-
-        if isinstance(subfolder, Path):
-            subfolder = subfolder.as_posix()
-
-        model_cache_path = cached_file(
-            model_id,
-            filename=file_name,
-            # hub options
-            token=token,
-            revision=revision,
-            subfolder=subfolder,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
+        file_path = cls._infer_file_path(
+            ONNX_FILE_PATTERN,
+            onnx_files=onnx_files,
+            standard_file_name=ONNX_WEIGHTS_NAME,
+            target_file_name=file_name,
         )
 
-        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
-        # instead of the path only.
-        if model_save_dir is None:
-            model_save_dir = Path(model_cache_path).parent
+        legacy = False
+        # TODO: remove this block once legacy merged/unmerged models are no longer supported
+        # if the inferred file_path is neither the user-provided file_name nor the standard_file_name,
+        # we try to infer the file path a second time, prioritizing merged models (kinda like seq2seq models)
+        if file_path.name not in {file_name, ONNX_WEIGHTS_NAME}:
+            # we disable logging to avoid meaningless warnings from _infer_file_path in this block
+            original_logging_level = logger.level
+            logger.setLevel(logging.ERROR)
+            if use_merged is not False:
+                # if use_merged is None or True, we first try to load a merged model
+                try:
+                    file_path = cls._infer_file_path(
+                        DECODER_MERGED_ONNX_FILE_PATTERN,
+                        onnx_files=onnx_files,
+                        standard_file_name=ONNX_DECODER_MERGED_NAME,
+                        target_file_name=file_name,
+                    )
+                    use_merged = True
+                    legacy = True
+                except FileNotFoundError:
+                    if use_merged is True:
+                        raise
+            if use_merged is not True:
+                try:
+                    # if use_merged is None or False, we then try to load a non-merged model
+                    file_path = cls._infer_file_path(
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN,
+                        onnx_files=onnx_files,
+                        standard_file_name=ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME,
+                        target_file_name=file_name,
+                    )
+                    use_merged = False
+                    legacy = True
+                except FileNotFoundError:
+                    if use_merged is False:
+                        raise
+            logger.setLevel(original_logging_level)
 
-        try:  # noqa: SIM105
-            cached_file(
-                model_id,
-                filename=file_name + "_data",
-                # hub options
-                token=token,
-                revision=revision,
-                subfolder=subfolder,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
+        if legacy:
+            logger.warning(
+                f"You are loading a legacy {'merged' if use_merged else 'non-merged'} decoder-only ONNX model from {file_path}. "
+                "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
-        except OSError:
-            # If the external data file is not found, we assume that the model is not using external data.
-            pass
+
+        model_path = cls._cached_file(
+            model_id,
+            filename=file_path.name,
+            subfolder=file_path.parent.as_posix(),
+            force_download=force_download,
+            local_files_only=local_files_only,
+            cache_dir=cache_dir,
+            revision=revision,
+            token=token,
+        )
+
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
+        # in which case we want to keep it instead.
+        if model_save_dir is None:
+            model_save_dir = model_path.parent
 
         # Important: for encoder-decoder models used with CausalLM, we need to set the is_decoder flag to True
         # and the is_encoder_decoder flag to False. This is needed for the model to work correctly with generation logic.
+        config.use_cache = use_cache
         if hasattr(config, "is_decoder"):
             config.is_decoder = True
         if hasattr(config, "is_encoder_decoder"):
@@ -677,7 +670,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 generation_config = GenerationConfig.from_model_config(config)
 
         generation_config.use_cache = use_cache
-        config.use_cache = use_cache
 
         if is_transformers_version(">=", "4.45.0"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
@@ -695,7 +687,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             provider=provider, providers=providers, provider_options=provider_options
         )
         session = InferenceSession(
-            model_cache_path,
+            model_path,
             providers=providers,
             provider_options=provider_options,
             sess_options=session_options,

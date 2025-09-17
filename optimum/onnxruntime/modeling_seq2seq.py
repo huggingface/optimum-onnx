@@ -15,8 +15,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,7 +35,6 @@ from transformers import (
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
-from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
@@ -48,16 +45,14 @@ from optimum.onnxruntime.constants import (
     DECODER_ONNX_FILE_PATTERN,
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
     ENCODER_ONNX_FILE_PATTERN,
-    ONNX_FILE_PATTERN,
-)
-from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.utils import (
+    ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
-    DummyWhisperModel,
-    prepare_providers_and_provider_options,
+    ONNX_FILE_PATTERN,
 )
+from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.utils import DummyWhisperModel, prepare_providers_and_provider_options
 from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
 from optimum.utils.logging import get_logger
@@ -712,7 +707,6 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
                 self.session.run_with_iobinding(self._io_binding)
                 self._io_binding.synchronize_outputs()
 
-            loss = output_buffers.get("loss", None)
             logits = output_buffers.pop("logits").view(output_shapes["logits"])
 
             if use_cache:
@@ -729,7 +723,6 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            loss = model_outputs.pop("loss", None)
             logits = model_outputs.pop("logits")
 
             if use_cache:
@@ -748,11 +741,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         else:
             past_key_values = None
 
-        return Seq2SeqLMOutput(
-            loss=loss,
-            logits=logits,
-            past_key_values=past_key_values,
-        )
+        return Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values)
 
 
 class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin):
@@ -882,52 +871,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         self.config.save_pretrained(save_directory)
         self.generation_config.save_pretrained(save_directory)
 
-    # TODO: move it to ORTModel (or ORTHubMixin when OptimizedModel is removed)
-    @staticmethod
-    def _cached_file(
-        path_or_repo_id: str | Path,
-        filename: str,
-        subfolder: str = "",
-        revision: str = "main",
-        force_download: bool = False,
-        local_files_only: bool = False,
-        token: bool | str | None = None,
-        cache_dir: str = HUGGINGFACE_HUB_CACHE,
-    ) -> str:
-        """Returns the path to the cached file and downloads external data if necessary."""
-        cached_path = cached_file(
-            path_or_repo_id,
-            filename=filename,
-            subfolder=subfolder,
-            revision=revision,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
-            token=token,
-        )
-        with contextlib.suppress(OSError):
-            cached_file(
-                path_or_repo_id,
-                filename=filename + "_data",
-                subfolder=subfolder,
-                revision=revision,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-                token=token,
-            )
-        return cached_path
-
-    # TODO: move it to ORTModel (or ORTHubMixin when OptimizedModel is removed)
-    @staticmethod
-    def _infer_file_path(pattern: str, file_name: str, onnx_files: list[Path]):
-        pattern_files = [p for p in onnx_files if re.search(pattern, str(p))]
-        if len(pattern_files) == 0:
-            raise ValueError(f"Could not find any ONNX model file with pattern {pattern}, files found: {onnx_files}.")
-        name_files = [file for file in pattern_files if file.name == file_name]
-        file_path = next(iter(name_files), pattern_files[0])
-        return file_path
-
     @classmethod
     def _from_pretrained(
         cls,
@@ -942,9 +885,9 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: bool | str | None = None,
         # file options
-        encoder_file_name: str = ONNX_ENCODER_NAME,
-        decoder_file_name: str = ONNX_DECODER_NAME,
-        decoder_with_past_file_name: str = ONNX_DECODER_WITH_PAST_NAME,
+        encoder_file_name: str | None = None,
+        decoder_file_name: str | None = None,
+        decoder_with_past_file_name: str | None = None,
         # session options
         provider: str = "CPUExecutionProvider",
         providers: Sequence[str] | None = None,
@@ -964,36 +907,53 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            token=token,
             revision=revision,
+            token=token,
         )
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
+        if Path(model_id).is_dir():
+            onnx_files = [f.relative_to(model_id) for f in onnx_files]
 
-        encoder_path = cls._infer_file_path(ENCODER_ONNX_FILE_PATTERN, encoder_file_name, onnx_files)
-        # We default to looking for merged decoder if user didn't disable it explicitly.
+        # we start with encoder to fail fast if something is wrong
+        encoder_path = cls._infer_file_path(
+            ENCODER_ONNX_FILE_PATTERN,
+            onnx_files=onnx_files,
+            target_file_name=encoder_file_name,
+            standard_file_name=ONNX_ENCODER_NAME,
+        )
+
         decoder_path = None
+        decoder_with_past_path = None
+        # We default to looking for merged decoder if user didn't disable it explicitly.
         if use_merged is not False:
             try:
                 decoder_path = cls._infer_file_path(
-                    DECODER_MERGED_ONNX_FILE_PATTERN, decoder_with_past_file_name, onnx_files
+                    DECODER_MERGED_ONNX_FILE_PATTERN,
+                    onnx_files=onnx_files,
+                    target_file_name=decoder_file_name,
+                    standard_file_name=ONNX_DECODER_MERGED_NAME,
                 )
                 use_merged = True
-            except ValueError:
+            except FileNotFoundError:
                 if use_merged is True:
-                    raise ValueError(
-                        f"Could not find any merged ONNX model file in {model_id} with pattern "
-                        f"{DECODER_MERGED_ONNX_FILE_PATTERN}, files found: {onnx_files}."
-                    )
-                else:
-                    use_merged = False
+                    raise
+                use_merged = False
 
-        decoder_with_past_path = None
-        if use_merged is False:
-            decoder_path = cls._infer_file_path(DECODER_ONNX_FILE_PATTERN, decoder_file_name, onnx_files)
-            if use_cache:
+        # if the user disabled merged explicitly, or if we didn't find it, or if the user provided file names
+        if use_merged is False or (decoder_file_name is not None or decoder_with_past_file_name is not None):
+            decoder_path = cls._infer_file_path(
+                DECODER_ONNX_FILE_PATTERN,
+                onnx_files=onnx_files,
+                target_file_name=decoder_file_name,
+                standard_file_name=ONNX_DECODER_NAME,
+            )
+            if use_cache or (decoder_with_past_file_name is not None):
                 decoder_with_past_path = cls._infer_file_path(
-                    DECODER_WITH_PAST_ONNX_FILE_PATTERN, decoder_with_past_file_name, onnx_files
+                    DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+                    onnx_files=onnx_files,
+                    target_file_name=decoder_with_past_file_name,
+                    standard_file_name=ONNX_DECODER_WITH_PAST_NAME,
                 )
 
         encoder_path = cls._cached_file(
@@ -1031,8 +991,11 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
         # in which case we want to keep it instead.
         if model_save_dir is None:
-            model_save_dir = Path(encoder_path).parent
+            model_save_dir = encoder_path.parent
 
+        # Important: for encoder-decoder models used with ConditionalGeneration, we need to set the is_decoder flag to False
+        # and the is_encoder_decoder flag to True. This is needed for the model to work correctly with generation logic.
+        config.use_cache = use_cache
         if hasattr(config, "is_decoder"):
             config.is_decoder = False
         if hasattr(config, "is_encoder_decoder"):
@@ -1055,7 +1018,6 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
                 logger.info("Generation config file not found, creating a new one from model config.")
                 generation_config = GenerationConfig.from_model_config(config)
 
-        config.use_cache = use_cache
         generation_config.use_cache = use_cache
 
         if is_transformers_version(">=", "4.45.0"):
@@ -1311,7 +1273,6 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
@@ -1393,7 +1354,6 @@ class ORTModelForSpeechSeq2Seq(ORTModelForConditionalGeneration):
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
@@ -1485,7 +1445,6 @@ class ORTModelForMoonshine(ORTModelForSpeechSeq2Seq):
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
@@ -1558,7 +1517,6 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
@@ -1626,7 +1584,6 @@ class ORTModelForPix2Struct(ORTModelForVision2Seq):
         )
 
         return Seq2SeqLMOutput(
-            loss=decoder_outputs.loss,
             logits=decoder_outputs.logits,
             past_key_values=decoder_outputs.past_key_values,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
