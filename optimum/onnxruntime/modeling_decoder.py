@@ -747,6 +747,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         # Important: for encoder-decoder models used with CausalLM, we need to set the is_decoder flag to True
         # and the is_encoder_decoder flag to False. This is needed for the model to work correctly with generation logic.
+        config.use_cache = use_cache
         if hasattr(config, "is_decoder"):
             config.is_decoder = True
         if hasattr(config, "is_encoder_decoder"):
@@ -770,7 +771,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 generation_config = GenerationConfig.from_model_config(config)
 
         generation_config.use_cache = use_cache
-        config.use_cache = use_cache
+        if hasattr(generation_config, "cache_implementation"):
+            generation_config.cache_implementation = None
 
         if is_transformers_version(">=", "4.45.0"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
@@ -783,10 +785,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 for param_name, param_value in misplaced_generation_parameters.items():
                     setattr(generation_config, param_name, param_value)
                     setattr(config, param_name, None)
-
-        # set cache_implementation to None when use_cache is False to be able to ensure generation_config is valid
-        if use_cache is False and getattr(generation_config, "cache_implementation", None) is not None:
-            generation_config.cache_implementation = None
 
         providers, provider_options = prepare_providers_and_provider_options(
             provider=provider, providers=providers, provider_options=provider_options
