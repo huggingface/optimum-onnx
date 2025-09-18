@@ -35,6 +35,7 @@ from optimum.exporters.onnx.config import (
     VisionOnnxConfig,
 )
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.onnx.input_generators import GPTBigCodeDummyPastKeyValuesGenerator
 from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
     CohereModelPatcher,
@@ -83,7 +84,6 @@ from optimum.utils import (
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
-    GPTBigCodeDummyPastKeyValuesGenerator,
     LongformerDummyTextInputGenerator,
     MCTCTDummyAudioInputGenerator,
     MistralDummyPastKeyValuesGenerator,
@@ -456,6 +456,11 @@ class CohereOnnxConfig(LlamaOnnxConfig):
     _MODEL_PATCHER = CohereModelPatcher
 
 
+@register_tasks_manager_onnx("glm", *COMMON_TEXT_GENERATION_TASKS)
+class GLMOnnxConfig(LlamaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+
+
 @register_tasks_manager_onnx("helium", *COMMON_TEXT_GENERATION_TASKS)
 class HeliumOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
@@ -512,8 +517,14 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
-    # Gemma 2 was added in transformers v4.42 using HybridCache (tuple of past_key_values never supported), DynamicCache since v4.53
+    # Gemma 2 was added in transformers v4.42 using HybridCache
+    # (tuple of past_key_values never supported), DynamicCache since v4.53
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+@register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
+class GPTOssOnnxConfig(GemmaOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
@@ -596,26 +607,35 @@ class GPTBigCodeOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_PKV_GENERATOR_CLASS = GPTBigCodeDummyPastKeyValuesGenerator
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
-        if direction not in ["inputs", "outputs"]:
-            raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
-
-        if direction == "inputs":
-            decoder_sequence_name = "past_sequence_length"
-            name = "past_key_values"
+        if is_transformers_version(">=", "4.54"):
+            super().add_past_key_values(inputs_or_outputs, direction)
         else:
-            decoder_sequence_name = "past_sequence_length + sequence_length"
-            name = "present"
+            if direction not in ["inputs", "outputs"]:
+                raise ValueError(f'direction must either be "inputs" or "outputs", but {direction} was given')
 
-        if self._normalized_config.multi_query:
-            decoder_sequence_dim = 1
-        else:
-            decoder_sequence_dim = 2
+            if direction == "inputs":
+                decoder_sequence_name = "past_sequence_length"
+                name = "past_key_values"
+            else:
+                decoder_sequence_name = "past_sequence_length + sequence_length"
+                name = "present"
 
-        for i in range(self._normalized_config.num_layers):
-            inputs_or_outputs[f"{name}.{i}.key_value"] = {0: "batch_size", decoder_sequence_dim: decoder_sequence_name}
+            if self._normalized_config.multi_query:
+                decoder_sequence_dim = 1
+            else:
+                decoder_sequence_dim = 2
+
+            for i in range(self._normalized_config.num_layers):
+                inputs_or_outputs[f"{name}.{i}.key_value"] = {
+                    0: "batch_size",
+                    decoder_sequence_dim: decoder_sequence_name,
+                }
 
     def flatten_past_key_values(self, flattened_output, name, idx, t):
-        flattened_output[f"{name}.{idx}.key_value"] = t
+        if is_transformers_version(">=", "4.54"):
+            super().flatten_past_key_values(flattened_output, name, idx, t)
+        else:
+            flattened_output[f"{name}.{idx}.key_value"] = t
 
 
 @register_tasks_manager_onnx("falcon", *[*COMMON_TEXT_GENERATION_TASKS, "question-answering", "token-classification"])
