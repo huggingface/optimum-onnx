@@ -202,6 +202,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "deepseek_v3",
             "cohere",
             "gemma",
+            "glm",
+            "granite",
             "gpt_oss",
             "helium",
             "mistral",
@@ -210,7 +212,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "qwen2",
             "qwen3",
             "qwen3_moe",
-            "granite",
             "smollm3",
             "stablelm",
         }:
@@ -670,6 +671,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 generation_config = GenerationConfig.from_model_config(config)
 
         generation_config.use_cache = use_cache
+        if hasattr(generation_config, "cache_implementation"):
+            generation_config.cache_implementation = None
 
         if is_transformers_version(">=", "4.45.0"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
