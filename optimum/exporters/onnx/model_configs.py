@@ -512,6 +512,16 @@ class GemmaOnnxConfig(LlamaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
 
 
+@register_tasks_manager_onnx("gemma2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+class Gemma2OnnxConfig(TextDecoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
+    # Gemma 2 was added in transformers v4.42 using HybridCache
+    # (tuple of past_key_values never supported), DynamicCache since v4.53
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
 class GPTOssOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")
