@@ -52,16 +52,13 @@ MODEL_NAMES = {
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "deepseek_v3": "hf-internal-testing/tiny-random-DeepseekV3ForCausalLM",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
-    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "detr": "hf-internal-testing/tiny-random-detr",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
     "dpt": "hf-internal-testing/tiny-random-DPTForSemanticSegmentation",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
-        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
-    },
+    "encoder-decoder": "optimum-internal-testing/tiny-random-encoder-decoder-gpt2-bert",
+    "encoder-decoder-bert-bert": "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert",
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "falcon": "fxmarty/really-tiny-falcon-testing",
     "falcon-alibi-True": "optimum-internal-testing/tiny-random-falcon-alibi-True",
@@ -93,12 +90,14 @@ MODEL_NAMES = {
     "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
     "marian": "optimum-internal-testing/tiny-random-marian",
     "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
     "mobilenet_v2": "hf-internal-testing/tiny-random-MobileNetV2Model",
     "mobilevit": "hf-internal-testing/tiny-random-mobilevit",
+    "moonshine": "hf-internal-testing/tiny-random-MoonshineForConditionalGeneration",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
@@ -139,10 +138,11 @@ MODEL_NAMES = {
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRForImageSuperResolution",
     "t5": "hf-internal-testing/tiny-random-t5",
     "table-transformer": "hf-internal-testing/tiny-random-TableTransformerModel",
-    "trocr": "microsoft/trocr-small-handwritten",
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
+    "vision-encoder-decoder-donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
+    "vision-encoder-decoder-trocr": "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr",
     "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vit": "hf-internal-testing/tiny-random-vit",
     "whisper": "optimum-internal-testing/tiny-random-whisper",
@@ -174,53 +174,25 @@ class ORTModelTestMixin(unittest.TestCase):
     def setUpClass(cls):
         cls.onnx_model_dirs = {}
 
-    def _setup(self, model_args: dict):
-        """Exports the PyTorch models to ONNX ahead of time to avoid multiple exports during the tests.
-        We don't use unittest setUpClass, in order to still be able to run individual tests.
-        """
-        model_arch_and_params = model_args.pop("test_name")
-        model_arch = model_args.pop("model_arch")
-        trust_remote_code = model_args.pop("trust_remote_code", False)
-
-        model_ids = MODEL_NAMES[model_arch]
-        if isinstance(model_ids, dict):
-            model_ids = list(model_ids.keys())
-        else:
-            model_ids = [model_ids]
-
-        task = self.TASK
-        if model_args.get("use_cache", False):
-            task = task + "-with-past"
-
-        if model_arch_and_params in self.onnx_model_dirs:
+    def _setup(self, setup_args: dict):
+        """Exports the PyTorch models to ONNX and caches them to be reused across tests."""
+        if setup_args.get("test_name") in self.onnx_model_dirs:
             return
 
-        self.onnx_model_dirs[model_arch_and_params] = {}
-        for model_id in model_ids:
-            if isinstance(MODEL_NAMES[model_arch], dict) and task not in MODEL_NAMES[model_arch][model_id]:
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
+        model_args = setup_args.copy()
+        test_name = model_args.pop("test_name")
+        model_arch = model_args.pop("model_arch")
 
-            set_seed(SEED)
-            model_dir = tempfile.mkdtemp(prefix=f"{model_arch_and_params}_{task}_{model_id.replace('/', '_')}")
-            onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-                model_id, **model_args, export=True, trust_remote_code=trust_remote_code
-            )
-            onnx_model.save_pretrained(model_dir)
-
-            if isinstance(MODEL_NAMES[model_arch], dict):
-                self.onnx_model_dirs[model_arch_and_params][model_id] = model_dir
-            else:
-                self.onnx_model_dirs[model_arch_and_params] = model_dir
+        set_seed(SEED)
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], **model_args, export=True)
+        model_dir = tempfile.mkdtemp(prefix=f"{onnx_model.__class__.__name__}_{test_name}")
+        self.onnx_model_dirs[test_name] = model_dir
+        onnx_model.save_pretrained(model_dir)
 
     @classmethod
     def tearDownClass(cls):
         for dir_path in cls.onnx_model_dirs.values():
-            if isinstance(dir_path, dict):
-                for sec_dir_path in dir_path.values():
-                    shutil.rmtree(sec_dir_path)
-            else:
-                shutil.rmtree(dir_path)
+            shutil.rmtree(dir_path)
 
 
 # Copied from https://github.com/huggingface/transformers/blob/3bc726b381592601cd9dd0fdcff5edcb02f3a85b/src/transformers/testing_utils.py#L1922C1-L1951C86

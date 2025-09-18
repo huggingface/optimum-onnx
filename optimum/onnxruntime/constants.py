@@ -12,6 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+ONNX_WEIGHTS_NAME = "model.onnx"
+ONNX_ENCODER_NAME = "encoder_model.onnx"
+ONNX_DECODER_NAME = "decoder_model.onnx"
+ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
+ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
+
 ENCODER_ONNX_FILE_PATTERN = r"(.*)?encoder(.*)?\.onnx"
 DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!(with_past|merged)).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"

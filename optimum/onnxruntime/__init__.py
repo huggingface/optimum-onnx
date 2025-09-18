@@ -32,6 +32,18 @@ _import_structure = {
         "ORTConfig",
         "QuantizationConfig",
     ],
+    "constants": [
+        "DECODER_MERGED_ONNX_FILE_PATTERN",
+        "DECODER_ONNX_FILE_PATTERN",
+        "DECODER_WITH_PAST_ONNX_FILE_PATTERN",
+        "ENCODER_ONNX_FILE_PATTERN",
+        "ONNX_DECODER_MERGED_NAME",
+        "ONNX_DECODER_NAME",
+        "ONNX_DECODER_WITH_PAST_NAME",
+        "ONNX_ENCODER_NAME",
+        "ONNX_FILE_PATTERN",
+        "ONNX_WEIGHTS_NAME",
+    ],
     "modeling_ort": [
         "ORTModel",
         "ORTModelForAudioClassification",
@@ -59,14 +71,7 @@ _import_structure = {
     "optimization": ["ORTOptimizer"],
     "pipelines": ["pipeline"],
     "quantization": ["ORTQuantizer"],
-    "utils": [
-        "ONNX_DECODER_NAME",
-        "ONNX_DECODER_MERGED_NAME",
-        "ONNX_DECODER_WITH_PAST_NAME",
-        "ONNX_ENCODER_NAME",
-        "ONNX_WEIGHTS_NAME",
-        "ORTQuantizableOperator",
-    ],
+    "utils": ["ORTQuantizableOperator"],
 }
 
 try:
@@ -125,6 +130,18 @@ else:
 # Direct imports for type-checking
 if TYPE_CHECKING:
     from .configuration import ORTConfig, QuantizationConfig
+    from .constants import (
+        DECODER_MERGED_ONNX_FILE_PATTERN,
+        DECODER_ONNX_FILE_PATTERN,
+        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+        ENCODER_ONNX_FILE_PATTERN,
+        ONNX_DECODER_MERGED_NAME,
+        ONNX_DECODER_NAME,
+        ONNX_DECODER_WITH_PAST_NAME,
+        ONNX_ENCODER_NAME,
+        ONNX_FILE_PATTERN,
+        ONNX_WEIGHTS_NAME,
+    )
     from .modeling_decoder import ORTModelForCausalLM
     from .modeling_ort import (
         ORTModel,
@@ -152,14 +169,7 @@ if TYPE_CHECKING:
     from .optimization import ORTOptimizer
     from .pipelines import pipeline
     from .quantization import ORTQuantizer
-    from .utils import (
-        ONNX_DECODER_MERGED_NAME,
-        ONNX_DECODER_NAME,
-        ONNX_DECODER_WITH_PAST_NAME,
-        ONNX_ENCODER_NAME,
-        ONNX_WEIGHTS_NAME,
-        ORTQuantizableOperator,
-    )
+    from .utils import ORTQuantizableOperator
 
     try:
         if not is_diffusers_available():

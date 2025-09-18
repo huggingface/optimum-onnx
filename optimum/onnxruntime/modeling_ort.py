@@ -15,8 +15,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -66,7 +68,7 @@ from optimum.exporters import TasksManager
 from optimum.exporters.onnx import main_export
 from optimum.modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from optimum.onnxruntime.base import ORTSessionMixin
-from optimum.onnxruntime.constants import ONNX_FILE_PATTERN
+from optimum.onnxruntime.constants import ONNX_FILE_PATTERN, ONNX_WEIGHTS_NAME
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 from optimum.utils.file_utils import find_files_matching_pattern
 from optimum.utils.save_utils import maybe_save_preprocessors
@@ -154,52 +156,12 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
     def __init__(
         self,
-        *args,
+        *,
         config: PretrainedConfig = None,
         session: InferenceSession = None,
         use_io_binding: bool | None = None,
         model_save_dir: str | Path | TemporaryDirectory | None = None,
-        **kwargs,
     ):
-        # DEPRECATED BEHAVIOR
-        if args:
-            logger.warning(
-                "Instantiating an ORTModel with positional arguments is deprecated and will be removed in the next version. "
-                "Please use the keyword arguments {config, session, use_io_binding, model_save_dir} instead."
-            )
-            # old signature is ORTModel(model, config, use_io_binding, model_save_dir, preprocessors)
-            session = args[0]
-            if len(args) > 1:
-                config = args[1]
-            if len(args) > 2:
-                use_io_binding = args[2]
-            if len(args) > 3:
-                model_save_dir = args[3]
-            if len(args) > 4:
-                _ = args[4]
-
-        if kwargs.get("model") is not None:
-            logger.warning(
-                "Passing the inference session as `model` argument to an ORTModel is deprecated. "
-                "Please use `session` instead."
-            )
-            session = kwargs.pop("model")
-        if kwargs:
-            logger.warning(
-                f"Some keyword arguments were passed to the ORTModel constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
-                "These arguments will be ignored in the current version and will raise an error in the next version."
-            )
-
-        if config is None:
-            raise ValueError(
-                "The parameter config is required. Please pass a config or use the from_pretrained method."
-            )
-        if session is None:
-            raise ValueError(
-                "The parameter session is required. Please pass a session or use the from_pretrained method."
-            )
-        ## END OF DEPRECATED BEHAVIOR
-
         super().__init__(model=session, config=config)
         self.initialize_ort_attributes(session=session, use_io_binding=use_io_binding)
 
@@ -234,48 +196,123 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         self.save_session(save_directory)
 
     @staticmethod
-    def _generate_regular_names_for_filename(filename: str):
-        name, extension = filename.rsplit(".", maxsplit=1)
-        return [filename, f"{name}_quantized.{extension}", f"{name}_optimized.{extension}"]
+    def _cached_file(
+        path_or_repo_id: str | Path,
+        filename: str,
+        subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: bool | str | None = None,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+    ) -> Path:
+        """Returns the path to the cached file and downloads external data if necessary."""
+        cached_path = cached_file(
+            path_or_repo_id,
+            filename=filename,
+            subfolder=subfolder,
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+        )
+        with contextlib.suppress(OSError):
+            cached_file(
+                path_or_repo_id,
+                filename=filename + "_data",
+                subfolder=subfolder,
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                token=token,
+            )
+        return Path(cached_path)
 
     @staticmethod
-    def _infer_onnx_filename(
-        model_name_or_path: str | Path,
-        patterns: list[str],
-        argument_name: str,
-        subfolder: str = "",
-        token: bool | str | None = None,
-        revision: str | None = None,
-        fail_if_not_found: bool = True,
-    ) -> str:
-        onnx_files = []
-        for pattern in patterns:
-            onnx_files = find_files_matching_pattern(
-                model_name_or_path,
-                pattern,
-                glob_pattern="**/*.onnx",
-                subfolder=subfolder,
-                token=token,
-                revision=revision,
-            )
-            if onnx_files:
-                break
+    def _infer_file_path(
+        pattern: str,
+        onnx_files: list[Path],
+        standard_file_name: str,
+        target_file_name: str | None = None,
+    ) -> Path:
+        """Infer the ONNX file path to load among a list of candidates.
+        The inference is done in three steps:
+        1. We look for the `target_file_name` if provided.
+        2. Otherwise, we look for the `standard_file_name`.
+        3. Finally, we look for files matching the `pattern`.
+        In case of multiple matches, the first one is returned and a warning is logged.
 
-        path = model_name_or_path
-        if subfolder != "":
-            path = f"{path}/{subfolder}"
+        Args:
+            pattern (`str`):
+                The regex pattern that the target ONNX file should match.
+            onnx_files (`List[Path]`):
+                List of candidate ONNX files.
+            standard_file_name (`str`):
+                The standard file name to look for.
+            target_file_name (`str`, *optional*):
+                The target file name to look for first.
 
-        if len(onnx_files) == 0:
-            if fail_if_not_found:
-                raise FileNotFoundError(f"Could not find any ONNX model file for the regex {patterns} in {path}.")
-            return None
-        elif len(onnx_files) > 1:
-            if argument_name is not None:
-                raise RuntimeError(
-                    f"Too many ONNX model files were found in {path}, specify which one to load by using the "
-                    f"{argument_name} argument."
+        Returns:
+            `Path`: The inferred ONNX file path.
+
+        Raises:
+            `FileNotFoundError`: If no ONNX file is found with the target file name when provided.
+        """
+        # we first look for the target file name if provided
+        if target_file_name is not None:
+            target_files = [file for file in onnx_files if file.name == target_file_name]
+            if len(target_files) == 0:
+                raise FileNotFoundError(
+                    f"Could not find any ONNX files with target file name {target_file_name}, only found: {onnx_files}. "
+                    "Please make sure that the `file_name` and/or `subfolder` arguments correspond to an ONNX file in the repository/directory."
                 )
-        return onnx_files[0]
+            if len(target_files) == 1:
+                return target_files[0]
+            else:
+                logger.warning(
+                    f"Found multiple ONNX files with target file name {target_file_name}, using {target_files[0].name}. "
+                    "Please make sure to pass a `subfolder` argument to `from_pretrained` when loading from a "
+                    "repository/directory containing multiple ONNX files with the same target file name."
+                )
+                return target_files[0]
+
+        # otherwise, we look for the standard file name
+        standard_files = [file for file in onnx_files if file.name == standard_file_name]
+        if len(standard_files) == 0:
+            logger.warning(
+                f"Could not find any ONNX files with standard file name {standard_file_name}, files found: {onnx_files}. "
+                "Please make sure to pass a `file_name` and/or `subfolder` argument to `from_pretrained` when loading an ONNX "
+                "file with non-standard file names."
+            )
+        elif len(standard_files) == 1:
+            return standard_files[0]
+        else:
+            logger.warning(
+                f"Found multiple ONNX files with standard file name {standard_file_name}, using {standard_files[0].name}. "
+                "Please make sure to pass a `subfolder` argument to `from_pretrained` when loading from a repository/directory "
+                "containing multiple standard-named ONNX files in different subfolders."
+            )
+            return standard_files[0]
+
+        # finally, we simply look for files matching the pattern
+        pattern_files = [p for p in onnx_files if re.search(pattern, str(p))]
+        if len(pattern_files) == 0:
+            raise FileNotFoundError(
+                f"Could not find any ONNX model file in the list of candidates {onnx_files} matching the pattern {pattern}. "
+                "Please make sure to pass a `file_name` and/or `subfolder` argument to `from_pretrained` when loading from a "
+                "repository/directory containing non-pattern-matching ONNX files."
+            )
+        elif len(pattern_files) == 1:
+            return pattern_files[0]
+        else:
+            logger.warning(
+                f"Found multiple ONNX files matching the pattern {pattern}, using {pattern_files[0].name}. "
+                "Please make sure to pass a `file_name` and/or `subfolder` argument to `from_pretrained` when loading from a "
+                "repository/directory containing multiple pattern-matching ONNX files."
+            )
+            return pattern_files[0]
 
     @classmethod
     def _from_pretrained(
@@ -303,83 +340,46 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModel:
-        defaut_file_name = file_name or "model.onnx"
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            token=token,
             revision=revision,
+            token=token,
         )
-
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
-        if len(onnx_files) == 1 and file_name and file_name != onnx_files[0].name:
-            raise FileNotFoundError(f"Trying to load {file_name} but only found {onnx_files[0].name}")
+        if Path(model_id).is_dir():
+            onnx_files = [f.relative_to(model_id) for f in onnx_files]
 
-        file_name = onnx_files[0].name
-        subfolder = onnx_files[0].parent
-
-        if len(onnx_files) > 1:
-            for file in onnx_files:
-                if file.name == defaut_file_name:
-                    file_name = file.name
-                    subfolder = file.parent
-                    break
-
-            logger.warning(
-                f"Too many ONNX model files were found in {' ,'.join(map(str, onnx_files))}. "
-                "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                f"Loading the file {file_name} in the subfolder {subfolder}."
-            )
-
-        if os.path.isdir(model_id):
-            model_id = subfolder
-            subfolder = ""
-
-        if isinstance(subfolder, Path):
-            subfolder = subfolder.as_posix()
-
-        model_cache_path = cached_file(
-            model_id,
-            filename=file_name,
-            # hub options
-            token=token,
-            revision=revision,
-            subfolder=subfolder,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
+        file_path = cls._infer_file_path(
+            ONNX_FILE_PATTERN,
+            onnx_files=onnx_files,
+            target_file_name=file_name,
+            standard_file_name=ONNX_WEIGHTS_NAME,
         )
-        new_model_save_dir = Path(model_cache_path).parent
-
-        try:  # noqa: SIM105
-            cached_file(
-                model_id,
-                filename=file_name + "_data",
-                # hub options
-                token=token,
-                revision=revision,
-                subfolder=subfolder,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
-        except OSError:
-            # If the external data file is not found, we assume that the model is not using external data.
-            pass
+        model_path = cls._cached_file(
+            model_id,
+            filename=file_path.name,
+            subfolder=file_path.parent.as_posix(),
+            local_files_only=local_files_only,
+            force_download=force_download,
+            cache_dir=cache_dir,
+            revision=revision,
+            token=token,
+        )
 
         # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
-        # in which case we want to keep it instead of the path only.
+        # in which case we want to keep it instead.
         if model_save_dir is None:
-            model_save_dir = new_model_save_dir
+            model_save_dir = model_path.parent
 
         providers, provider_options = prepare_providers_and_provider_options(
             provider=provider, providers=providers, provider_options=provider_options
         )
         session = InferenceSession(
-            model_cache_path,
+            model_path,
             providers=providers,
             provider_options=provider_options,
             sess_options=session_options,
@@ -652,9 +652,7 @@ class ORTModelForFeatureExtraction(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         # Determine the tensor type from any available tensor input
         tensor_inputs = [
             input_ids,
@@ -703,14 +701,9 @@ class ORTModelForFeatureExtraction(ORTModel):
             last_hidden_state = output_buffers["last_hidden_state"].view(output_shapes["last_hidden_state"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
-
-            if "last_hidden_state" in self.output_names:
-                last_hidden_state = model_outputs["last_hidden_state"]
-            else:
-                # TODO: This allows to support sentence-transformers models (sentence embedding), but is not validated.
-                last_hidden_state = next(iter(model_outputs.values()))
+            last_hidden_state = model_outputs["last_hidden_state"]
 
         if not return_dict:
             return (last_hidden_state,)
@@ -778,9 +771,7 @@ class ORTModelForMaskedLM(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -807,7 +798,7 @@ class ORTModelForMaskedLM(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -879,9 +870,7 @@ class ORTModelForQuestionAnswering(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -909,7 +898,7 @@ class ORTModelForQuestionAnswering(ORTModel):
             end_logits = output_buffers["end_logits"].view(output_shapes["end_logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             start_logits = model_outputs["start_logits"]
@@ -998,7 +987,6 @@ class ORTModelForSequenceClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -1027,7 +1015,7 @@ class ORTModelForSequenceClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1101,7 +1089,6 @@ class ORTModelForTokenClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -1130,7 +1117,7 @@ class ORTModelForTokenClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1197,7 +1184,6 @@ class ORTModelForMultipleChoice(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(input_ids, torch.Tensor)
@@ -1226,7 +1212,7 @@ class ORTModelForMultipleChoice(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1298,7 +1284,6 @@ class ORTModelForImageClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
 
         use_torch = isinstance(pixel_values, torch.Tensor)
@@ -1322,7 +1307,7 @@ class ORTModelForImageClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1403,9 +1388,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1431,7 +1414,7 @@ class ORTModelForSemanticSegmentation(ORTModel):
                 pred_masks = output_buffers["pred_masks"].view(output_shapes["pred_masks"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1520,15 +1503,18 @@ class ORTModelForAudioClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
 
         if self.config.model_type == "whisper":
-            assert input_features is not None, "input_features must be provided for this model"
+            if input_features is None:
+                raise ValueError("input_features must be provided for this model (whisper)")
+
             input_name = "input_features"
             model_input = input_features
         else:
-            assert input_values is not None, "input_values must be provided for this model"
+            if input_values is None:
+                raise ValueError(f"input_values must be provided for this model ({self.config.model_type})")
+
             input_name = "input_values"
             model_input = input_values
 
@@ -1554,7 +1540,7 @@ class ORTModelForAudioClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1611,32 +1597,30 @@ class ORTModelForCTC(ORTModel):
     def forward(
         self,
         input_values: torch.Tensor | np.ndarray | None = None,
+        input_features: torch.Tensor | np.ndarray | None = None,
         *,
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
-        self._warn_on_unhandled_inputs(kwargs)
+        if self.config.model_type == "mctct":
+            assert input_features is not None, "input_features must be provided for this model"
+            input_name = "input_features"
+            model_input = input_features
+        else:
+            assert input_values is not None, "input_values must be provided for this model"
+            input_name = "input_values"
+            model_input = input_values
 
-        use_torch = isinstance(input_values, torch.Tensor)
+        self._warn_on_unhandled_inputs(kwargs)
+        use_torch = isinstance(model_input, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
         model_inputs = {
-            "input_values": input_values,
+            input_name: model_input,
         }
 
         if self.use_io_binding:
-            batch_size = input_values.shape[0]
-            sequence_length = input_values.shape[-1]
-
-            for kernel_size, stride in zip(self.config.conv_kernel, self.config.conv_stride):
-                sequence_length = (sequence_length - kernel_size) // stride + 1
-
-            known_output_shapes = {"logits": [batch_size, sequence_length, self.config.vocab_size]}
-
-            output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs, known_output_shapes=known_output_shapes
-            )
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
@@ -1649,7 +1633,7 @@ class ORTModelForCTC(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1718,9 +1702,7 @@ class ORTModelForAudioXVector(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1744,7 +1726,7 @@ class ORTModelForAudioXVector(ORTModel):
 
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1806,9 +1788,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(input_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1830,7 +1810,7 @@ class ORTModelForAudioFrameClassification(ORTModel):
             logits = output_buffers["logits"].view(output_shapes["logits"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             logits = model_outputs["logits"]
@@ -1885,9 +1865,7 @@ class ORTModelForImageToImage(ORTModel):
         return_dict: bool = True,
         **kwargs,
     ):
-        # Warn about any unexpected kwargs using the helper method
         self._warn_on_unhandled_inputs(kwargs)
-
         use_torch = isinstance(pixel_values, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
@@ -1896,19 +1874,7 @@ class ORTModelForImageToImage(ORTModel):
         }
 
         if self.use_io_binding:
-            batch_size, num_channels, height, width = pixel_values.shape
-
-            output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs,
-                known_output_shapes={
-                    "reconstruction": [
-                        batch_size,
-                        num_channels,
-                        height * self.config.upscale,
-                        width * self.config.upscale,
-                    ]
-                },
-            )
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
 
             # run inference with binding & synchronize in case of multiple CUDA streams
             if self.device.type == "cpu":
@@ -1921,7 +1887,7 @@ class ORTModelForImageToImage(ORTModel):
             reconstruction = output_buffers["reconstruction"].view(output_shapes["reconstruction"])
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
             reconstruction = model_outputs["reconstruction"]
@@ -1994,7 +1960,7 @@ class ORTModelForCustomTasks(ORTModel):
             model_outputs = {name: output_buffers[name].view(shape) for name, shape in output_shapes.items()}
         else:
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
-            onnx_outputs = self.model.run(None, onnx_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
         # converts output to namedtuple for pipelines post-processing

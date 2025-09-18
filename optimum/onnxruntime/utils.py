@@ -34,7 +34,6 @@ from transformers.utils import logging
 
 import onnxruntime as ort
 from onnxruntime.transformers.io_binding_helper import TypeHelper
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 if TYPE_CHECKING:
@@ -44,13 +43,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.get_logger(__name__)
-
-ONNX_WEIGHTS_NAME = "model.onnx"
-
-ONNX_ENCODER_NAME = "encoder_model.onnx"
-ONNX_DECODER_NAME = "decoder_model.onnx"
-ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
-ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
 
 def is_cupy_available():
@@ -150,10 +142,6 @@ class ORTConfigManager:
 
 def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
-
-
-def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    return OnnxConfigWithLoss(onnx_config)
 
 
 def get_device_for_provider(provider: str, provider_options: dict) -> torch.device:
