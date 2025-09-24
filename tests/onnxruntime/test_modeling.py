@@ -383,17 +383,16 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
     def test_load_model_from_hub_private(self):
-        token = os.environ.get("HF_HUB_READ_TOKEN", None)
+        token = os.environ.get("HF_TOKEN", None)
 
         if not token:
             self.skipTest(
-                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
+                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_TOKEN`."
             )
 
         model = ORTModelForCustomTasks.from_pretrained(
             "optimum-internal-testing/tiny-random-phi-private", revision="onnx", token=token
         )
-
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
