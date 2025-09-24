@@ -237,6 +237,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         )
         return self.can_use_cache
 
+    @property
+    def use_merged(self):
+        logger.warning(
+            "The `ORTModelForCausalLM.use_merged` property is deprecated and will be removed in a future version. "
+            "Please rather use `ORTModelForCausalLM.is_merged` to check if the underlying model is merged or not."
+        )
+        return self.is_merged
+
     @add_start_docstrings_to_model_forward(
         CAUSALLM_ONNX_MODEL_DOCSTRING.format("batch_size, sequence_length")
         + TEXT_GENERATION_EXAMPLE.format(
