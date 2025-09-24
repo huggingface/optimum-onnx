@@ -640,9 +640,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool):
         texts = self.get_inputs("gpt2", for_pipeline=True)
-        pipe = ort_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
+        pipe = ort_pipeline("text-generation", model_kwargs={"export": True, "use_cache": use_cache})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
-        # default model is gpt2 which has an exported merged onnx model on the same hub repo
 
         set_seed(SEED)
         outputs = pipe(texts, **self.GEN_KWARGS)
