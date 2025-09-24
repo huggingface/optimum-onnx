@@ -176,7 +176,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
         device: str = "cpu",
-        fp16: bool = False,
+        dtype: str = "fp32",
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[dict] = None,
@@ -196,7 +196,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     output=tmpdir,
                     task=task,
                     device=device,
-                    fp16=fp16,
+                    dtype=dtype,
                     optimize=optimization_level,
                     monolith=monolith,
                     no_post_process=no_post_process,
@@ -220,7 +220,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
         device: str = "cpu",
-        fp16: bool = False,
+        dtype: str = "fp32",
         variant: str = "default",
         model_kwargs: Optional[dict] = None,
         trust_remote_code: bool = False,
@@ -232,7 +232,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     output=tmpdir,
                     task=task,
                     device=device,
-                    fp16=fp16,
+                    dtype=dtype,
                     optimize=optimization_level,
                     monolith=monolith,
                     no_post_process=no_post_process,
@@ -275,7 +275,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_vision
     @pytest.mark.gpu_test
     def test_exporters_cli_fp16_diffusion(self, model_type: str, model_name: str):
-        self._onnx_export(model_name, model_type, device="cuda", fp16=True)
+        self._onnx_export(model_name, model_type, device="cuda", dtype="fp16")
 
     @parameterized.expand(
         _get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL, library_name="sentence_transformers")
@@ -367,7 +367,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
-        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", dtype="fp16")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
@@ -677,8 +677,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             monolith,
             no_post_process,
             variant=variant,
-            fp16=True,
             device="cuda",
+            dtype="fp16",
             trust_remote_code=trust_remote_code,
         )
 

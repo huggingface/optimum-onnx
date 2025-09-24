@@ -358,21 +358,22 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
+
+            torch_dtype = kwargs.pop("torch_dtype", None)
+            if torch_dtype is not None:
+                if torch_dtype == torch.float16:
+                    kwargs["dtype"] = "fp16"
+                elif torch_dtype == torch.float32:
+                    kwargs["dtype"] = "fp32"
+                else:
+                    raise ValueError(f"torch_dtype {kwargs['torch_dtype']} not supported.")
+
             export_kwargs = {
                 "slim": kwargs.pop("slim", False),
                 "dtype": kwargs.pop("dtype", None),
                 "device": get_device_for_provider(provider, {}).type,
                 "no_dynamic_axes": kwargs.pop("no_dynamic_axes", False),
             }
-            if kwargs.get("torch_dtype") is not None:
-                if kwargs["torch_dtype"] == torch.bfloat16:
-                    raise ValueError("ONNX Runtime does not support bfloat16.")
-                elif kwargs["torch_dtype"] == torch.float16:
-                    export_kwargs["dtype"] = "fp16"
-                elif kwargs["torch_dtype"] == torch.float32:
-                    export_kwargs["dtype"] = "fp32"
-                else:
-                    raise ValueError(f"torch_dtype {kwargs['torch_dtype']} not supported.")
 
             main_export(
                 model_name_or_path=model_name_or_path,

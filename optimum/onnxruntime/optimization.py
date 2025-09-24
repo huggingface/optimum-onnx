@@ -30,6 +30,7 @@ from onnxruntime.transformers.optimizer import optimize_model
 from optimum.onnx.utils import check_model_uses_external_data
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.constants import ONNX_WEIGHTS_NAME
+from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.utils import ORTConfigManager
@@ -99,6 +100,11 @@ class ORTOptimizer:
                 # Add the decoder with past key/values if present
                 if model_or_path.decoder_with_past is not None:
                     onnx_model_path.append(model_or_path.decoder_with_past.path)
+            elif isinstance(model_or_path, ORTModelForCausalLM) and model_or_path.is_merged:
+                raise NotImplementedError(
+                    "ORTOptimizer does not support ORTModelForCausalLM models when without/with past models are merged. "
+                    "Please re-export your model. This can be done by using the optimum-cli ONNX export tool or `ORTModelForCausalLM.from_pretrained(..., export=True, use_merged=False)`."
+                )
             else:
                 onnx_model_path.append(model_or_path.path)
             config = model_or_path.config
@@ -120,7 +126,6 @@ class ORTOptimizer:
         optimization_config: OptimizationConfig,
         save_dir: str | os.PathLike,
         file_suffix: str | None = "optimized",
-        use_external_data_format: bool | None = None,
         one_external_file: bool = True,
     ):
         """Optimizes a model given the optimization specifications defined in `optimization_config`.
@@ -132,19 +137,10 @@ class ORTOptimizer:
                 The path used to save the optimized model.
             file_suffix (`str`, defaults to `"optimized"`):
                 The file suffix used to save the optimized model.
-            use_external_data_format (`Optional[bool]`, defaults to `None`):
-                Whether to use external data format to store model of size >= 2Gb. This argument is deprecated.
             one_external_file (`bool`, defaults to `True`):
                 When `use_external_data_format=True`, whether to save all tensors to one external file.
                 If False, save each tensor to a file named with the tensor name.
-
         """
-        if use_external_data_format is not None:
-            logger.warning(
-                "The argument use_external_data_format in the ORTOptimizer.optimize() method is deprecated and will"
-                " be removed in optimum 2.0."
-            )
-
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         ORTConfigManager.check_optimization_supported_model(self.model_type, optimization_config)

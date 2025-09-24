@@ -548,21 +548,12 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         session_options: SessionOptions | None = None,
         # inference options
         use_cache: bool = True,
-        use_merged: bool | None = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
         dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModelForCausalLM:
-        if use_merged is not None:
-            logger.warning(
-                "Passing `use_merged` to `ORTModelForCausalLM.from_pretrained` is deprecated and will be removed in a future version. "
-                "Please rather use `file_name` and/or `subfolder` to select the appropriate ONNX file to load."
-                "Merged decoder-only models are legacy and we recommend to re-export your model with a newer version of Optimum to get "
-                "better performance and more reliable generation."
-            )
-
         onnx_files = find_files_matching_pattern(
             model_id,
             ONNX_FILE_PATTERN,
@@ -590,22 +581,18 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             # we disable logging to avoid meaningless warnings from _infer_file_path in this block
             original_logging_level = logger.level
             logger.setLevel(logging.ERROR)
+            use_merged = False
             legacy = False
-            if use_merged is not False:
-                # if use_merged is None or True, we try to load a merged model
-                try:
-                    file_path = cls._infer_file_path(
-                        DECODER_MERGED_ONNX_FILE_PATTERN,
-                        onnx_files=onnx_files,
-                        standard_file_name=ONNX_DECODER_MERGED_NAME,
-                        target_file_name=file_name,
-                    )
-                    use_merged = True
-                    legacy = True
-                except FileNotFoundError:
-                    if use_merged is True:
-                        raise
-            if use_merged is not True:
+            try:
+                file_path = cls._infer_file_path(
+                    DECODER_MERGED_ONNX_FILE_PATTERN,
+                    onnx_files=onnx_files,
+                    standard_file_name=ONNX_DECODER_MERGED_NAME,
+                    target_file_name=file_name,
+                )
+                use_merged = True
+                legacy = True
+            except FileNotFoundError:
                 try:
                     # if use_merged is None or False, we try to load a non-merged model
                     file_path = cls._infer_file_path(
@@ -614,11 +601,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         standard_file_name=ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME,
                         target_file_name=file_name,
                     )
-                    use_merged = False
                     legacy = True
                 except FileNotFoundError:
-                    if use_merged is False:
-                        raise
+                    # we keep the initially inferred file_path
+                    pass
             logger.setLevel(original_logging_level)
 
             if legacy:
