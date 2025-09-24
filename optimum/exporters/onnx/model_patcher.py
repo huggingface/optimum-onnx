@@ -152,7 +152,7 @@ def scaled_dot_product_attention(
 
 
 def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: str | None = None):
-    """Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+    """Finds all occurrences of `attribute_name` in the loaded modules and patches them with `patch`.
 
     Args:
         attribute_name (`str`):

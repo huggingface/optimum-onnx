@@ -1129,7 +1129,7 @@ class ORTModelForTokenClassification(ORTModel):
 
 
 MULTIPLE_CHOICE_EXAMPLE = r"""
-    Example of mutliple choice:
+    Example of multiple choice:
 
     ```python
     >>> from transformers import {processor_class}

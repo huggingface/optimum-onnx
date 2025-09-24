@@ -97,7 +97,7 @@ def validate_models_outputs(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
-            A dictionnary containing the models to validate and their corresponding onnx configs.
+            A dictionary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[List[str]]`):
             The names of the outputs to check.
         output_dir (`Path`):
@@ -1168,5 +1168,5 @@ def onnx_export_from_model(
             )
         except Exception as e:
             raise RuntimeError(
-                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}"
+                f"An error occurred during validation, but the model was saved nonetheless at {output.as_posix()}"
             ) from e
