@@ -29,12 +29,7 @@ _import_structure = {
         "validate_models_outputs",
         "onnx_export_from_model",
     ],
-    "utils": [
-        "get_decoder_models_for_export",
-        "get_encoder_decoder_models_for_export",
-        "get_diffusion_models_for_export",
-        "MODEL_TYPES_REQUIRING_POSITION_IDS",
-    ],
+    "utils": ["MODEL_TYPES_REQUIRING_POSITION_IDS"],
     "__main__": ["main_export"],
 }
 
@@ -49,13 +44,7 @@ if TYPE_CHECKING:
         validate_model_outputs,
         validate_models_outputs,
     )
-
-    from .utils import (
-        MODEL_TYPES_REQUIRING_POSITION_IDS,
-        get_decoder_models_for_export,
-        get_diffusion_models_for_export,
-        get_encoder_decoder_models_for_export,
-    )
+    from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 else:
     import sys
 
