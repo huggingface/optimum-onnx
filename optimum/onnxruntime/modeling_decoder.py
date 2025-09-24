@@ -141,7 +141,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
         if self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
-            raise ValueError(
+            logger.warning(
                 f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although the model type {self.config.model_type} requires it. "
                 "We strongly encourage to re-export the model with Optimum-ONNX for better performance and more reliable text generation."
             )
