@@ -20,7 +20,7 @@ concurrency:
 env:
   RUN_SLOW: true
   TRANSFORMERS_IS_CI: true
-  HF_TOKEN: ${{ secrets.HF_OPTIMUM_READ_TOKEN }}
+  HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
 jobs:
   build:
