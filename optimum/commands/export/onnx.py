@@ -156,14 +156,6 @@ def parse_args_onnx(parser):
         help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
     )
     optional_group.add_argument(
-        "--legacy",
-        action="store_true",
-        help=(
-            "Export decoder only models in three files (without + with past and the resulting merged model)."
-            "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
-        ),
-    )
-    optional_group.add_argument(
         "--no-dynamic-axes", action="store_true", help="Disable dynamic axes during ONNX export"
     )
     optional_group.add_argument(
@@ -297,7 +289,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
-            legacy=self.args.legacy,
             no_dynamic_axes=self.args.no_dynamic_axes,
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,

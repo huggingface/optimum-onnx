@@ -129,8 +129,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=True)
         tmp_dir = tempfile.mkdtemp()
         output_dir = Path(tmp_dir)
-        model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge", use_merged=True)
-        self.assertTrue(model.use_merged)
+        model = ORTModelForCausalLM.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
         model.save_pretrained(tmp_dir)
 
         quantizer = ORTQuantizer.from_pretrained(model)

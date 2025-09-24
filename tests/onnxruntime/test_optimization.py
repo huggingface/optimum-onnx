@@ -484,7 +484,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_merged": [True, False],
     }
 
     def _test_optimization_levels(
@@ -492,14 +491,10 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         test_name: str,
         model_arch: str,
         use_cache: bool,
-        use_merged: bool,
         optimization_level: str,
         provider: str,
         use_io_binding: Optional[bool] = None,
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         if use_cache is False:
             use_io_binding = False
 
@@ -508,7 +503,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             "test_name": export_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
@@ -552,14 +546,11 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     @parameterized.expand(
         grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
     )
-    def test_optimization_levels_cpu(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
-    ):
+    def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
             model_arch=model_arch,
             use_cache=use_cache,
-            use_merged=use_merged,
             optimization_level=optimization_level,
             provider="CPUExecutionProvider",
         )
@@ -569,15 +560,12 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
-    def test_optimization_levels_gpu(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
-    ):
+    def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
                 use_cache=use_cache,
-                use_merged=use_merged,
                 optimization_level=optimization_level,
                 provider="CUDAExecutionProvider",
                 use_io_binding=use_io_binding,

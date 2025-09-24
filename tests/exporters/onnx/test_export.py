@@ -430,8 +430,8 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
             inputs_or_outputs[f"{name}.{i}.value"] = {0: "batch_size", 2: decoder_sequence_name}
 
 
-def fn_get_submodels_custom(model, legacy=False):
-    return {"decoder_model": model, "decoder_with_past_model": model} if legacy else {"model": model}
+def fn_get_submodels_custom(model):
+    return {"model": model}
 
 
 class OnnxCustomExport(TestCase):
@@ -470,37 +470,20 @@ class OnnxCustomExport(TestCase):
     def test_custom_export_trust_remote(self, fn_get_submodels):
         model_id = "echarlaix/tiny-mpt-random-remote-code"
         config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-        onnx_config = CustomMPTOnnxConfig(
-            config=config,
-            task="text-generation",
-            use_past=True,
-            use_past_in_inputs=False,
-        )
         onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
+        custom_onnx_configs = {"model": onnx_config_with_past}
 
-        for legacy in (True, False):
-            if legacy:
-                custom_onnx_configs = {
-                    "decoder_model": onnx_config,
-                    "decoder_with_past_model": onnx_config_with_past,
-                }
-            else:
-                custom_onnx_configs = {
-                    "model": onnx_config_with_past,
-                }
-
-            with TemporaryDirectory() as tmpdirname:
-                main_export(
-                    model_id,
-                    output=tmpdirname,
-                    task="text-generation-with-past",
-                    trust_remote_code=True,
-                    custom_onnx_configs=custom_onnx_configs,
-                    no_post_process=True,
-                    fn_get_submodels=partial(fn_get_submodels, legacy=legacy) if fn_get_submodels else None,
-                    legacy=legacy,
-                    opset=14,
-                )
+        with TemporaryDirectory() as tmpdirname:
+            main_export(
+                model_id,
+                output=tmpdirname,
+                task="text-generation-with-past",
+                trust_remote_code=True,
+                custom_onnx_configs=custom_onnx_configs,
+                no_post_process=True,
+                fn_get_submodels=partial(fn_get_submodels) if fn_get_submodels else None,
+                opset=14,
+            )
 
     def test_custom_export_trust_remote_error(self):
         model_id = "optimum-internal-testing/tiny-random-arctic"

@@ -81,7 +81,6 @@ def main_export(
     use_subprocess: bool = False,
     _variant: str = "default",
     library_name: str | None = None,
-    legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
@@ -170,8 +169,6 @@ def main_export(
             Specify the variant of the ONNX export to use.
         library_name (`Optional[str]`, defaults to `None`):
             The library of the model (`"transformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
-        legacy (`bool`, defaults to `False`):
-            Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
@@ -427,7 +424,6 @@ def main_export(
         custom_onnx_configs=custom_onnx_configs,
         fn_get_submodels=fn_get_submodels,
         _variant=_variant,
-        legacy=legacy,
         preprocessors=preprocessors,
         device=device,
         no_dynamic_axes=no_dynamic_axes,
@@ -469,7 +465,6 @@ def main():
         pad_token_id=args.pad_token_id,
         for_ort=args.for_ort,
         library_name=args.library_name,
-        legacy=args.legacy,
         do_constant_folding=not args.no_constant_folding,
         **input_shapes,
     )

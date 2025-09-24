@@ -1503,7 +1503,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -1511,7 +1510,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         if task == "zero-shot-object-detection":
             logger.warning(
@@ -1623,7 +1621,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -1631,7 +1628,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self.is_generating_dummy_inputs = False
 
@@ -1977,7 +1973,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         behavior: ConfigBehavior = ConfigBehavior.ENCODER,
         preprocessors: list[Any] | None = None,
         model_part: Literal["text_encoder", "encodec_decode", "decoder", "build_delay_pattern_mask"] | None = None,
-        legacy: bool = False,
         variant: str = "text-conditional-with-past",
     ):
         super().__init__(
@@ -1989,10 +1984,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
-        if legacy:
-            raise ValueError("Musicgen does not support legacy=True.")
 
         if (
             model_part in ["text_encoder", "encodec_decode", "build_delay_pattern_mask"]
@@ -2167,7 +2159,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
         is_postnet_and_vocoder: bool = False,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -2178,7 +2169,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         if float_dtype == "fp16":
             raise ValueError(
@@ -2399,7 +2389,6 @@ class SamOnnxConfig(OnnxConfig):
         variant: str = "split",
         vision_encoder: bool | None = None,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -2407,7 +2396,6 @@ class SamOnnxConfig(OnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self.variant = variant
         self.vision_encoder = vision_encoder

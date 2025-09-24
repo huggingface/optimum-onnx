@@ -174,13 +174,11 @@ class OnnxConfig(ExporterConfig, ABC):
         preprocessors: list[Any] | None = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
-        legacy: bool = False,
     ):
         super().__init__(config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype)
 
         self.variant = "default"
         self._preprocessors = preprocessors
-        self.legacy = legacy
 
     @property
     def variant(self) -> str:
@@ -452,7 +450,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         self.use_past = use_past
         self.use_past_in_inputs = use_past_in_inputs
@@ -465,7 +462,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
 
     @property
@@ -540,14 +536,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
 
-        # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
+        # NOTE: The check `self.task != "text-generation" is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
         # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
         if (
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
             and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
-            and ((self.task == "text-generation" and self.legacy) or self.task != "text-generation")
+            and self.task != "text-generation"
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.
@@ -651,7 +647,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -661,7 +656,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self._behavior = behavior
 
@@ -700,7 +694,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
-            legacy=self.legacy,
         )
         onnx_config.variant = self.variant
         return onnx_config

@@ -519,7 +519,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         # already exported model with merge
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, use_cache=True, use_merged=True)
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
-        # already exported model without merge
+        # already exported model without merge (the branch is called legacy here but it's actually not really legacy)
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="onnx-legacy")
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
 

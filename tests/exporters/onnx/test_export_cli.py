@@ -28,7 +28,6 @@ from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
 from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
-    ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_ENCODER_NAME,
@@ -624,21 +623,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 shell=True,
                 check=True,
             )
-
-    def test_legacy(self):
-        with TemporaryDirectory() as tmpdirname:
-            subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model  hf-internal-testing/tiny-random-gpt2 --task text-generation-with-past --legacy {tmpdirname}",
-                shell=True,
-                capture_output=True,
-            )
-            folder_contents = os.listdir(tmpdirname)
-            self.assertIn(ONNX_DECODER_NAME, folder_contents)
-            self.assertIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
-            self.assertIn(ONNX_DECODER_MERGED_NAME, folder_contents)
-
-            model = onnx.load(Path(tmpdirname) / ONNX_DECODER_MERGED_NAME)
-            self.assertNotIn("position_ids", {node.name for node in model.graph.input})
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch_gpu

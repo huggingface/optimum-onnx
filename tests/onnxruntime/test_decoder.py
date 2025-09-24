@@ -26,7 +26,6 @@ from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationConfig
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 
-from optimum.exporters.onnx import main_export
 from optimum.exporters.onnx.config import TextDecoderWithPositionIdsOnnxConfig
 from optimum.exporters.onnx.model_configs import (
     ArceeOnnxConfig,
@@ -56,7 +55,6 @@ from optimum.exporters.onnx.model_configs import (
 from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS
 from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
-    ONNX_DECODER_MERGED_NAME,
     ONNX_DECODER_NAME,
     ONNX_DECODER_WITH_PAST_NAME,
     ONNX_WEIGHTS_NAME,
@@ -221,13 +219,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 past_key_values[i][0].masked_fill_(mask == 0, 0)
                 past_key_values[i][1].masked_fill_(mask == 0, 0)
 
-    def check_onnx_model_attributes(
-        self,
-        onnx_model,
-        use_cache: bool = True,
-        use_merged: Optional[bool] = None,
-        use_io_binding: Optional[bool] = None,
-    ):
+    def check_onnx_model_attributes(self, onnx_model, use_cache: bool = True, use_io_binding: Optional[bool] = None):
         self.assertIsInstance(onnx_model, self.ORTMODEL_CLASS)
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
         self.assertIsInstance(onnx_model.session, InferenceSession)
@@ -235,16 +227,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         self.assertEqual(onnx_model.generation_config.use_cache, use_cache)
         self.assertEqual(onnx_model.config.use_cache, use_cache)
-
-        if use_cache or use_merged:
-            self.assertTrue(onnx_model.can_use_cache)
-        else:
-            self.assertFalse(onnx_model.can_use_cache)
-
-        if use_merged is not None:
-            self.assertEqual(onnx_model.is_merged, use_merged)
-        else:
-            self.assertFalse(onnx_model.is_merged)
+        self.assertEqual(onnx_model.can_use_cache, use_cache)
 
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
@@ -351,13 +334,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_load_model_from_hub(self):
         # already exported model without merge
         model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-without-merge")
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
-        # already exported model with merge
-        model = self.ORTMODEL_CLASS.from_pretrained("fxmarty/onnx-tiny-random-gpt2-with-merge")
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
+        self.check_onnx_model_attributes(model, use_cache=True)
         # export on the fly and load
         model = self.ORTMODEL_CLASS.from_pretrained("hf-internal-testing/tiny-random-gpt2")
-        self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
+        self.check_onnx_model_attributes(model, use_cache=True)
 
     def test_load_model_from_cache(self):
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)  # caching the model
@@ -384,22 +364,20 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertEqual(model.session.get_session_options().intra_op_num_threads, 3)
         self.assertEqual(model.session.get_session_options().intra_op_num_threads, 3)
 
-    @parameterized.expand(grid_parameters({"use_cache": [False, True], "use_merged": [False, True]}))
+    @parameterized.expand(grid_parameters({"use_cache": [False, True]}))
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_model_with_external_data(self, test_name: str, use_cache: bool, use_merged: bool):
+    def test_save_load_model_with_external_data(self, test_name: str, use_cache: bool):
         with tempfile.TemporaryDirectory() as tmpdirname:
             model_id = MODEL_NAMES["gpt2"]
             # export=True because there's a folder with onnx model in hf-internal-testing/tiny-random-GPT2LMHeadModel
-            model = self.ORTMODEL_CLASS.from_pretrained(
-                model_id, use_cache=use_cache, use_merged=use_merged, export=True
-            )
+            model = self.ORTMODEL_CLASS.from_pretrained(model_id, use_cache=use_cache, export=True)
             model.save_pretrained(tmpdirname)
             # verify external data is exported
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
             self.assertTrue(ONNX_WEIGHTS_NAME + "_data" in folder_contents)
             # verify loading from local folder works
-            model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
+            model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache)
             model.generate(**self.GEN_KWARGS)
             remove_directory(tmpdirname)
 
@@ -435,17 +413,6 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertEqual(model.path.name, "model.onnx")
         # load from hub (onnx file exists)
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="onnx")
-        self.assertEqual(model.path.name, "model.onnx")
-        # load from hub with revision (prioritize non-legacy model)
-        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="merged-onnx")
-        self.assertEqual(model.path.name, "model.onnx")
-        # load from hub with revision and subfolder (prioritize merged model among non-legacy models)
-        model = self.ORTMODEL_CLASS.from_pretrained(
-            self.ONNX_MODEL_ID, revision="merged-onnx", subfolder="onnx_legacy"
-        )
-        self.assertEqual(model.path.name, "decoder_model_merged.onnx")
-        # load from hub with revision and subfolder (prioritize standard model name)
-        model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="merged-onnx", subfolder="subfolder")
         self.assertEqual(model.path.name, "model.onnx")
         # load from hub with revision and file_name
         model = self.ORTMODEL_CLASS.from_pretrained(
@@ -674,7 +641,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool):
         texts = self.get_inputs("gpt2", for_pipeline=True)
         pipe = ort_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
-        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache, use_merged=True)
+        self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
         # default model is gpt2 which has an exported merged onnx model on the same hub repo
 
         set_seed(SEED)
@@ -764,80 +731,3 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         set_seed(SEED)
         onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-    # LEGACY MODELS
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_merged_and_not_merged_models_outputs(self, model_arch: str):
-        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # legacy models can't handle batched inputs (missing position_ids)
-            inputs = self.get_inputs(model_arch, batched=False)
-            model_id = MODEL_NAMES[model_arch]
-            task = "text-generation-with-past"
-
-            set_seed(SEED)
-            model = self.AUTOMODEL_CLASS.from_pretrained(model_id, trust_remote_code=trust_remote_code).eval()
-
-            set_seed(SEED)
-            main_export(
-                model_id,
-                output=tmpdir,
-                task=task,
-                legacy=True,
-                no_post_processing=False,
-                do_validation=False,
-                trust_remote_code=trust_remote_code,
-            )
-
-            # not merged model, without cache
-            not_merged_without_cache_model = self.ORTMODEL_CLASS.from_pretrained(
-                tmpdir, use_cache=False, use_merged=False, trust_remote_code=trust_remote_code
-            )
-            self.check_onnx_model_attributes(not_merged_without_cache_model, use_cache=False, use_merged=False)
-
-            # merged model
-            merged_model = self.ORTMODEL_CLASS.from_pretrained(
-                tmpdir, use_cache=True, use_merged=True, trust_remote_code=trust_remote_code
-            )
-            self.check_onnx_model_attributes(merged_model, use_cache=True, use_merged=True)
-
-            # forward
-            logits = model(**inputs).logits
-            merged_logits = merged_model(**inputs).logits
-            not_merged_without_cache_logits = not_merged_without_cache_model(**inputs).logits
-
-            # compare merged to transformers
-            torch.testing.assert_close(logits, merged_logits, atol=self.ATOL, rtol=self.RTOL)
-            # compare not merged without cache to transformers
-            torch.testing.assert_close(logits, not_merged_without_cache_logits, atol=self.ATOL, rtol=self.RTOL)
-
-            # legacy models can't handle batched inputs (missing position_ids)
-            inputs = self.get_inputs(model_arch, for_generation=True, batched=False)
-            # generate
-            set_seed(SEED)
-            outputs = model.generate(**inputs, **self.GEN_KWARGS)
-            set_seed(SEED)
-            merged_outputs = merged_model.generate(**inputs, **self.GEN_KWARGS)
-            set_seed(SEED)
-            not_merged_without_cache_outputs = not_merged_without_cache_model.generate(**inputs, **self.GEN_KWARGS)
-
-            # compare merged to transformers
-            torch.testing.assert_close(outputs, merged_outputs, atol=self.ATOL, rtol=self.RTOL)
-            # compare not merged without cache to transformers
-            torch.testing.assert_close(outputs, not_merged_without_cache_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-            # load and save (only merged is loaded and saved)
-            loaded_model = self.ORTMODEL_CLASS.from_pretrained(tmpdir, trust_remote_code=trust_remote_code)
-            self.assertEqual(loaded_model.path.name, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(loaded_model.use_merged)
-            self.assertTrue(loaded_model.use_cache)
-            save_dir = os.path.join(tmpdir, "save")
-            loaded_model.save_pretrained(save_dir)
-            self.assertNotIn(ONNX_DECODER_NAME, os.listdir(save_dir))
-            self.assertNotIn(ONNX_DECODER_WITH_PAST_NAME, os.listdir(save_dir))
-            self.assertIn(ONNX_DECODER_MERGED_NAME, os.listdir(save_dir))
-            reloaded_model = self.ORTMODEL_CLASS.from_pretrained(save_dir, trust_remote_code=trust_remote_code)
-            self.assertEqual(reloaded_model.path.name, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(reloaded_model.use_merged)
-            self.assertTrue(reloaded_model.use_cache)
