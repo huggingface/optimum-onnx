@@ -33,9 +33,6 @@ from optimum.exporters.onnx import (
     OnnxConfig,
     OnnxConfigWithPast,
     export_models,
-    get_decoder_models_for_export,
-    get_diffusion_models_for_export,
-    get_encoder_decoder_models_for_export,
     main_export,
     validate_models_outputs,
 )
@@ -43,6 +40,11 @@ from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
 from optimum.exporters.onnx.utils import get_speecht5_models_for_export
+from optimum.exporters.utils import (
+    get_decoder_models_for_export,
+    get_diffusion_models_for_export,
+    get_encoder_decoder_models_for_export,
+)
 from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, NormalizedTextConfig
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
