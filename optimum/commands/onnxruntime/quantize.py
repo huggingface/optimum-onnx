@@ -55,6 +55,8 @@ def parse_args_onnxruntime_quantize(parser: ArgumentParser):
     level_group.add_argument(
         "--avx512_vnni", action="store_true", help="Quantization with AVX-512 and VNNI instructions."
     )
+    level_group.add_argument("--ppc64le", action="store_true", help="Quantization for the PowerPC architecture.")
+
     level_group.add_argument("--tensorrt", action="store_true", help="Quantization for NVIDIA TensorRT optimizer.")
     level_group.add_argument(
         "-c",
@@ -93,6 +95,8 @@ class ONNXRuntimeQuantizeCommand(BaseOptimumCLICommand):
             qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=self.args.per_channel)
         elif self.args.avx512_vnni:
             qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=self.args.per_channel)
+        elif self.args.ppc64le:
+            qconfig = AutoQuantizationConfig.ppc64le(is_static=False, per_channel=self.args.per_channel)
         elif self.args.tensorrt:
             raise ValueError(
                 "TensorRT quantization relies on static quantization that requires calibration, which is currently not supported through optimum-cli. Please adapt Optimum static quantization examples to run static quantization for TensorRT: https://github.com/huggingface/optimum/tree/main/examples/onnxruntime/quantization"
