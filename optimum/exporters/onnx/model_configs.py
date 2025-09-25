@@ -1154,27 +1154,36 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
         return common_outputs
 
 
-@register_tasks_manager_onnx("clip", *["feature-extraction", "zero-shot-image-classification"])
+@register_tasks_manager_onnx("clip", *["feature-extraction", "zero-shot-image-classification", "image-classification"])
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
     _MODEL_PATCHER = CLIPModelPatcher
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
-            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
-        }
+        inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+        if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+            inputs.update(
+                {
+                    "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                    "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                }
+            )
+
+        return inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
-            "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
-            "text_embeds": {0: "text_batch_size"},
-            "image_embeds": {0: "image_batch_size"},
-        }
+        if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+            return {
+                "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+                "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        else:
+            return super().outputs
 
 
 @register_tasks_manager_onnx(

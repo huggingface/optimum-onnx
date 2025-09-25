@@ -72,6 +72,7 @@ class ORTConfigManager:
         "bloom": "gpt2",
         "camembert": "bert",
         "codegen": "gpt2",
+        "clip": "clip",
         "deberta": "bert",
         "deberta-v2": "bert",
         "dinov2": "vit",

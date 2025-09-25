@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-import warnings
+from argparse import Namespace
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -714,109 +714,50 @@ class OptimizationConfig:
             Whether to disable Rotary Embedding fusion.
     """
 
+    # Main options
     optimization_level: int = 1
+    enable_transformers_specific_optimizations: bool = True
     optimize_for_gpu: bool = False
-
     fp16: bool = False
 
-    optimize_with_onnxruntime_only: bool | None = None
-    enable_transformers_specific_optimizations: bool = True
-
-    disable_gelu: bool | None = None
+    # Fusion options (only if enable_transformers_specific_optimizations is True)
+    # fusions enabled by default
     disable_gelu_fusion: bool = False
-
-    disable_layer_norm: bool | None = None
-    disable_layer_norm_fusion: bool = False
-
-    disable_attention: bool | None = None
     disable_attention_fusion: bool = False
-
-    disable_skip_layer_norm: bool | None = None
-    disable_skip_layer_norm_fusion: bool = False
-
-    disable_bias_skip_layer_norm: bool | None = None
-    disable_bias_skip_layer_norm_fusion: bool = False
-
-    disable_bias_gelu: bool | None = None
     disable_bias_gelu_fusion: bool = False
-
-    disable_embed_layer_norm: bool | None = None
-    disable_embed_layer_norm_fusion: bool = True
-
-    enable_gelu_approximation: bool = False
-    use_mask_index: bool = False
-    no_attention_mask: bool = False
-    disable_shape_inference: bool = False
-
-    # ONNX Runtime 1.14.0 arguments
-    use_multi_head_attention: bool = False
-    enable_gemm_fast_gelu_fusion: bool = False
-    use_raw_attention_mask: bool = False
-    disable_group_norm_fusion: bool = True
-    disable_packed_kv: bool = True
-
-    # ONNX Runtime 1.16.2 arguments
+    disable_layer_norm_fusion: bool = False
     disable_rotary_embeddings: bool = False
+    disable_skip_layer_norm_fusion: bool = False
+    disable_bias_skip_layer_norm_fusion: bool = False
+    disable_skip_group_norm_fusion: bool = False
+    disable_bias_splitgelu_fusion: bool = False
+    disable_bias_add_fusion: bool = False
+    # fusions disabled by default
+    disable_group_norm_fusion: bool = True
+    disable_embed_layer_norm_fusion: bool = True
+    enable_gemm_fast_gelu_fusion: bool = False
 
-    def __post_init__(self):
-        def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
-            if getattr(self, old_name, None) is not None:
-                if mapping_func is None:
-
-                    def identity(x):
-                        return x
-
-                    mapping_func = identity
-                setattr(self, new_name, mapping_func(getattr(self, old_name)))
-                warnings.warn(
-                    f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
-                    f"{getattr(self, new_name)}.",
-                    FutureWarning,
-                    stacklevel=2,
-                )
-
-        deprecate_renamed_attribute(
-            "optimize_with_onnxruntime_only",
-            "enable_transformers_specific_optimizations",
-            mapping_func=lambda x: not x,
-        )
-
-        deprecate_renamed_attribute("disable_gelu", "disable_bias_gelu_fusion")
-        deprecate_renamed_attribute("disable_layer_norm", "disable_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_attention", "disable_attention_fusion")
-        deprecate_renamed_attribute("disable_skip_layer_norm", "disable_skip_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_bias_skip_layer_norm", "disable_bias_skip_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_bias_gelu", "disable_bias_gelu_fusion")
-        deprecate_renamed_attribute("disable_embed_layer_norm", "disable_embed_layer_norm_fusion")
+    # Non-fusion options (only if enable_transformers_specific_optimizations is True)
+    use_mask_index: bool = False
+    disable_packed_kv: bool = True
+    no_attention_mask: bool = False
+    use_raw_attention_mask: bool = False
+    disable_shape_inference: bool = False
+    use_multi_head_attention: bool = False
+    enable_gelu_approximation: bool = False
+    use_group_norm_channels_first: bool = False
+    disable_packed_qkv: bool = False
+    disable_nhwc_conv: bool = False
 
     def create_fusion_options(self, model_type: str) -> FusionOptions:
-        class Box:
-            pass
-
-        args = Box()
+        args = Namespace()
         args.model_type = model_type
-        attribute_map = {
-            "disable_gelu_fusion": "disable_gelu",
-            "disable_layer_norm_fusion": "disable_layer_norm",
-            "disable_attention_fusion": "disable_attention",
-            "disable_skip_layer_norm_fusion": "disable_skip_layer_norm",
-            "disable_bias_skip_layer_norm_fusion": "disable_bias_skip_layer_norm",
-            "disable_bias_gelu_fusion": "disable_bias_gelu",
-            "disable_embed_layer_norm_fusion": "disable_embed_layer_norm",
-            "disable_group_norm_fusion": "disable_group_norm",
-            "disable_packed_kv": "disable_packed_kv",
-            "use_raw_attention_mask": "use_raw_attention_mask",
-            "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
-            "use_multi_head_attention": "use_multi_head_attention",
-            "disable_rotary_embeddings": "disable_rotary_embeddings",
-        }
-        for attr_name, fusion_attr_name in attribute_map.items():
-            setattr(args, fusion_attr_name, getattr(self, attr_name))
 
-        for attr, value in self.__dict__.items():
-            if hasattr(args, attr):
-                continue
-            setattr(args, attr, value)
+        for attr_name, attr_value in self.__dict__.items():
+            if attr_name.endswith("_fusion"):
+                setattr(args, attr_name.replace("_fusion", ""), attr_value)
+            else:
+                setattr(args, attr_name, attr_value)
 
         return FusionOptions.parse(args)
 

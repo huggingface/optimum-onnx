@@ -27,6 +27,7 @@ from transformers.models.auto.configuration_auto import AutoConfig
 
 from onnxruntime.transformers.onnx_model_bert import BertOnnxModel
 from onnxruntime.transformers.optimizer import optimize_model
+from optimum.exporters.onnx.model_configs import CLIPNormalizedConfig
 from optimum.onnx.utils import check_model_uses_external_data
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.constants import ONNX_WEIGHTS_NAME
@@ -60,10 +61,13 @@ class ORTOptimizer:
                 Whether the model being optimized is already loaded into an ORTModel, or if it was passed from disk.
         """
         super().__init__()
-        self.onnx_model_path = onnx_model_path
         self.config = config
-        self.model_type = self.config.model_type
         self.from_ortmodel = from_ortmodel
+        self.onnx_model_path = onnx_model_path
+        self.model_type = self.config.model_type
+
+        # extending the normalized config manager with CLIP
+        NormalizedConfigManager._conf["clip"] = CLIPNormalizedConfig
 
         try:
             self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
