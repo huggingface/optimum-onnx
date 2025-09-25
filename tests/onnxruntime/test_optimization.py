@@ -170,18 +170,15 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
-        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-VitModel"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-Dinov2Model"),
+        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-SegformerModel"),
     )
 
     if is_transformers_version(">=", "4.38.0"):
         # testing clip and vit is necessary to catch missing optimization options
         SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID += (
-            (
-                ORTModelForImageClassification,
-                "hf-internal-testing/tiny-random-clip",
-            ),
+            (ORTModelForImageClassification, "hf-internal-testing/tiny-random-ClipModel"),
         )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
