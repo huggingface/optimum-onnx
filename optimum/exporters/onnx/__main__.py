@@ -424,7 +424,6 @@ def main():
         task=args.task,
         opset=args.opset,
         device=args.device,
-        fp16=args.fp16,
         optimize=args.optimize,
         monolith=args.monolith,
         no_post_process=args.no_post_process,
