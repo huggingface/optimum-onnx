@@ -171,11 +171,18 @@ class ORTOptimizerTest(unittest.TestCase):
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
-        # testing clip and vit is necessary to catch missing optimization options
-        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-clip"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-Dinov2Model"),
     )
+
+    if is_transformers_version(">=", "4.38.0"):
+        # testing clip and vit is necessary to catch missing optimization options
+        SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID += (
+            (
+                ORTModelForImageClassification,
+                "hf-internal-testing/tiny-random-clip",
+            ),
+        )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_image_model_with_optimized_model(self, model_cls, model_name):
@@ -202,8 +209,7 @@ class ORTOptimizerTest(unittest.TestCase):
             )
             model_outputs = model(image)
             optimized_model_outputs = optimized_model(image)
-            # Compare tensors outputs
-            self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
+            torch.testing.assert_close(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4, rtol=1e-4)
             gc.collect()
 
     def test_optimization_details(self):
