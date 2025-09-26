@@ -37,13 +37,7 @@ if is_torch_available():
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
-from optimum.utils import (
-    DEFAULT_DUMMY_SHAPES,
-    DummyInputGenerator,
-    DummySeq2SeqPastKeyValuesGenerator,
-    is_diffusers_available,
-    logging,
-)
+from optimum.utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummySeq2SeqPastKeyValuesGenerator, logging
 from optimum.utils.doc import add_dynamic_docstring
 from optimum.utils.import_utils import (
     is_onnx_available,
@@ -52,8 +46,6 @@ from optimum.utils.import_utils import (
 )
 
 
-# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
-
 if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
 
@@ -61,9 +53,6 @@ if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
     from optimum.exporters.onnx.model_patcher import PatchingSpec
-
-    if is_diffusers_available():
-        from diffusers import ModelMixin
 
 
 logger = logging.get_logger(__name__)
@@ -391,7 +380,7 @@ class OnnxConfig(ExporterConfig, ABC):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         """Performs any model-specific post-processing on the ONNX.
@@ -399,7 +388,7 @@ class OnnxConfig(ExporterConfig, ABC):
         Args:
             path (`Path`):
                 Path to the directory of the stored ONNX model.
-            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel",  "ModelMixin"], "OnnxConfig"]]`):
+            models_and_onnx_configs (`Dict[str, Tuple["PreTrainedModel", "OnnxConfig"]]`):
                 A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
             onnx_files_subpaths (`List[str]`):
                 The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as
@@ -775,7 +764,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(

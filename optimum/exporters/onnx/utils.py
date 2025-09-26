@@ -45,9 +45,6 @@ if TYPE_CHECKING:
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
 
-    if is_diffusers_available():
-        pass
-
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "arcee",
