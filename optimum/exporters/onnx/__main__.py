@@ -38,6 +38,10 @@ from optimum.utils.import_utils import (
 from optimum.utils.save_utils import maybe_load_preprocessors
 
 
+if is_transformers_version(">=", "4.55"):
+    from transformers import Mxfp4Config
+
+
 if is_torch_available():
     import torch
 
@@ -280,6 +284,12 @@ def main_export(
             trust_remote_code=trust_remote_code,
         )
         model_type = config.model_type
+
+        is_mxfp4 = getattr(config, "quantization_config", {}).get("quant_method", None) == "mxfp4"
+        # mxfp4 quantized model will be dequantized to bf16
+        if is_mxfp4 and is_transformers_version(">=", "4.55"):
+            torch_dtype = torch.bfloat16
+            loading_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
 
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
