@@ -39,7 +39,7 @@ class TestCLI(unittest.TestCase):
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}/onnx",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vit --task image-classification {tempdir}/vit",
             ]
 
             for command in commands:
