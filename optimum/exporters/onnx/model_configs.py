@@ -1502,9 +1502,6 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
 
 @register_tasks_manager_onnx("owlvit", *["feature-extraction", "zero-shot-object-detection"])
 class OwlViTOnnxConfig(CLIPOnnxConfig):
-    # Sets the absolute tolerance to when validating the exported ONNX model against the
-    # reference model.
-
     def __init__(
         self,
         config: PretrainedConfig,
@@ -1526,6 +1523,20 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
                 "Make sure to export the model with the same batch size as the one you will use at inference "
                 "with `--batch_size N`."
             )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+        if self.task in ["feature-extraction", "zero-shot-object-detection"]:
+            inputs.update(
+                {
+                    "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                    "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                }
+            )
+
+        return inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
