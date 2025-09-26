@@ -139,7 +139,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("stablelm")
     if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
-        SUPPORTED_ARCHITECTURES.append("gpt_oss")
+        SUPPORTED_ARCHITECTURES.extend(["gpt_oss", "gpt_oss_mxfp4"])
 
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
