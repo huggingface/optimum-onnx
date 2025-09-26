@@ -30,7 +30,7 @@ _import_structure = {
 }
 
 if TYPE_CHECKING:
-    from .graph_transformations import (
+    from optimum.onnx.graph_transformations import (
         cast_slice_nodes_inputs_to_int32,
         merge_decoders,
         remove_duplicate_weights,

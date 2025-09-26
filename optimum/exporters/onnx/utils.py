@@ -21,24 +21,7 @@ import torch
 from packaging import version
 from transformers.utils import is_torch_available
 
-from optimum.exporters.utils import (
-    _get_submodels_and_export_configs,
-)
-from optimum.exporters.utils import (
-    get_decoder_models_for_export as _get_decoder_models_for_export,
-)
-from optimum.exporters.utils import (
-    get_diffusion_models_for_export as _get_diffusion_models_for_export,
-)
-from optimum.exporters.utils import (
-    get_encoder_decoder_models_for_export as _get_encoder_decoder_models_for_export,
-)
-from optimum.exporters.utils import (
-    get_sam_models_for_export as _get_sam_models_for_export,
-)
-from optimum.exporters.utils import (
-    get_speecht5_models_for_export as _get_speecht5_models_for_export,
-)
+from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
 from optimum.utils.import_utils import (
     _diffusers_version,
@@ -59,13 +42,8 @@ if is_diffusers_available():
         )
 
 if TYPE_CHECKING:
-    from optimum.exporters.base import ExporterConfig
-
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
-
-    if is_diffusers_available():
-        from diffusers import DiffusionPipeline, ModelMixin
 
 
 MODEL_TYPES_REQUIRING_POSITION_IDS = {
@@ -210,7 +188,6 @@ def _get_submodels_and_onnx_configs(
     float_dtype: str = "fp32",
     fn_get_submodels: Callable | None = None,
     preprocessors: list[Any] | None = None,
-    legacy: bool = False,
     model_kwargs: dict | None = None,
 ):
     return _get_submodels_and_export_configs(
@@ -225,43 +202,6 @@ def _get_submodels_and_onnx_configs(
         float_dtype,
         fn_get_submodels,
         preprocessors,
-        legacy,
         model_kwargs,
         exporter="onnx",
     )
-
-
-DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT = "The usage of `optimum.exporters.onnx.utils.get_{model_type}_models_for_export` is deprecated and will be removed in a future release, please use `optimum.exporters.utils.get_{model_type}_models_for_export` instead."
-
-
-def get_diffusion_models_for_export(
-    pipeline: DiffusionPipeline,
-    int_dtype: str = "int64",
-    float_dtype: str = "fp32",
-) -> dict[str, tuple[PreTrainedModel | ModelMixin, ExporterConfig]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="diffusion"))
-    return _get_diffusion_models_for_export(pipeline, int_dtype, float_dtype, exporter="onnx")
-
-
-def get_sam_models_for_export(model: PreTrainedModel, config: ExporterConfig):
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="sam"))
-    return _get_sam_models_for_export(model, config)
-
-
-def get_speecht5_models_for_export(model: PreTrainedModel, config: ExporterConfig, model_kwargs: dict | None):
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="speecht5"))
-    return _get_speecht5_models_for_export(model, config)
-
-
-def get_encoder_decoder_models_for_export(
-    model: PreTrainedModel, config: ExporterConfig
-) -> dict[str, tuple[PreTrainedModel, ExporterConfig]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="encoder-decoder"))
-    return _get_encoder_decoder_models_for_export(model, config)
-
-
-def get_decoder_models_for_export(
-    model: PreTrainedModel, config: ExporterConfig, legacy: bool = False
-) -> dict[str, tuple[PreTrainedModel, ExporterConfig]]:
-    logger.warning(DEPRECATION_WARNING_GET_MODEL_FOR_EXPORT.format(model_type="decoder"))
-    return _get_decoder_models_for_export(model, config, legacy)

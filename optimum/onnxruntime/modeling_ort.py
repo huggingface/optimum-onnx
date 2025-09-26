@@ -64,8 +64,8 @@ from transformers.utils import cached_file, is_offline_mode
 from typing_extensions import Self
 
 from onnxruntime import InferenceSession, SessionOptions
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
 from optimum.modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from optimum.onnxruntime.base import ORTSessionMixin
 from optimum.onnxruntime.constants import ONNX_FILE_PATTERN, ONNX_WEIGHTS_NAME
@@ -487,8 +487,6 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
 
         use_cache (`Optional[bool]`, defaults to `True`):
             Whether or not past key/values cache should be used. Defaults to `True`.
-
-        > Parameters for ORTModelForCausalLM
 
         use_merged (`Optional[bool]`, defaults to `None`):
             whether or not to use a single ONNX that handles both the decoding without and with past key values reuse. This option defaults

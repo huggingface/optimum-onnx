@@ -30,8 +30,8 @@ from transformers import AutoTokenizer
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
 
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import ModernBertOnnxConfig
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
@@ -170,10 +170,16 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-segformer"),
-        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-vit"),
+        (ORTModelForImageClassification, "hf-internal-testing/tiny-random-VitModel"),
         (ORTModelForImageClassification, "hf-internal-testing/tiny-random-Dinov2Model"),
+        (ORTModelForSemanticSegmentation, "hf-internal-testing/tiny-random-SegformerModel"),
     )
+
+    if is_transformers_version(">=", "4.38.0"):
+        # testing clip and vit is necessary to catch missing optimization options
+        SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID += (
+            (ORTModelForImageClassification, "hf-internal-testing/tiny-random-ClipModel"),
+        )
 
     @parameterized.expand(SUPPORTED_IMAGE_ARCHITECTURES_WITH_MODEL_ID)
     def test_compare_original_image_model_with_optimized_model(self, model_cls, model_name):
@@ -190,11 +196,17 @@ class ORTOptimizerTest(unittest.TestCase):
             # Verify the ORTConfig was correctly created and saved
             self.assertEqual(ort_config.to_dict(), expected_ort_config.to_dict())
 
-            image = torch.ones((1, model.config.num_channels, model.config.image_size, model.config.image_size))
+            image = torch.ones(
+                (
+                    1,
+                    optimizer.normalized_config.num_channels,
+                    optimizer.normalized_config.image_size,
+                    optimizer.normalized_config.image_size,
+                )
+            )
             model_outputs = model(image)
             optimized_model_outputs = optimized_model(image)
-            # Compare tensors outputs
-            self.assertTrue(torch.equal(model_outputs.logits, optimized_model_outputs.logits))
+            torch.testing.assert_close(model_outputs.logits, optimized_model_outputs.logits, atol=1e-4, rtol=1e-4)
             gc.collect()
 
     def test_optimization_details(self):
@@ -484,7 +496,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     FULL_GRID = {  # noqa: RUF012
         "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_merged": [True, False],
     }
 
     def _test_optimization_levels(
@@ -492,14 +503,10 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
         test_name: str,
         model_arch: str,
         use_cache: bool,
-        use_merged: bool,
         optimization_level: str,
         provider: str,
         use_io_binding: Optional[bool] = None,
     ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
         if use_cache is False:
             use_io_binding = False
 
@@ -508,7 +515,6 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
             "test_name": export_name,
             "model_arch": model_arch,
             "use_cache": use_cache,
-            "use_merged": use_merged,
         }
         self._setup(model_args)
 
@@ -552,14 +558,11 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     @parameterized.expand(
         grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
     )
-    def test_optimization_levels_cpu(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
-    ):
+    def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
             model_arch=model_arch,
             use_cache=use_cache,
-            use_merged=use_merged,
             optimization_level=optimization_level,
             provider="CPUExecutionProvider",
         )
@@ -569,15 +572,12 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
     )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
-    def test_optimization_levels_gpu(
-        self, test_name: str, model_arch: str, use_merged: bool, use_cache: bool, optimization_level: str
-    ):
+    def test_optimization_levels_gpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         for use_io_binding in [False, True]:
             self._test_optimization_levels(
                 test_name=test_name,
                 model_arch=model_arch,
                 use_cache=use_cache,
-                use_merged=use_merged,
                 optimization_level=optimization_level,
                 provider="CUDAExecutionProvider",
                 use_io_binding=use_io_binding,

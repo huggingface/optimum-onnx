@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,7 +22,7 @@ from typing import TYPE_CHECKING
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
-from optimum.exporters import TasksManager
+from optimum.exporters.tasks import TasksManager
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 
 
@@ -60,11 +59,6 @@ def parse_args_onnx(parser):
         type=str,
         default="cpu",
         help='The device to use to do the export. Defaults to "cpu".',
-    )
-    optional_group.add_argument(
-        "--fp16",
-        action="store_true",
-        help="Use half precision during the export. PyTorch-only, requires `--device cuda`.",
     )
     optional_group.add_argument(
         "--dtype",
@@ -154,14 +148,6 @@ def parse_args_onnx(parser):
         "--model-kwargs",
         type=json.loads,
         help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
-    )
-    optional_group.add_argument(
-        "--legacy",
-        action="store_true",
-        help=(
-            "Export decoder only models in three files (without + with past and the resulting merged model)."
-            "Also disable the use of position_ids for text-generation models that require it for batched generation. This argument is introduced for backward compatibility and will be removed in a future release of Optimum."
-        ),
     )
     optional_group.add_argument(
         "--no-dynamic-axes", action="store_true", help="Disable dynamic axes during ONNX export"
@@ -257,9 +243,6 @@ def parse_args_onnx(parser):
         help="Visual sequence length",
     )
 
-    # deprecated argument
-    parser.add_argument("--for-ort", action="store_true", help=argparse.SUPPRESS)
-
 
 class ONNXExportCommand(BaseOptimumCLICommand):
     COMMAND = CommandInfo(name="onnx", help="Export PyTorch to ONNX")
@@ -283,7 +266,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             task=self.args.task,
             opset=self.args.opset,
             device=self.args.device,
-            fp16=self.args.fp16,
             dtype=self.args.dtype,
             optimize=self.args.optimize,
             monolith=self.args.monolith,
@@ -293,11 +275,9 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             cache_dir=self.args.cache_dir,
             trust_remote_code=self.args.trust_remote_code,
             pad_token_id=self.args.pad_token_id,
-            for_ort=self.args.for_ort,
             use_subprocess=True,
             _variant=self.args.variant,
             library_name=self.args.library_name,
-            legacy=self.args.legacy,
             no_dynamic_axes=self.args.no_dynamic_axes,
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,

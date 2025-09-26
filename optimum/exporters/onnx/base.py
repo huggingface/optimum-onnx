@@ -37,13 +37,7 @@ if is_torch_available():
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
 from optimum.exporters.onnx.model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
-from optimum.utils import (
-    DEFAULT_DUMMY_SHAPES,
-    DummyInputGenerator,
-    DummySeq2SeqPastKeyValuesGenerator,
-    is_diffusers_available,
-    logging,
-)
+from optimum.utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummySeq2SeqPastKeyValuesGenerator, logging
 from optimum.utils.doc import add_dynamic_docstring
 from optimum.utils.import_utils import (
     is_onnx_available,
@@ -52,18 +46,13 @@ from optimum.utils.import_utils import (
 )
 
 
-# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
-
 if is_accelerate_available():
     from accelerate.utils import find_tied_parameters
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
-    from .model_patcher import PatchingSpec
-
-    if is_diffusers_available():
-        from diffusers import ModelMixin
+    from optimum.exporters.onnx.model_patcher import PatchingSpec
 
 
 logger = logging.get_logger(__name__)
@@ -174,13 +163,11 @@ class OnnxConfig(ExporterConfig, ABC):
         preprocessors: list[Any] | None = None,
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
-        legacy: bool = False,
     ):
         super().__init__(config=config, task=task, int_dtype=int_dtype, float_dtype=float_dtype)
 
         self.variant = "default"
         self._preprocessors = preprocessors
-        self.legacy = legacy
 
     @property
     def variant(self) -> str:
@@ -393,7 +380,7 @@ class OnnxConfig(ExporterConfig, ABC):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         """Performs any model-specific post-processing on the ONNX.
@@ -401,7 +388,7 @@ class OnnxConfig(ExporterConfig, ABC):
         Args:
             path (`Path`):
                 Path to the directory of the stored ONNX model.
-            models_and_onnx_configs (`Dict[str, Tuple[Union["PreTrainedModel",  "ModelMixin"], "OnnxConfig"]]`):
+            models_and_onnx_configs (`Dict[str, Tuple["PreTrainedModel", "OnnxConfig"]]`):
                 A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
             onnx_files_subpaths (`List[str]`):
                 The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as
@@ -452,7 +439,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         self.use_past = use_past
         self.use_past_in_inputs = use_past_in_inputs
@@ -465,7 +451,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
 
     @property
@@ -540,14 +525,14 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
         # models from TextSeq2SeqOnnxConfig use decoder_input_ids as input name
         # while models from TextDecoderOnnxConfig use input_ids, hence the check for both
 
-        # TODO: The check `self.task != "text-generation" and self.legacy` is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
+        # NOTE: The check `self.task != "text-generation" is added following the use of a single ONNX for both without/with KV cache, without subgraphs.
         # This overwrite may be moved to OnnxSeq2SeqConfigWithPast, but I am afraid it would break encoder-decoder models.
         if (
             self.use_past
             and self.use_past_in_inputs
             and self.use_cache_branch is not False
             and input_name in ["decoder_input_ids", "input_ids", "position_ids"]
-            and ((self.task == "text-generation" and self.legacy) or self.task != "text-generation")
+            and self.task != "text-generation"
         ):
             sequence_length = dummy_input_gen.sequence_length
             # Use a sequence length of 1 when the KV cache is already populated.
@@ -651,7 +636,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -661,7 +645,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self._behavior = behavior
 
@@ -700,7 +683,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=self._preprocessors,
-            legacy=self.legacy,
         )
         onnx_config.variant = self.variant
         return onnx_config
@@ -782,7 +764,7 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(

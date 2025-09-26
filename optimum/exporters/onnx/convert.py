@@ -36,7 +36,6 @@ from optimum.exporters.onnx.base import OnnxConfig
 from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
 from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
 from optimum.exporters.onnx.utils import (
-    MODEL_TYPES_REQUIRING_POSITION_IDS,
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
     recursive_to_device,
@@ -812,7 +811,6 @@ def onnx_export_from_model(
     custom_onnx_configs: dict[str, OnnxConfig] | None = None,
     fn_get_submodels: Callable | None = None,
     _variant: str = "default",
-    legacy: bool = False,
     preprocessors: list | None = None,
     device: str = "cpu",
     no_dynamic_axes: bool = False,
@@ -870,8 +868,6 @@ def onnx_export_from_model(
             `if __name__ == "__main__":` block.
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
-        legacy (`bool`, defaults to `False`):
-            Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         preprocessors (`Optional[List]`, defaults to `None`):
             List of preprocessors to use for the ONNX export.
         no_dynamic_axes (bool, defaults to `False`):
@@ -948,15 +944,6 @@ def onnx_export_from_model(
             f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
         )
 
-    if (
-        legacy
-        and (model_type in MODEL_TYPES_REQUIRING_POSITION_IDS)
-        and (task.startswith(("text-generation", "feature-extraction")))
-    ):
-        logger.warning(
-            f"legacy=True was specified in the ONNX export, although the model {model_type} requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
-        )
-
     if library_name != "diffusers" and model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
         raise ValueError(
             f"{model_type} is not supported yet. Only {list(TasksManager._SUPPORTED_CLI_MODEL_TYPE.keys())} are supported. "
@@ -996,7 +983,6 @@ def onnx_export_from_model(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
-        legacy=legacy,
         library_name=library_name,
         model_kwargs=model_kwargs,
     )

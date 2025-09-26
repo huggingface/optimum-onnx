@@ -23,19 +23,7 @@ import pytest
 from parameterized import parameterized
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
-
-from optimum.exporters.error_utils import MinimumVersionError
-from optimum.exporters.onnx import main_export
-from optimum.exporters.tasks import TasksManager
-from optimum.onnxruntime import (
-    ONNX_DECODER_MERGED_NAME,
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
-)
-from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
-
-from .utils_tests import (
+from utils_tests import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
@@ -45,6 +33,16 @@ from .utils_tests import (
     PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
     PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
 )
+
+from optimum.exporters.error_utils import MinimumVersionError
+from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
+from optimum.onnxruntime import (
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
+    ONNX_ENCODER_NAME,
+)
+from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
 
 def _get_models_to_test(export_models_dict: dict, library_name: str):
@@ -177,7 +175,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
         device: str = "cpu",
-        fp16: bool = False,
+        dtype: str = "fp32",
         variant: str = "default",
         no_dynamic_axes: bool = False,
         model_kwargs: Optional[dict] = None,
@@ -197,7 +195,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     output=tmpdir,
                     task=task,
                     device=device,
-                    fp16=fp16,
+                    dtype=dtype,
                     optimize=optimization_level,
                     monolith=monolith,
                     no_post_process=no_post_process,
@@ -221,7 +219,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool = False,
         optimization_level: Optional[str] = None,
         device: str = "cpu",
-        fp16: bool = False,
+        dtype: str = "fp32",
         variant: str = "default",
         model_kwargs: Optional[dict] = None,
         trust_remote_code: bool = False,
@@ -233,7 +231,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     output=tmpdir,
                     task=task,
                     device=device,
-                    fp16=fp16,
+                    dtype=dtype,
                     optimize=optimization_level,
                     monolith=monolith,
                     no_post_process=no_post_process,
@@ -276,7 +274,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_vision
     @pytest.mark.gpu_test
     def test_exporters_cli_fp16_diffusion(self, model_type: str, model_name: str):
-        self._onnx_export(model_name, model_type, device="cuda", fp16=True)
+        self._onnx_export(model_name, model_type, device="cuda", dtype="fp16")
 
     @parameterized.expand(
         _get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL, library_name="sentence_transformers")
@@ -368,7 +366,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         monolith: bool,
         no_post_process: bool,
     ):
-        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", fp16=True)
+        self._onnx_export(model_name, task, monolith, no_post_process, device="cuda", dtype="fp16")
 
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch
@@ -625,21 +623,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 check=True,
             )
 
-    def test_legacy(self):
-        with TemporaryDirectory() as tmpdirname:
-            subprocess.run(
-                f"python3 -m optimum.exporters.onnx --model  hf-internal-testing/tiny-random-gpt2 --task text-generation-with-past --legacy {tmpdirname}",
-                shell=True,
-                capture_output=True,
-            )
-            folder_contents = os.listdir(tmpdirname)
-            self.assertIn(ONNX_DECODER_NAME, folder_contents)
-            self.assertIn(ONNX_DECODER_WITH_PAST_NAME, folder_contents)
-            self.assertIn(ONNX_DECODER_MERGED_NAME, folder_contents)
-
-            model = onnx.load(Path(tmpdirname) / ONNX_DECODER_MERGED_NAME)
-            self.assertNotIn("position_ids", {node.name for node in model.graph.input})
-
     @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
     @require_torch_gpu
     @require_vision
@@ -693,8 +676,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             monolith,
             no_post_process,
             variant=variant,
-            fp16=True,
             device="cuda",
+            dtype="fp16",
             trust_remote_code=trust_remote_code,
         )
 

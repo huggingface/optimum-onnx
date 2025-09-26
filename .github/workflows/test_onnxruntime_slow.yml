@@ -18,7 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  RUN_SLOW: true
   TRANSFORMERS_IS_CI: true
+  HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
 jobs:
   build:
@@ -69,6 +71,3 @@ jobs:
       - name: Test with pytest
         run: |
           pytest tests/onnxruntime --durations=0 -vvvv
-        env:
-          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
-          RUN_SLOW: 1

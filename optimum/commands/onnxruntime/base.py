@@ -16,9 +16,8 @@
 from __future__ import annotations
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
-
-from .optimize import ONNXRuntimeOptimizeCommand
-from .quantize import ONNXRuntimeQuantizeCommand
+from optimum.commands.onnxruntime.optimize import ONNXRuntimeOptimizeCommand
+from optimum.commands.onnxruntime.quantize import ONNXRuntimeQuantizeCommand
 
 
 class ONNXRuntimeCommand(BaseOptimumCLICommand):

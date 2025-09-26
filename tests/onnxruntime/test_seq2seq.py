@@ -38,8 +38,8 @@ from transformers import (
 from transformers.cache_utils import Cache
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import MoonshineOnnxConfig
+from optimum.exporters.tasks import TasksManager
 from optimum.onnx.utils import has_onnx_input
 from optimum.onnxruntime import (
     ONNX_DECODER_MERGED_NAME,
@@ -519,7 +519,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         # already exported model with merge
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, use_cache=True, use_merged=True)
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=True)
-        # already exported model without merge
+        # already exported model without merge (the branch is called legacy here but it's actually not really legacy)
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID, revision="onnx-legacy")
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
 

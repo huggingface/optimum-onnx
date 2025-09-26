@@ -1154,27 +1154,36 @@ class CLIPVisionModelOnnxConfig(VisionOnnxConfig):
         return common_outputs
 
 
-@register_tasks_manager_onnx("clip", *["feature-extraction", "zero-shot-image-classification"])
+@register_tasks_manager_onnx("clip", *["feature-extraction", "zero-shot-image-classification", "image-classification"])
 class CLIPOnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
     _MODEL_PATCHER = CLIPModelPatcher
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "input_ids": {0: "text_batch_size", 1: "sequence_length"},
-            "pixel_values": {0: "image_batch_size", 1: "num_channels", 2: "height", 3: "width"},
-            "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
-        }
+        inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+        if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+            inputs.update(
+                {
+                    "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                    "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                }
+            )
+
+        return inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
-            "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
-            "text_embeds": {0: "text_batch_size"},
-            "image_embeds": {0: "image_batch_size"},
-        }
+        if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+            return {
+                "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+                "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+                "text_embeds": {0: "text_batch_size"},
+                "image_embeds": {0: "image_batch_size"},
+            }
+        else:
+            return super().outputs
 
 
 @register_tasks_manager_onnx(
@@ -1493,9 +1502,6 @@ class GroupViTOnnxConfig(CLIPOnnxConfig):
 
 @register_tasks_manager_onnx("owlvit", *["feature-extraction", "zero-shot-object-detection"])
 class OwlViTOnnxConfig(CLIPOnnxConfig):
-    # Sets the absolute tolerance to when validating the exported ONNX model against the
-    # reference model.
-
     def __init__(
         self,
         config: PretrainedConfig,
@@ -1503,7 +1509,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -1511,7 +1516,6 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         if task == "zero-shot-object-detection":
             logger.warning(
@@ -1519,6 +1523,20 @@ class OwlViTOnnxConfig(CLIPOnnxConfig):
                 "Make sure to export the model with the same batch size as the one you will use at inference "
                 "with `--batch_size N`."
             )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+
+        if self.task in ["feature-extraction", "zero-shot-object-detection"]:
+            inputs.update(
+                {
+                    "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                    "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                }
+            )
+
+        return inputs
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
@@ -1623,7 +1641,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
         int_dtype: str = "int64",
         float_dtype: str = "fp32",
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -1631,7 +1648,6 @@ class PerceiverOnnxConfig(TextAndVisionOnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self.is_generating_dummy_inputs = False
 
@@ -1977,7 +1993,6 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
         behavior: ConfigBehavior = ConfigBehavior.ENCODER,
         preprocessors: list[Any] | None = None,
         model_part: Literal["text_encoder", "encodec_decode", "decoder", "build_delay_pattern_mask"] | None = None,
-        legacy: bool = False,
         variant: str = "text-conditional-with-past",
     ):
         super().__init__(
@@ -1989,10 +2004,7 @@ class MusicgenOnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
-        if legacy:
-            raise ValueError("Musicgen does not support legacy=True.")
 
         if (
             model_part in ["text_encoder", "encodec_decode", "build_delay_pattern_mask"]
@@ -2167,7 +2179,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
         is_postnet_and_vocoder: bool = False,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -2178,7 +2189,6 @@ class SpeechT5OnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         if float_dtype == "fp16":
             raise ValueError(
@@ -2399,7 +2409,6 @@ class SamOnnxConfig(OnnxConfig):
         variant: str = "split",
         vision_encoder: bool | None = None,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -2407,7 +2416,6 @@ class SamOnnxConfig(OnnxConfig):
             int_dtype=int_dtype,
             float_dtype=float_dtype,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
         self.variant = variant
         self.vision_encoder = vision_encoder

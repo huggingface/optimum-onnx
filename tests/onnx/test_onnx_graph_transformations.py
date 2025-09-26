@@ -68,7 +68,6 @@ class WeightSharingTestCase(TestCase):
 
 class OnnxMergingTestCase(TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {  # noqa: RUF012
-        "hf-internal-testing/tiny-random-GPT2Model": "text-generation-with-past",
         "hf-internal-testing/tiny-random-t5": "text2text-generation-with-past",
         "hf-internal-testing/tiny-random-bart": "text2text-generation-with-past",
         "optimum-internal-testing/tiny-random-whisper": "automatic-speech-recognition-with-past",
@@ -79,13 +78,7 @@ class OnnxMergingTestCase(TestCase):
         model_id, task = args
 
         with TemporaryDirectory() as tmpdir:
-            main_export(
-                model_id,
-                tmpdir,
-                task=task,
-                no_post_process=True,
-                legacy=True,
-            )
+            main_export(model_id, tmpdir, task=task, no_post_process=True)
 
             decoder = onnx.load(os.path.join(tmpdir, "decoder_model.onnx"))
             decoder_with_past = onnx.load(os.path.join(tmpdir, "decoder_with_past_model.onnx"))

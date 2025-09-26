@@ -66,7 +66,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -76,7 +75,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
 
     @property
@@ -150,7 +148,7 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
 
         # Decoders based on GPT2 require a position_ids input to avoid generating wrong position_ids in the model itself:
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if not self.legacy and self.task in {"text-generation", "feature-extraction"}:
+        if self.task in {"text-generation", "feature-extraction"}:
             common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
@@ -264,7 +262,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -275,7 +272,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
 
         self.is_decoder_with_past = False
