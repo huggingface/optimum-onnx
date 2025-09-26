@@ -23,6 +23,16 @@ import pytest
 from parameterized import parameterized
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, is_torch_available
 from transformers.testing_utils import require_torch, require_torch_gpu, require_vision, slow
+from utils_tests import (
+    NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
+    PYTORCH_DIFFUSION_MODEL,
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_EXPORT_MODELS_TINY_SLIM,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
+    PYTORCH_TIMM_MODEL,
+    PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
+    PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
+)
 
 from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
@@ -34,17 +44,6 @@ from optimum.onnxruntime import (
     ONNX_ENCODER_NAME,
 )
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
-
-from .utils_tests import (
-    NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
-    PYTORCH_DIFFUSION_MODEL,
-    PYTORCH_EXPORT_MODELS_TINY,
-    PYTORCH_EXPORT_MODELS_TINY_SLIM,
-    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
-    PYTORCH_TIMM_MODEL,
-    PYTORCH_TIMM_MODEL_NO_DYNAMIC_AXES,
-    PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES,
-)
 
 
 def _get_models_to_test(export_models_dict: dict, library_name: str):

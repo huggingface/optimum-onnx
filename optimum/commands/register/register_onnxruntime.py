@@ -13,7 +13,13 @@
 # limitations under the License.
 
 
-from optimum.commands.onnxruntime import ONNXRuntimeCommand
+from optimum.commands.onnxruntime.base import ONNXRuntimeCommand
+from optimum.commands.onnxruntime.optimize import ONNXRuntimeOptimizeCommand
+from optimum.commands.onnxruntime.quantize import ONNXRuntimeQuantizeCommand
 
 
-REGISTER_COMMANDS = [ONNXRuntimeCommand]
+REGISTER_COMMANDS = [
+    ONNXRuntimeCommand,
+    (ONNXRuntimeOptimizeCommand, ONNXRuntimeCommand),
+    (ONNXRuntimeQuantizeCommand, ONNXRuntimeCommand),
+]

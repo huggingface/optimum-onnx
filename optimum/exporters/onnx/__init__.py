@@ -49,8 +49,7 @@ if TYPE_CHECKING:
         validate_model_outputs,
         validate_models_outputs,
     )
-
-    from .utils import (
+    from optimum.exporters.onnx.utils import (
         MODEL_TYPES_REQUIRING_POSITION_IDS,
         get_decoder_models_for_export,
         get_diffusion_models_for_export,

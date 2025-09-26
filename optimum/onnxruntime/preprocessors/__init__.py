@@ -12,9 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+
+from optimum.onnxruntime.preprocessors.quantization import PreprocessorPass, QuantizationPreprocessor
+
+
 __all__ = [
     "PreprocessorPass",
     "QuantizationPreprocessor",
 ]
-
-from .quantization import PreprocessorPass, QuantizationPreprocessor

@@ -64,8 +64,8 @@ from transformers.utils import cached_file, is_offline_mode
 from typing_extensions import Self
 
 from onnxruntime import InferenceSession, SessionOptions
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx import main_export
+from optimum.exporters.tasks import TasksManager
 from optimum.modeling_base import FROM_PRETRAINED_START_DOCSTRING, OptimizedModel
 from optimum.onnxruntime.base import ORTSessionMixin
 from optimum.onnxruntime.constants import ONNX_FILE_PATTERN, ONNX_WEIGHTS_NAME
