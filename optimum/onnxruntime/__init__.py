@@ -129,8 +129,8 @@ else:
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
-    from .configuration import ORTConfig, QuantizationConfig
-    from .constants import (
+    from optimum.onnxruntime.configuration import ORTConfig, QuantizationConfig
+    from optimum.onnxruntime.constants import (
         DECODER_MERGED_ONNX_FILE_PATTERN,
         DECODER_ONNX_FILE_PATTERN,
         DECODER_WITH_PAST_ONNX_FILE_PATTERN,
@@ -142,8 +142,8 @@ if TYPE_CHECKING:
         ONNX_FILE_PATTERN,
         ONNX_WEIGHTS_NAME,
     )
-    from .modeling_decoder import ORTModelForCausalLM
-    from .modeling_ort import (
+    from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
+    from optimum.onnxruntime.modeling_ort import (
         ORTModel,
         ORTModelForAudioClassification,
         ORTModelForAudioFrameClassification,
@@ -160,22 +160,22 @@ if TYPE_CHECKING:
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
-    from .modeling_seq2seq import (
+    from optimum.onnxruntime.modeling_seq2seq import (
         ORTModelForPix2Struct,
         ORTModelForSeq2SeqLM,
         ORTModelForSpeechSeq2Seq,
         ORTModelForVision2Seq,
     )
-    from .optimization import ORTOptimizer
-    from .pipelines import pipeline
-    from .quantization import ORTQuantizer
-    from .utils import ORTQuantizableOperator
+    from optimum.onnxruntime.optimization import ORTOptimizer
+    from optimum.onnxruntime.pipelines import pipeline
+    from optimum.onnxruntime.quantization import ORTQuantizer
+    from optimum.onnxruntime.utils import ORTQuantizableOperator
 
     try:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
-        from .dummy_objects import (
+        from optimum.onnxruntime.dummy_objects import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux
@@ -201,7 +201,7 @@ if TYPE_CHECKING:
             ORTStableDiffusionXLPipeline,
         )
     else:
-        from .modeling_diffusion import (
+        from optimum.onnxruntime.modeling_diffusion import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux

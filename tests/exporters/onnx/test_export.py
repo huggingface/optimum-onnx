@@ -26,13 +26,20 @@ from transformers import (
     is_torch_available,
 )
 from transformers.testing_utils import require_onnx, require_torch, require_torch_gpu, require_vision, slow
+from utils_tests import (
+    PYTORCH_DIFFUSION_MODEL,
+    PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
+    PYTORCH_TIMM_MODEL,
+    VALIDATE_EXPORT_ON_SHAPES_SLOW,
+)
 
-from optimum.exporters import TasksManager
 from optimum.exporters.error_utils import AtolError
 from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export_models, main_export, validate_models_outputs
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
+from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import (
     get_decoder_models_for_export,
     get_diffusion_models_for_export,
@@ -41,14 +48,6 @@ from optimum.exporters.utils import (
 )
 from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, NormalizedTextConfig
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
-
-from .utils_tests import (
-    PYTORCH_DIFFUSION_MODEL,
-    PYTORCH_EXPORT_MODELS_TINY,
-    PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
-    PYTORCH_TIMM_MODEL,
-    VALIDATE_EXPORT_ON_SHAPES_SLOW,
-)
 
 
 SEED = 42

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
-from optimum.exporters import TasksManager
+from optimum.exporters.tasks import TasksManager
 from optimum.utils import DEFAULT_DUMMY_SHAPES
 
 

@@ -54,7 +54,7 @@ from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from transformers.utils import http_user_agent
 
-from optimum.exporters import TasksManager
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModelForAudioClassification,

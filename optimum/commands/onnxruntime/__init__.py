@@ -1,9 +1,10 @@
+from optimum.commands.onnxruntime.base import ONNXRuntimeCommand
+from optimum.commands.onnxruntime.optimize import ONNXRuntimeOptimizeCommand
+from optimum.commands.onnxruntime.quantize import ONNXRuntimeQuantizeCommand
+
+
 __all__ = [
     "ONNXRuntimeCommand",
     "ONNXRuntimeOptimizeCommand",
     "ONNXRuntimeQuantizeCommand",
 ]
-
-from .base import ONNXRuntimeCommand
-from .optimize import ONNXRuntimeOptimizeCommand
-from .quantize import ONNXRuntimeQuantizeCommand

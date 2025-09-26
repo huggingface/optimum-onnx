@@ -60,7 +60,7 @@ if is_accelerate_available():
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
-    from .model_patcher import PatchingSpec
+    from optimum.exporters.onnx.model_patcher import PatchingSpec
 
     if is_diffusers_available():
         from diffusers import ModelMixin

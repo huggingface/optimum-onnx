@@ -30,8 +30,8 @@ from transformers import AutoTokenizer
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
 
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import ModernBertOnnxConfig
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
