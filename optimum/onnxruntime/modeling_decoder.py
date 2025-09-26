@@ -148,16 +148,17 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Reference: https://github.com/huggingface/optimum/pull/1381
         if self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
-                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although the model type {self.config.model_type} requires it. "
-                "We strongly encourage to re-export the model with Optimum-ONNX for better performance and more reliable text generation."
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no `position_ids` input, although the model type `{self.config.model_type}` requires it. "
+                "We strongly encourage to re-export the model with Optimum-ONNX for better performance and more reliable text generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`. "
+                "Please note that support for legacy models will be removed in a future version of Optimum-ONNX."
             )
 
         if not self.can_use_cache and self.config.use_cache:
             logger.warning(
                 "`model.config.use_cache=True` but the loaded model does not support using the past key values cache."
                 "Please re-export the original model once again with `use_cache=True` to be able to use it during generation. "
-                "Or set `model.config.use_cache=False` to avoid errors from attempting to use the cache. "
-                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+                "To re-export your model, simply set `export=True` in `from_pretrained(... , export=True, use_cache=True)`."
             )
 
         self.old_bloom_modeling = self.config.model_type == "bloom" and (
@@ -574,7 +575,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             target_file_name=file_name,
         )
 
-        # TODO: remove this block once legacy merged/unmerged models are no longer supported
+        # TODO: remove this block once legacy merged/unmerged models are no longer supported (definitely)
         # if the inferred file_path is neither the user-provided file_name nor the standard_file_name,
         # we try to infer the file path a second time, prioritizing merged models (kinda like seq2seq models)
         if file_path.name not in {file_name, ONNX_WEIGHTS_NAME}:
@@ -609,9 +610,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
             if legacy:
                 logger.warning(
-                    f"You are loading a legacy {'merged' if use_merged else 'non-merged'} decoder-only ONNX model from {file_path}. "
-                    "We strongly encourage to re-export the model with a newer version of Optimum for better performance and more reliable generation. "
-                    "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+                    f"You didn't pass a `file_name` to `from_pretrained` and we have inferred a legacy {'merged' if use_merged else 'non-merged'} ONNX model in {file_path}. "
+                    "We strongly encourage you to either specify `file_name` or re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                    "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`. "
+                    "Please note that support for legacy models will be removed in a future version of Optimum-ONNX."
                 )
 
         model_path = cls._cached_file(
