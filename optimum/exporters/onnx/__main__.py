@@ -272,6 +272,7 @@ def main_export(
 
     custom_architecture = False
     loading_kwargs = {}
+    is_mxfp4 = False
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -288,7 +289,7 @@ def main_export(
         is_mxfp4 = getattr(config, "quantization_config", {}).get("quant_method", None) == "mxfp4"
         # mxfp4 quantized model will be dequantized to bf16
         if is_mxfp4 and is_transformers_version(">=", "4.55"):
-            torch_dtype = torch.bfloat16
+            torch_dtype = torch.float32 if model_type == "gpt_oss" else torch.bfloat16
             loading_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
 
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
@@ -356,6 +357,10 @@ def main_export(
         model_type = model.config.export_model_type
     else:
         model_type = model.config.model_type
+
+    # ensure gpt_oss models dtype is float32 (dequantized to bf16 by default leading to incompatible dtypes)
+    if is_mxfp4 and model_type == "gpt_oss":
+        model.to(torch.float32)
 
     if (
         not custom_architecture
