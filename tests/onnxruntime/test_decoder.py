@@ -453,6 +453,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         model = self.AUTOMODEL_CLASS.from_pretrained(
             MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
         ).eval()
+
+        if "mxfp4" in model_arch:
+            model.to(torch.float32)
+
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
