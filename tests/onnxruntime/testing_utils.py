@@ -73,6 +73,7 @@ MODEL_NAMES = {
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
     "gpt_oss": "optimum-internal-testing/tiny-random-gpt-oss",
+    "gpt_oss_mxfp4": "echarlaix/tiny-random-gpt-oss-mxfp4",
     "gptj": "hf-internal-testing/tiny-random-GPTJForCausalLM",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",

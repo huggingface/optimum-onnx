@@ -69,6 +69,10 @@ from optimum.utils.testing_utils import grid_parameters, remove_directory, requi
 if is_transformers_version(">=", "4.54"):
     from transformers.cache_utils import EncoderDecoderCache
 
+if is_transformers_version(">=", "4.55"):
+    from transformers import Mxfp4Config
+
+
 logger = get_logger(__name__)
 
 
@@ -139,7 +143,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(StableLMOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("stablelm")
     if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
-        SUPPORTED_ARCHITECTURES.append("gpt_oss")
+        SUPPORTED_ARCHITECTURES.extend(["gpt_oss", "gpt_oss_mxfp4"])
 
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
@@ -449,10 +453,19 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         inputs = self.get_inputs(model_arch)
 
+        model_kwargs = {}
+        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
+        if "mxfp4" in model_arch:
+            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
+
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
         ).eval()
+
+        if "mxfp4" in model_arch:
+            model.to(torch.float32)
+
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
@@ -475,11 +488,20 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        model_kwargs = {}
+        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
+        if "mxfp4" in model_arch:
+            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
+
         inputs = self.get_inputs(model_arch, for_generation=True)
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
         ).eval()
+
+        if "mxfp4" in model_arch:
+            model.to(torch.float32)
+
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
@@ -503,12 +525,21 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
+        model_kwargs = {}
+        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
+        if "mxfp4" in model_arch:
+            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
+
         inputs = self.get_inputs(model_arch, for_generation=True)
 
         set_seed(SEED)
         model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code
+            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
         ).eval()
+
+        if "mxfp4" in model_arch:
+            model.to(torch.float32)
+
         onnx_model = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
         )
