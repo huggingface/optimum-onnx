@@ -56,7 +56,6 @@ def parse_args_onnxruntime_quantize(parser: ArgumentParser):
         "--avx512_vnni", action="store_true", help="Quantization with AVX-512 and VNNI instructions."
     )
     level_group.add_argument("--ppc64le", action="store_true", help="Quantization for the PowerPC architecture.")
-
     level_group.add_argument("--tensorrt", action="store_true", help="Quantization for NVIDIA TensorRT optimizer.")
     level_group.add_argument(
         "-c",
