@@ -614,6 +614,16 @@ class AutoQuantizationConfig:
     ):
         """Creates a [`~onnxruntime.QuantizationConfig`] fit for ppc64le.
 
+        When targeting IBM POWER10 ppc64le, the underlying execution engine leverages 8-bit outer-product instructions
+        (e.g., xvi8ger4pp and signed/unsigned variants) to compute fused byte dot-products and accumulate into 32-bit results, i.e.,
+        i32 += i8(w) * u8(x) at 4-way granularity per output element within a single instruction using a 512-bit MMA accumulator.
+
+        MMA (Matrix-Multiply Assist) is a POWER10 extension of the Power ISA and is part of the Power ISA v3.1 specification,
+        exposed via VSX-backed 512-bit accumulators and compiler intrinsics.
+
+        POWER10 MMA 8-bit outer-product instructions are designed to accelerate INT8 inference on ppc64le by fusing
+        multiply-accumulate data paths and minimizing instruction count.
+
         Args:
             is_static (`bool`):
                 Boolean flag to indicate whether we target static or dynamic quantization.
