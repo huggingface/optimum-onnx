@@ -1,3 +1,4 @@
+
 <div align="center">
 
 # 🤗 Optimum ONNX
@@ -8,41 +9,77 @@
 
 </div>
 
+---
 
-### Installation
+## Installation
 
-Before you begin, make sure you install all necessary libraries by running:
+Before you begin, make sure you have **Python 3.9 or higher** installed.
 
-```bash
+### 1. Create a virtual environment (recommended)
+```
+python -m venv .venv
+source .venv/bin/activate  # macOS / Linux
+.venv\Scripts\activate     # Windows
+```
+
+### 2. Install Optimum ONNX (CPU version)
+
+```
 pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
 ```
 
-If you want to use the [GPU version of ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#cuda-execution-provider), make sure the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, and install the additional dependencies by running :
+### 3. Install Optimum ONNX (GPU version)
 
-```bash
+Before installing, ensure your CUDA and cuDNN versions match [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
+
+```
+pip uninstall onnxruntime  # avoid conflicts
 pip install "optimum-onnx[onnxruntime-gpu]"@git+https://github.com/huggingface/optimum-onnx.git
 ```
 
-To avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime` prior to installing Optimum.
+---
 
-### ONNX export
+## ONNX Export
 
-It is possible to export 🤗 Transformers, Diffusers, Timm and Sentence Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:
+It is possible to export 🤗 Transformers, Diffusers, Timm, and Sentence Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily.
 
-```bash
+Example: Export **Llama 3.2–1B** to ONNX:
+
+```
 optimum-cli export onnx --model meta-llama/Llama-3.2-1B onnx_llama/
 ```
+
 The model can also be optimized and quantized with `onnxruntime`.
+
+### Additional Examples
+
+**DistilBERT for text classification**
+
+```
+optimum-cli export onnx --model distilbert-base-uncased-finetuned-sst-2-english distilbert_onnx/
+```
+
+**Whisper for speech-to-text**
+
+```
+optimum-cli export onnx --model openai/whisper-small whisper_onnx/
+```
+
+**Gemma for general-purpose LLM tasks**
+
+```
+optimum-cli export onnx --model google/gemma-2b gemma_onnx/
+```
 
 For more information on the ONNX export, please check the [documentation](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/export_a_model).
 
-#### Inference
+---
 
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
+## Inference
 
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model seamlessly using [ONNX Runtime](https://onnxruntime.ai/) in the backend.
 
 ```diff
-
   from transformers import AutoTokenizer, pipeline
 - from transformers import AutoModelForCausalLM
 + from optimum.onnxruntime import ORTModelForCausalLM
@@ -56,3 +93,41 @@ Once the model is exported to the ONNX format, we provide Python classes enablin
 ```
 
 More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
+
+---
+
+## Troubleshooting
+
+**1. `ModuleNotFoundError: No module named 'onnxruntime'`**
+Ensure you have installed either `onnxruntime` (CPU) or `onnxruntime-gpu` (GPU):
+
+```
+pip install "optimum-onnx[onnxruntime]"      # CPU
+pip install "optimum-onnx[onnxruntime-gpu]"  # GPU
+```
+
+---
+
+**2. CUDA/cuDNN not found**
+Verify your `nvcc --version` output matches ONNX Runtime GPU requirements.
+Install the correct CUDA and cuDNN versions before retrying.
+
+---
+
+**3. Out-of-memory errors**
+Use smaller models (e.g., `distilbert-base-uncased`) or enable model quantization:
+
+```
+optimum-cli export onnx --model distilbert-base-uncased --quantize int8 distilbert_quant/
+```
+
+---
+
+**4. `onnxruntime` and `onnxruntime-gpu` conflict**
+Uninstall the CPU version before installing the GPU version:
+
+```
+pip uninstall onnxruntime
+```
+
+---
