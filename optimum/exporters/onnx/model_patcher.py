@@ -19,7 +19,7 @@ import inspect
 import sys
 import types
 import warnings
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import torch
 import transformers
@@ -1457,3 +1457,57 @@ class CohereModelPatcher(ModelPatcher):
             from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
 
             CohereRotaryEmbedding.forward = self.original_forward
+
+
+class Gemma3LMModelPatcher(DecoderModelPatcher):
+    """Patcher for Gemma3 language model to handle cache conversion for ONNX export."""
+
+    def __init__(
+        self,
+        config,
+        model: Union[PreTrainedModel, TFPreTrainedModel],
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        def forward(
+            self,
+            attention_mask,
+            position_ids,
+            past_key_values,
+            inputs_embeds,
+            use_cache=True,
+        ):
+            from transformers.cache_utils import DynamicCache
+
+            pkv = DynamicCache.from_legacy_cache(past_key_values)
+
+            past_seen_tokens = past_key_values[0][0].shape[-2] if past_key_values is not None else 0
+            cache_position = torch.arange(
+                past_seen_tokens,
+                past_seen_tokens + inputs_embeds.shape[1],
+                device=inputs_embeds.device,
+            )
+
+            result = self.__orig_forward(
+                input_ids=None,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                cache_position=cache_position,
+                past_key_values=pkv,
+                inputs_embeds=inputs_embeds,
+                use_cache=use_cache,
+            )
+            upd_pkv = result["past_key_values"]
+            result["past_key_values"] = upd_pkv.to_legacy_cache()
+            return result
+
+        if is_transformers_version("<", "4.53.0"):
+            model.__orig_forward = model.forward
+            model.forward = types.MethodType(forward, model)
+
+        super().__init__(config, model, model_kwargs)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version("<", "4.53.0"):
+            self._model.forward = self._model.__orig_forward

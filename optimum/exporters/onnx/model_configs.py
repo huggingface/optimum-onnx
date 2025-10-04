@@ -43,6 +43,7 @@ from optimum.exporters.onnx.model_patcher import (
     CohereModelPatcher,
     FluxTransformerModelPatcher,
     MetaCLIP2Patcher,
+    Gemma3LMModelPatcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
     MusicgenModelPatcher,
@@ -515,6 +516,14 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
     # Gemma 2 was added in transformers v4.42 using HybridCache
     # (tuple of past_key_values never supported), DynamicCache since v4.53
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+@register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS)
+class Gemma3OnnxConfig(GemmaOnnxConfig):
+    """ONNX config for Gemma3 text-only models."""
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+    _MODEL_PATCHER = Gemma3LMModelPatcher
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
