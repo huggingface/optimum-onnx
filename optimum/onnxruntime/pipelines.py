@@ -47,6 +47,7 @@ if is_onnxruntime_available():
         ORTModelForCTC,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
+        ORTModelForZeroShotImageClassification,
         ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForQuestionAnswering,
@@ -76,6 +77,7 @@ if is_onnxruntime_available():
         "token-classification": (ORTModelForTokenClassification,),
         "translation": (ORTModelForSeq2SeqLM,),
         "zero-shot-classification": (ORTModelForSequenceClassification,),
+        "zero-shot-image-classification": (ORTModelForZeroShotImageClassification,),
     }
 else:
     ORT_TASKS_MAPPING = {}

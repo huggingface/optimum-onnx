@@ -449,6 +449,7 @@ def main():
         pad_token_id=args.pad_token_id,
         library_name=args.library_name,
         do_constant_folding=not args.no_constant_folding,
+        slim=args.slim,
         **input_shapes,
     )
 

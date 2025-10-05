@@ -40,6 +40,7 @@ from optimum.exporters.onnx.input_generators import (
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
+    MetaCLIP2Patcher,
     CohereModelPatcher,
     FluxTransformerModelPatcher,
     MgpstrModelPatcher,
@@ -61,6 +62,7 @@ from optimum.utils import (
     BloomDummyPastKeyValuesGenerator,
     DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
+    DummyBboxInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -1245,6 +1247,81 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
                 common_outputs[f"hidden_states.{i}"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_outputs
+
+
+@register_tasks_manager_onnx("metaclip_2", *["feature-extraction", "zero-shot-image-classification", "image-classification"], library_name="transformers")
+class MetaCLIP2OnnxConfig(TextAndVisionOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.56.2")
+    VARIANTS = {  # noqa: RUF012
+        "monolith": "All the MetaClip2 model components are exported as a single model.onnx.",
+        "split": "The vision model is exported as a separate vision_model.onnx, and the text_model is exported as text_model.onnx",
+    }
+    DEFAULT_VARIANT = "monolith"
+    _MODEL_PATCHER = MetaCLIP2Patcher
+
+    def __init__(
+        self,
+        config: PretrainedConfig,
+        task: str = "feature-extraction",
+        int_dtype: str = "int64",
+        float_dtype: str = "fp32",
+        variant: str = "monolith",
+        vision_model: bool | None = None,
+        preprocessors: list[Any] | None = None,
+    ):
+        super().__init__(
+            config=config,
+            task=task,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+        )
+        self.variant = variant
+        self.vision_model = vision_model
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        if self.variant == "monolith":
+            inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+            if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+                inputs.update(
+                    {
+                        "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                        "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                    }
+                )
+        else:
+            if self.vision_model:
+                inputs = {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+            else:
+                inputs = {
+                    "input_ids": {0: "text_batch_size", 1: "sequence_length"},
+                    "attention_mask": {0: "text_batch_size", 1: "sequence_length"},
+                }
+        return inputs
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        if self.variant == "split": 
+            if self.vision_model:
+                return {
+                    "image_embeds": {0: "batch_size"}, 
+                }
+            else:
+                return {
+                    "text_embeds": {0: "batch_size"}, 
+                }
+        else:
+            if self.task in ["feature-extraction", "zero-shot-image-classification"]:
+                return {
+                    "logits_per_image": {0: "image_batch_size", 1: "text_batch_size"},
+                    "logits_per_text": {0: "text_batch_size", 1: "image_batch_size"},
+                    "text_embeds": {0: "text_batch_size"},
+                    "image_embeds": {0: "image_batch_size"},
+                }
+            else:
+                return super().outputs
 
 
 class SiglipNormalizedConfig(CLIPNormalizedConfig):

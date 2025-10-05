@@ -1196,6 +1196,38 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
             self.patched_forward = patched_forward
 
 
+class MetaCLIP2Patcher(ModelPatcher):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        model: PreTrainedModel,
+        model_kwargs: dict[str, Any] | None = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        def patched_forward(input_ids=None, pixel_values=None, attention_mask=None):
+    
+            if config.variant == "monolith":
+                return self.orig_forward(
+                    input_ids=input_ids,
+                    pixel_values=pixel_values,
+                    attention_mask=attention_mask
+                )
+            
+            if config.variant == "split":
+                if config.vision_model:
+                    image_embeds = model.get_image_features(pixel_values)
+                    return {
+                        "image_embeds": image_embeds
+                    } 
+
+                text_embeds = model.get_text_features(input_ids, attention_mask)
+                return {
+                    "text_embeds": text_embeds,
+                }
+            
+        self.patched_forward = patched_forward
+
+
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()

@@ -21,6 +21,7 @@ import torch
 from packaging import version
 from transformers.utils import is_torch_available
 
+from optimum.exporters.base import ExporterConfig
 from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
 from optimum.utils.import_utils import (
@@ -29,6 +30,7 @@ from optimum.utils.import_utils import (
     is_diffusers_version,
     is_transformers_version,
 )
+from optimum.exporters.tasks import TasksManager
 
 
 logger = logging.get_logger()
@@ -176,6 +178,46 @@ class PickableInferenceSession:  # This is a wrapper to make the current Inferen
         self.sess = ort.InferenceSession(self.model_path, sess_options=self.sess_options, providers=self.providers)
 
 
+def _get_submodels_for_export_metaclip_2(model, variant):
+    models_for_export = {}
+
+    if variant == "monolith":
+        models_for_export["model"] = model
+    else:
+        # We rather use the model patcher to patch their forward method.
+        models_for_export["vision_model"] = model
+        models_for_export["text_model"] = model
+
+    return models_for_export
+
+
+def get_metaclip_2_models_for_export(model: "PreTrainedModel", config: "ExporterConfig"):
+    from packaging.version import Version
+    if not is_transformers_version(">=", "4.56.2"):
+        raise ImportError(
+            f"We found an older version of Transformers ({Version(version("transformers")).__version__}) "
+            f"but we require the version to be >= 4.56.2 to enable metaclip_2 conversion.\n"
+            "Please update Trasnformers by running `pip install --upgrade transformers`"
+        )
+    
+    models_for_export = _get_submodels_for_export_metaclip_2(model, config.variant)
+
+    if config.variant == "monolith":
+        export_config = config.__class__(model.config, task=config.task, variant=config.variant)
+        models_for_export["model"] = (models_for_export["model"], export_config)
+    else:
+        vision_model_export_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_model=True
+        )
+        text_model_export_config = config.__class__(
+            model.config, task=config.task, variant=config.variant, vision_model=False
+        )
+        models_for_export["vision_model"] = (models_for_export["vision_model"], vision_model_export_config)
+        models_for_export["text_model"] = (models_for_export["text_model"], text_model_export_config )
+
+    return models_for_export
+
+
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
     task: str,
@@ -190,6 +232,18 @@ def _get_submodels_and_onnx_configs(
     preprocessors: list[Any] | None = None,
     model_kwargs: dict | None = None,
 ):
+    if model.config.model_type == "metaclip_2":
+        export_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=task, library_name="transformers"
+        )
+        export_config = export_config_constructor(
+            model.config,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+        )
+        export_config.variant = _variant
+        return export_config, get_metaclip_2_models_for_export(model, export_config)
     return _get_submodels_and_export_configs(
         model,
         task,
