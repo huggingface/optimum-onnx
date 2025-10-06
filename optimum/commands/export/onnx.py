@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
+from optimum.utils.constant import ALL_TASKS
+from optimum.utils.input_generators import DEFAULT_DUMMY_SHAPES
 
 
 if TYPE_CHECKING:
@@ -29,21 +31,17 @@ if TYPE_CHECKING:
 
 
 def parse_args_onnx(parser):
-    from optimum.utils.constant import ALL_TASKS
-    from optimum.utils.input_generators import DEFAULT_DUMMY_SHAPES
-
     required_group = parser.add_argument_group("Required arguments")
     required_group.add_argument(
         "-m", "--model", type=str, required=True, help="Model ID on huggingface.co or path on disk to load model from."
     )
-    # NOTE: why using a positional argument here ?
-    # it always confuses me that we have to do -m model but just write the output path
-    # required_group.add_argument(
-    #     "-o", "--output", type=Path, help="Path indicating the directory where to store the generated ONNX model."
-    # )
     required_group.add_argument(
         "output", type=Path, help="Path indicating the directory where to store the generated ONNX model."
     )
+    # NOTE: why using a positional argument here ? should we deprecate in favor of -o/--output keyword argument ?
+    # required_group.add_argument(
+    #     "-o", "--output", type=Path, help="Path indicating the directory where to store the generated ONNX model."
+    # )
 
     optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
@@ -51,7 +49,7 @@ def parse_args_onnx(parser):
         default="auto",
         help=(
             "The task to export the model for. If not specified, the task will be auto-inferred from the model's metadata or files. "
-            "For decoder models, use `xxx-with-past` to export the model using past key values in the decoder."
+            "For tasks that generate text, add the `xxx-with-past` suffix to export the model using past key values caching. "
             f"Available tasks depend on the model, but are among the following list: {ALL_TASKS}. "
         ),
     )
@@ -260,7 +258,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
 
     def run(self):
         from optimum.exporters.onnx import main_export
-        from optimum.utils.input_generators import DEFAULT_DUMMY_SHAPES
 
         # Get the shapes to be used to generate dummy inputs
         input_shapes = {}
