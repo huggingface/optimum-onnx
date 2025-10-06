@@ -59,7 +59,7 @@ class TraceableCache:
         # TODO: deprecate this function in favor of `cache_position`
         raise NotImplementedError("Make sure to implement `get_seq_length` in a subclass.")
 
-    # Deprecate in favor of max-cache-shape because we want to be specifc by what we mean with "max_length"
+    # Deprecate in favor of max-cache-shape because we want to be specific by what we mean with "max_length"
     # Prev some cache objects didn't have "max_length" (SlidingWindowCache or SinkCache) because the cache object technically handles
     # infinite amount of tokens. In the codebase what we really need to check is the max capacity of certain cache instances, so
     # we change naming to be more explicit

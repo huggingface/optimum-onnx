@@ -59,7 +59,7 @@ logger = logging.get_logger(__name__)
 
 
 GENERATE_DUMMY_DOCSTRING = r"""
-        Generates the dummy inputs necessary for tracing the model. If not explicitely specified, default input shapes are used.
+        Generates the dummy inputs necessary for tracing the model. If not explicitly specified, default input shapes are used.
 
         Args:
             framework (`str`, defaults to `"pt"`):
@@ -174,7 +174,7 @@ class OnnxConfig(ExporterConfig, ABC):
         """For a given ONNX config, the variant of the model to export.
 
         This property allows to define variants of a given model, in case
-        different users would like to export the model differently (with different inputs/outputs, model splitted in several ONNX or not, etc.).
+        different users would like to export the model differently (with different inputs/outputs, model split in several ONNX or not, etc.).
         """
         return self._variant
 
@@ -389,7 +389,7 @@ class OnnxConfig(ExporterConfig, ABC):
             path (`Path`):
                 Path to the directory of the stored ONNX model.
             models_and_onnx_configs (`Dict[str, Tuple["PreTrainedModel", "OnnxConfig"]]`):
-                A dictionnary containing the models t apply post-processing on, and their corresponding ONNX configuration.
+                A dictionary containing the models t apply post-processing on, and their corresponding ONNX configuration.
             onnx_files_subpaths (`List[str]`):
                 The relative paths from the export directory to the ONNX files to do post-processing on. The order must be the same as
                 the order of submodels in the ordered dict `models_and_onnx_configs`.

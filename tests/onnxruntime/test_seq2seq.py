@@ -451,7 +451,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     def get_transformers_model(self, model_arch: str, use_cache: bool = True, **kwargs):
         set_seed(SEED)
         if model_arch.startswith("encoder-decoder"):
-            # EnocderDecoderModel does not take `use_cache` during instantiation
+            # EncoderDecoderModel does not take `use_cache` during instantiation
             model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch]).eval()
             model.decoder.config.use_cache = use_cache
         else:

@@ -408,7 +408,7 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         # other arguments
         **kwargs,
     ) -> ORTModel:
-        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # this is guaranteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
 
@@ -1127,7 +1127,7 @@ class ORTModelForTokenClassification(ORTModel):
 
 
 MULTIPLE_CHOICE_EXAMPLE = r"""
-    Example of mutliple choice:
+    Example of multiple choice:
 
     ```python
     >>> from transformers import {processor_class}
@@ -1852,7 +1852,7 @@ class ORTModelForImageToImage(ORTModel):
         ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
         + IMAGE_TO_IMAGE_EXAMPLE.format(
             processor_class=_PROCESSOR_FOR_DOC,
-            model_class="ORTModelForImgageToImage",
+            model_class="ORTModelForImageToImage",
             checkpoint="caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
         )
     )

@@ -298,7 +298,7 @@ def main_export(
             )
 
         # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX.
-        # This was fixed in transformers 4.42.0, we can remve it when minimum transformers version is updated to 4.42
+        # This was fixed in transformers 4.42.0, we can remove it when minimum transformers version is updated to 4.42
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version("<", "4.42"):
             loading_kwargs["attn_implementation"] = "eager"
 
@@ -353,7 +353,7 @@ def main_export(
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
-        # Make -with-past the default if --task was not explicitely specified
+        # Make -with-past the default if --task was not explicitly specified
         if original_task == "auto" and not monolith:
             task = task + "-with-past"
         else:

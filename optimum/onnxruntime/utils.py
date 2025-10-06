@@ -196,9 +196,9 @@ def validate_provider_availability(provider: str):
     ):
         path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
-        path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
+        path_dependency_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
 
-        with open(path_dependecy_loading) as f:
+        with open(path_dependency_loading) as f:
             file_string = f.read()
 
             if "ORT_CUDA" not in file_string or "ORT_TENSORRT" not in file_string:
