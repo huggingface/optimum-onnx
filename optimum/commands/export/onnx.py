@@ -50,7 +50,7 @@ def parse_args_onnx(parser):
         help=(
             "The task to export the model for. If not specified, the task will be auto-inferred from the model's metadata or files. "
             "For tasks that generate text, add the `xxx-with-past` suffix to export the model using past key values caching. "
-            f"Available tasks depend on the model, but are among the following list: {ALL_TASKS}. "
+            f"Available tasks depend on the model, but are among the following list: {ALL_TASKS}."
         ),
     )
     optional_group.add_argument(
