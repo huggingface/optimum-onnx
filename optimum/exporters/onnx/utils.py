@@ -18,28 +18,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
-from packaging import version
 from transformers.utils import is_torch_available
 
 from optimum.exporters.utils import _get_submodels_and_export_configs
-from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
-from optimum.utils.import_utils import (
-    _diffusers_version,
-    is_diffusers_available,
-    is_diffusers_version,
-    is_transformers_version,
-)
+from optimum.utils.import_utils import is_transformers_version
 
-
-logger = logging.get_logger()
-
-
-if is_diffusers_available():
-    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
-        raise ImportError(
-            f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
-            "Please update diffusers by running `pip install --upgrade diffusers`"
-        )
 
 if TYPE_CHECKING:
     if is_torch_available():
@@ -81,34 +64,6 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
 
 if is_transformers_version(">=", "4.46.0"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
-
-
-def check_onnxruntime_requirements(minimum_version: version.Version):
-    """Checks that ONNX Runtime is installed and if version is recent enough.
-
-    Args:
-        minimum_version (`packaging.version.Version`):
-            The minimum version allowed for the onnxruntime package.
-
-    Raises:
-        ImportError: If onnxruntime is not installed or too old version is found
-    """
-    try:
-        import onnxruntime
-    except ImportError:
-        raise ImportError(
-            "ONNX Runtime doesn't seem to be currently installed. "
-            "Please install ONNX Runtime by running `pip install onnxruntime`"
-            " and relaunch the conversion."
-        )
-
-    ort_version = version.parse(onnxruntime.__version__)
-    if ort_version < ORT_QUANTIZE_MINIMUM_VERSION:
-        raise ImportError(
-            f"We found an older version of ONNX Runtime ({onnxruntime.__version__}) "
-            f"but we require the version to be >= {minimum_version} to enable all the conversions options.\n"
-            "Please update ONNX Runtime by running `pip install --upgrade onnxruntime`"
-        )
 
 
 def recursive_to_device(value: tuple | list | torch.Tensor, device: str):
