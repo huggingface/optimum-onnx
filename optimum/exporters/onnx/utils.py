@@ -22,6 +22,7 @@ from packaging import version
 from transformers.utils import is_torch_available
 
 from optimum.exporters.base import ExporterConfig
+from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
 from optimum.utils.import_utils import (
@@ -30,7 +31,6 @@ from optimum.utils.import_utils import (
     is_diffusers_version,
     is_transformers_version,
 )
-from optimum.exporters.tasks import TasksManager
 
 
 logger = logging.get_logger()
@@ -191,15 +191,7 @@ def _get_submodels_for_export_metaclip_2(model, variant):
     return models_for_export
 
 
-def get_metaclip_2_models_for_export(model: "PreTrainedModel", config: "ExporterConfig"):
-    from packaging.version import Version
-    if not is_transformers_version(">=", "4.56.2"):
-        raise ImportError(
-            f"We found an older version of Transformers ({Version(version("transformers")).__version__}) "
-            f"but we require the version to be >= 4.56.2 to enable metaclip_2 conversion.\n"
-            "Please update Trasnformers by running `pip install --upgrade transformers`"
-        )
-    
+def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterConfig):
     models_for_export = _get_submodels_for_export_metaclip_2(model, config.variant)
 
     if config.variant == "monolith":
@@ -213,7 +205,7 @@ def get_metaclip_2_models_for_export(model: "PreTrainedModel", config: "Exporter
             model.config, task=config.task, variant=config.variant, vision_model=False
         )
         models_for_export["vision_model"] = (models_for_export["vision_model"], vision_model_export_config)
-        models_for_export["text_model"] = (models_for_export["text_model"], text_model_export_config )
+        models_for_export["text_model"] = (models_for_export["text_model"], text_model_export_config)
 
     return models_for_export
 
@@ -243,6 +235,10 @@ def _get_submodels_and_onnx_configs(
             preprocessors=preprocessors,
         )
         export_config.variant = _variant
+        all_variants = "\n".join(
+            [f"    - {name}: {description}" for name, description in export_config.VARIANTS.items()]
+        )
+        logger.info(f"Using the export variant {export_config.variant}. Available variants are:\n{all_variants}")
         return export_config, get_metaclip_2_models_for_export(model, export_config)
     return _get_submodels_and_export_configs(
         model,

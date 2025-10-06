@@ -19,11 +19,11 @@ import contextlib
 import logging
 import os
 import re
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -127,6 +127,29 @@ ONNX_AUDIO_INPUTS_DOCSTRING = r"""
             Float values of input raw speech waveform..
             Input values can be obtained from audio file loaded into an array using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
+
+
+@dataclass
+class ZeroShotImageClassificationOutput(ModelOutput):
+    r"""logits_per_image (`torch.FloatTensor` of shape `(image_batch_size, text_batch_size)`):
+        The scaled dot product scores between `image_embeds` and `text_embeds`. This represents the image-text
+        similarity scores.
+    logits_per_text (`torch.FloatTensor` of shape `(text_batch_size, image_batch_size)`):
+        The scaled dot product scores between `text_embeds` and `image_embeds`. This represents the text-image
+        similarity scores.
+    text_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
+        The text embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2TextModel`].
+    image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
+        The image embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2VisionModel`].
+    """
+
+    logits_per_image: torch.FloatTensor = None
+    logits_per_text: torch.FloatTensor = None
+    text_embeds: torch.FloatTensor = None
+    image_embeds: torch.FloatTensor = None
+
+    def to_tuple(self) -> tuple[Any]:
+        return tuple(self[k] for k in self.keys())
 
 
 # TODO: remove OptimizedModel and use a HubMixin to be able to combine it freely with other mixins
@@ -1323,35 +1346,11 @@ class ORTModelForImageClassification(ORTModel):
 class ORTModelForZeroShotImageClassification(ORTModel):
     """ONNX Model for zero-shot-image-classification tasks. This class officially supports clip, metaclip-2."""
 
-    @dataclass
-    class MultimodalTextAndImageOutput(ModelOutput):
-        r"""
-        logits_per_image (`torch.FloatTensor` of shape `(image_batch_size, text_batch_size)`):
-            The scaled dot product scores between `image_embeds` and `text_embeds`. This represents the image-text
-            similarity scores.
-        logits_per_text (`torch.FloatTensor` of shape `(text_batch_size, image_batch_size)`):
-            The scaled dot product scores between `text_embeds` and `image_embeds`. This represents the text-image
-            similarity scores.
-        text_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
-            The text embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2TextModel`].
-        image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
-            The image embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2VisionModel`].
-        """
-
-        logits_per_image: Optional[torch.FloatTensor] = None
-        logits_per_text: Optional[torch.FloatTensor] = None
-        text_embeds: Optional[torch.FloatTensor] = None
-        image_embeds: Optional[torch.FloatTensor] = None
-
-        def to_tuple(self) -> tuple[Any]:
-            return tuple(
-                self[k] for k in self.keys()
-            )
-
     auto_model_class = AutoModelForZeroShotImageClassification
+
     @add_start_docstrings_to_model_forward(
-        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length") +
-        ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
     )
     def forward(
         self,
@@ -1381,7 +1380,7 @@ class ORTModelForZeroShotImageClassification(ORTModel):
                 self._io_binding.synchronize_inputs()
                 self.session.run_with_iobinding(self._io_binding)
                 self._io_binding.synchronize_outputs()
-            
+
             logits_per_text = output_buffers["logits_per_text"].view(output_shapes["logits_per_text"])
             logits_per_image = output_buffers["logits_per_image"].view(output_shapes["logits_per_image"])
             text_embeds = output_buffers["text_embeds"].view(output_shapes["text_embeds"])
@@ -1396,11 +1395,11 @@ class ORTModelForZeroShotImageClassification(ORTModel):
             text_embeds = model_outputs["text_embeds"]
             image_embeds = model_outputs["image_embeds"]
 
-        return self.MultimodalTextAndImageOutput(
-            logits_per_text=logits_per_text, 
+        return ZeroShotImageClassificationOutput(
+            logits_per_text=logits_per_text,
             logits_per_image=logits_per_image,
-            text_embeds=text_embeds, 
-            image_embeds=image_embeds
+            text_embeds=text_embeds,
+            image_embeds=image_embeds,
         )
 
 

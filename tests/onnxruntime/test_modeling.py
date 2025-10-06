@@ -1996,10 +1996,16 @@ class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
 
             # compare tensor outputs
             torch.testing.assert_close(
-                torch.Tensor(onnx_outputs.logits_per_image), trtfs_outputs.logits_per_image, atol=self.ATOL, rtol=self.RTOL
+                torch.Tensor(onnx_outputs.logits_per_image),
+                trtfs_outputs.logits_per_image,
+                atol=self.ATOL,
+                rtol=self.RTOL,
             )
             torch.testing.assert_close(
-                torch.Tensor(onnx_outputs.logits_per_text), trtfs_outputs.logits_per_text, atol=self.ATOL, rtol=self.RTOL
+                torch.Tensor(onnx_outputs.logits_per_text),
+                trtfs_outputs.logits_per_text,
+                atol=self.ATOL,
+                rtol=self.RTOL,
             )
             torch.testing.assert_close(
                 torch.Tensor(onnx_outputs.image_embeds), trtfs_outputs.image_embeds, atol=self.ATOL, rtol=self.RTOL
@@ -2906,7 +2912,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
 
@@ -2917,7 +2923,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
@@ -2931,7 +2937,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_pipeline_on_gpu(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -2947,7 +2953,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
     def test_pipeline_on_rocm_ep(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -2960,7 +2966,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)

@@ -362,7 +362,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         outputs_to_not_bind = set()
         if use_cache and self.use_io_binding:
             # Infers the shape of the output pkv
-            batch_size, seq_len = input_ids.shape
+            batch_size, _ = input_ids.shape
             if self.old_bloom_modeling:
                 num_key_value_heads_batch_size, embed_size_per_head = past_key_values[0].shape[:2]
                 k_shape = (num_key_value_heads_batch_size, embed_size_per_head, out_seq_len)

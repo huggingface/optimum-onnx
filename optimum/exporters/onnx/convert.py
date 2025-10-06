@@ -211,7 +211,7 @@ def validate_model_outputs(
         io_process.join()
 
         if io_process.exception:
-            error, traceback = io_process.exception
+            error, _ = io_process.exception
             raise error
     else:
         _run_validation(

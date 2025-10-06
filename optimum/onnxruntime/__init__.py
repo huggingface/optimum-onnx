@@ -153,7 +153,6 @@ if TYPE_CHECKING:
         ORTModelForCustomTasks,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
-        ORTModelForZeroShotImageClassification,
         ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForMultipleChoice,
@@ -161,6 +160,7 @@ if TYPE_CHECKING:
         ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
+        ORTModelForZeroShotImageClassification,
     )
     from optimum.onnxruntime.modeling_seq2seq import (
         ORTModelForPix2Struct,

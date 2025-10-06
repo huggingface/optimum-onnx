@@ -40,9 +40,9 @@ from optimum.exporters.onnx.input_generators import (
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
-    MetaCLIP2Patcher,
     CohereModelPatcher,
     FluxTransformerModelPatcher,
+    MetaCLIP2Patcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
     MusicgenModelPatcher,
@@ -62,7 +62,6 @@ from optimum.utils import (
     BloomDummyPastKeyValuesGenerator,
     DeepSeekV3DummyPastKeyValuesGenerator,
     Dinov2DummyInputGenerator,
-    DummyBboxInputGenerator,
     DummyCodegenDecoderTextInputGenerator,
     DummyDecisionTransformerInputGenerator,
     DummyDecoderTextInputGenerator,
@@ -1249,7 +1248,11 @@ class CLIPTextOnnxConfig(CLIPTextWithProjectionOnnxConfig):
         return common_outputs
 
 
-@register_tasks_manager_onnx("metaclip_2", *["feature-extraction", "zero-shot-image-classification", "image-classification"], library_name="transformers")
+@register_tasks_manager_onnx(
+    "metaclip_2",
+    *["feature-extraction", "zero-shot-image-classification", "image-classification"],
+    library_name="transformers",
+)
 class MetaCLIP2OnnxConfig(TextAndVisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = CLIPNormalizedConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.56.2")
@@ -1303,14 +1306,14 @@ class MetaCLIP2OnnxConfig(TextAndVisionOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        if self.variant == "split": 
+        if self.variant == "split":
             if self.vision_model:
                 return {
-                    "image_embeds": {0: "batch_size"}, 
+                    "image_embeds": {0: "batch_size"},
                 }
             else:
                 return {
-                    "text_embeds": {0: "batch_size"}, 
+                    "text_embeds": {0: "batch_size"},
                 }
         else:
             if self.task in ["feature-extraction", "zero-shot-image-classification"]:

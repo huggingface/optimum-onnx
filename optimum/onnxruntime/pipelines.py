@@ -47,7 +47,6 @@ if is_onnxruntime_available():
         ORTModelForCTC,
         ORTModelForFeatureExtraction,
         ORTModelForImageClassification,
-        ORTModelForZeroShotImageClassification,
         ORTModelForImageToImage,
         ORTModelForMaskedLM,
         ORTModelForQuestionAnswering,
@@ -57,6 +56,7 @@ if is_onnxruntime_available():
         ORTModelForSpeechSeq2Seq,
         ORTModelForTokenClassification,
         ORTModelForVision2Seq,
+        ORTModelForZeroShotImageClassification,
     )
     from optimum.onnxruntime.modeling_ort import ORTModel
 
