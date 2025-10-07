@@ -60,7 +60,7 @@ def main_export(
     optimize: str | None = None,
     monolith: bool = False,
     no_post_process: bool = False,
-    framework: str | None = None,
+    framework: str | None = "pt",
     atol: float | None = None,
     pad_token_id: int | None = None,
     # hub options
