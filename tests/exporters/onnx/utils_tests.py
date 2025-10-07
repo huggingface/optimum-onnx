@@ -290,7 +290,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "facebook/maskformer-swin-tiny-coco",
     "mbart": "sshleifer/tiny-mbart",
-    "metaclip_2": "facebook/metaclip-2-worldwide-huge-378",
+    "metaclip_2": "vladislavbro/hf-internal-testing-metaclip-2-tiny",
     "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
