@@ -667,7 +667,7 @@ class AutoQuantizationConfig:
         nodes_to_exclude: list[str] | None = None,
         operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
-        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targeting NVIDIA GPUs.
 
         Args:
             per_channel (`bool`, defaults to `True`):
@@ -872,7 +872,7 @@ class AutoOptimizationConfig:
 
         if optimization_level == "O4":
             if for_gpu is False:
-                logger.warning("Overridding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
+                logger.warning("Overriding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
             for_gpu = True
 
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)

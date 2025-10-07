@@ -38,7 +38,7 @@ For more information on the ONNX export, please check the [documentation](https:
 
 #### Inference
 
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seamless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
 
 
 ```diff

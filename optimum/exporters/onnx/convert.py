@@ -96,7 +96,7 @@ def validate_models_outputs(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
-            A dictionnary containing the models to validate and their corresponding onnx configs.
+            A dictionary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[List[str]]`):
             The names of the outputs to check.
         output_dir (`Path`):
@@ -627,7 +627,7 @@ def export_models(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
-            A dictionnary containing the models to export and their corresponding onnx configs.
+            A dictionary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
         opset (`Optional[int]`, defaults to `None`):
@@ -940,7 +940,7 @@ def onnx_export_from_model(
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
         raise ValueError(
             f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
-            f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
+            f"at https://github.com/huggingface/optimum, if --task was explicitly passed, make sure you selected the right task for the model,"
             f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
         )
 
@@ -993,7 +993,7 @@ def onnx_export_from_model(
             opset = onnx_config.DEFAULT_ONNX_OPSET
         elif opset < onnx_config.DEFAULT_ONNX_OPSET:
             logger.warning(
-                f"Opset {opset} is lower than the recommended minmum opset ({onnx_config.DEFAULT_ONNX_OPSET}) to export {model_type}. "
+                f"Opset {opset} is lower than the recommended minimum opset ({onnx_config.DEFAULT_ONNX_OPSET}) to export {model_type}. "
                 f"The ONNX export may fail or the exported model may be suboptimal."
             )
         if atol is None:
@@ -1154,5 +1154,5 @@ def onnx_export_from_model(
             )
         except Exception as e:
             raise RuntimeError(
-                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}"
+                f"An error occurred during validation, but the model was saved nonetheless at {output.as_posix()}"
             ) from e

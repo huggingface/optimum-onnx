@@ -16,4 +16,6 @@ from optimum.commands.export.base import ExportCommand
 from optimum.commands.export.onnx import ONNXExportCommand
 
 
-REGISTER_COMMANDS = [(ONNXExportCommand, ExportCommand)]
+REGISTER_COMMANDS = [
+    (ONNXExportCommand, ExportCommand),
+]

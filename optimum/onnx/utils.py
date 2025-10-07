@@ -25,9 +25,9 @@ def _get_onnx_external_constants(model: onnx.ModelProto) -> list[str]:
     for node in model.graph.node:
         if node.op_type == "Constant":
             for attribute in node.attribute:
-                external_datas = attribute.t.external_data
-                for external_data in external_datas:
-                    external_constants.append(external_data.value)
+                external_data = attribute.t.external_data
+                for data in external_data:
+                    external_constants.append(data.value)
 
     return external_constants
 

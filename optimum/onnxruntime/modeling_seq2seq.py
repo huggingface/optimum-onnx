@@ -235,7 +235,7 @@ PIX2STRUCT_ONNX_MODEL_DOCSTRING = r"""
 
 _TOKENIZER_FOR_DOC = "AutoTokenizer"
 _PROCESSOR_FOR_DOC = "AutoProcessor"
-_IMAGE_PROCESSER_FOR_DOC = "AutoImageProcessor"
+_IMAGE_PROCESSOR_FOR_DOC = "AutoImageProcessor"
 
 TRANSLATION_EXAMPLE = r"""
     Example of text generation:
@@ -1085,7 +1085,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         use_cache: bool = True,
         **kwargs,
     ) -> ORTModelForConditionalGeneration:
-        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # this is guaranteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
         if use_cache or use_merged:
@@ -1470,7 +1470,7 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
     @add_start_docstrings_to_model_forward(
         VISION_ENCODER_DECODER_SEQ2SEQ_ONNX_MODEL_DOCSTRING
         + IMAGE_TO_TEXT_EXAMPLE.format(
-            processor_class=_IMAGE_PROCESSER_FOR_DOC,
+            processor_class=_IMAGE_PROCESSOR_FOR_DOC,
             tokenizer_class=_TOKENIZER_FOR_DOC,
             model_class="ORTModelForVision2Seq",
             checkpoint="nlpconnect/vit-gpt2-image-captioning",
