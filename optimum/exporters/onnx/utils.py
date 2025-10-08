@@ -238,7 +238,7 @@ def _get_submodels_and_onnx_configs(
         all_variants = "\n".join(
             [f"    - {name}: {description}" for name, description in export_config.VARIANTS.items()]
         )
-        logger.info(f"Using the export variant {export_config.variant}. Available variants are:\n{all_variants}")
+        logger.info(f"Using the export variant {export_config.variant}. Available variants are :\n{all_variants}")
         return export_config, get_metaclip_2_models_for_export(model, export_config)
     return _get_submodels_and_export_configs(
         model,
