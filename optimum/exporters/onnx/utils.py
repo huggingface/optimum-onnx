@@ -225,6 +225,9 @@ def _get_submodels_and_onnx_configs(
     model_kwargs: dict | None = None,
 ):
     if model.config.model_type == "metaclip_2":
+        assert library_name == "transformers", (
+            "{model.config.model_type} requires 'transformers' pipeline, currently is {library_name}"
+        )
         export_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=task, library_name="transformers"
         )
