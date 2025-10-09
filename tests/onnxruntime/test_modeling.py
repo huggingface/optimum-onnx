@@ -73,7 +73,7 @@ from optimum.onnxruntime import (
     ORTModelForTokenClassification,
     pipeline,
 )
-from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling import ORTModel
 from optimum.utils import CONFIG_NAME, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm

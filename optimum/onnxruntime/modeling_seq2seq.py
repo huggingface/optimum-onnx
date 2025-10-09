@@ -51,7 +51,7 @@ from optimum.onnxruntime.constants import (
     ONNX_ENCODER_NAME,
     ONNX_FILE_PATTERN,
 )
-from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling import ORTModel
 from optimum.onnxruntime.utils import DummyWhisperModel, prepare_providers_and_provider_options
 from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
@@ -79,10 +79,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 ONNX_MODEL_END_DOCSTRING = r"""
-    This model inherits from [`~onnxruntime.modeling_ort.ORTModelForConditionalGeneration`], check its documentation for the generic methods the
+    This model inherits from [`~onnxruntime.modeling.ORTModelForConditionalGeneration`], check its documentation for the generic methods the
     library implements for all its model (such as downloading or saving).
 
-    This class should be initialized using the [`onnxruntime.modeling_ort.ORTModelForConditionalGeneration.from_pretrained`] method.
+    This class should be initialized using the [`onnxruntime.modeling.ORTModelForConditionalGeneration.from_pretrained`] method.
 """
 
 SEQ2SEQ_ENCODER_INPUTS_DOCSTRING = r"""

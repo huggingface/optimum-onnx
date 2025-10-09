@@ -31,7 +31,7 @@
       title: Conceptual guides
       isExpanded: false
     - sections:
-      - local: onnxruntime/package_reference/modeling_ort
+      - local: onnxruntime/package_reference/modeling
         title: ONNX Runtime Models
       - local: onnxruntime/package_reference/pipelines
         title: ONNX Runtime Pipelines

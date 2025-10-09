@@ -44,7 +44,7 @@ _import_structure = {
         "ONNX_FILE_PATTERN",
         "ONNX_WEIGHTS_NAME",
     ],
-    "modeling_ort": [
+    "modeling": [
         "ORTModel",
         "ORTModelForAudioClassification",
         "ORTModelForAudioFrameClassification",
@@ -142,8 +142,7 @@ if TYPE_CHECKING:
         ONNX_FILE_PATTERN,
         ONNX_WEIGHTS_NAME,
     )
-    from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
-    from optimum.onnxruntime.modeling_ort import (
+    from optimum.onnxruntime.modeling import (
         ORTModel,
         ORTModelForAudioClassification,
         ORTModelForAudioFrameClassification,
@@ -160,6 +159,7 @@ if TYPE_CHECKING:
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
     )
+    from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
     from optimum.onnxruntime.modeling_seq2seq import (
         ORTModelForPix2Struct,
         ORTModelForSeq2SeqLM,

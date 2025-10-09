@@ -40,7 +40,7 @@ from optimum.onnxruntime.constants import (
     ONNX_FILE_PATTERN,
     ONNX_WEIGHTS_NAME,
 )
-from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
+from optimum.onnxruntime.modeling import ONNX_MODEL_END_DOCSTRING, ORTModel
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
