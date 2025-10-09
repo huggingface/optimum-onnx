@@ -2,9 +2,12 @@ name: ONNX / Python - Test
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - v*-release
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}

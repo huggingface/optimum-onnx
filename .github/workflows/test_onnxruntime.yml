@@ -1,11 +1,13 @@
 name: ONNX Runtime / Python - Test
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - v*-release
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
