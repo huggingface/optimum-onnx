@@ -24,7 +24,7 @@ from transformers.utils import is_torch_available
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
-from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION, logging
+from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION
 from optimum.utils.import_utils import (
     _diffusers_version,
     is_diffusers_available,
@@ -33,7 +33,6 @@ from optimum.utils.import_utils import (
 )
 
 
-logger = logging.get_logger()
 
 
 if is_diffusers_available():
@@ -235,10 +234,6 @@ def _get_submodels_and_onnx_configs(
             preprocessors=preprocessors,
         )
         export_config.variant = _variant
-        all_variants = "\n".join(
-            [f"    - {name}: {description}" for name, description in export_config.VARIANTS.items()]
-        )
-        logger.info(f"Using the export variant {export_config.variant}. Available variants are:\n{all_variants}")
         return export_config, get_metaclip_2_models_for_export(model, export_config)
     return _get_submodels_and_export_configs(
         model,
