@@ -25,6 +25,7 @@ from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils.import_utils import is_transformers_version
 
+
 if TYPE_CHECKING:
     if is_torch_available():
         from transformers.modeling_utils import PreTrainedModel
