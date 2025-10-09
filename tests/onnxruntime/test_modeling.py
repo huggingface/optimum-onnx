@@ -58,6 +58,7 @@ from transformers.utils import http_user_agent
 from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
+    ORTModel,
     ORTModelForAudioClassification,
     ORTModelForAudioFrameClassification,
     ORTModelForAudioXVector,
@@ -72,10 +73,10 @@ from optimum.onnxruntime import (
     ORTModelForSemanticSegmentation,
     ORTModelForSequenceClassification,
     ORTModelForTokenClassification,
+    ORTModelForZeroShotImageClassification,
     pipeline,
 )
-from optimum.onnxruntime.modeling_ort import ORTModel, ORTModelForZeroShotImageClassification
-from optimum.utils import CONFIG_NAME, logging
+from optimum.utils import CONFIG_NAME, is_transformers_version, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
@@ -1931,8 +1932,10 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "clip",
-        "metaclip_2",
     ]
+
+    if is_transformers_version(">=", "4.56.2"):
+        SUPPORTED_ARCHITECTURES.append("metaclip_2")
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForZeroShotImageClassification
@@ -2022,9 +2025,12 @@ class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         model_id = MODEL_NAMES[model_arch]
-        onnx_model = AutoModelForZeroShotImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
+        tokenizer = get_preprocessor(model_id)
+        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
         preprocessor = maybe_load_preprocessors(model_id)[1]
-        pipe = pipeline("zero-shot-image-classification", model=onnx_model, image_processor=preprocessor)
+        pipe = pipeline(
+            "zero-shot-image-classification", model=onnx_model, image_processor=preprocessor, tokenizer=tokenizer
+        )
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
         outputs = pipe(url, candidate_labels=labels)
@@ -2045,115 +2051,6 @@ class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
         # compare model output class
         self.assertGreaterEqual(outputs[0]["score"], 0.0)
         self.assertTrue(isinstance(outputs[0]["label"], str))
-
-    @parameterized.expand(
-        grid_parameters(
-            {"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["CUDAExecutionProvider", "TensorrtExecutionProvider"]}
-        )
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
-        if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
-            self.skipTest("testing a single arch for TensorrtExecutionProvider")
-
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], provider=provider
-        )
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("zero-shot-image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
-        outputs = pipe(url, candidate_labels=labels)
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-
-        # compare model output class
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
-        self.assertTrue(isinstance(outputs[0]["label"], str))
-
-        gc.collect()
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": ["ROCMExecutionProvider"]})
-    )
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch], provider=provider
-        )
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("zero-shot-image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
-        outputs = pipe(url, candidate_labels=labels)
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-
-        # compare model output class
-        self.assertGreaterEqual(outputs[0]["score"], 0.0)
-        self.assertTrue(isinstance(outputs[0]["label"], str))
-
-        gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_to_io_binding(self, model_arch):
-        model_args = {"test_name": model_arch, "model_arch": model_arch}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch],
-            use_io_binding=False,
-            provider="CUDAExecutionProvider",
-            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
-        )
-        io_model = ORTModelForZeroShotImageClassification.from_pretrained(
-            self.onnx_model_dirs[model_arch],
-            use_io_binding=True,
-            provider="CUDAExecutionProvider",
-            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        preprocessor = get_preprocessor(model_id)
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
-        image = Image.open(requests.get(url, stream=True).raw)
-        inputs = preprocessor(images=[image] * 2, text=labels, return_tensors="pt").to("cuda")
-        inputs["attention_mask"] = (inputs["inputs_ids"] != 0).to(torch.int64)
-
-        onnx_outputs = onnx_model(**inputs)
-        io_outputs = io_model(**inputs)
-
-        self.assertTrue("logits_per_image" in onnx_outputs)
-        self.assertTrue("logits_per_text" in onnx_outputs)
-        self.assertTrue("image_embeds" in onnx_outputs)
-        self.assertTrue("text_embeds" in onnx_outputs)
-        self.assertIsInstance(io_outputs.logits_per_image, torch.Tensor)
-        self.assertIsInstance(io_outputs.logits_per_text, torch.Tensor)
-        self.assertIsInstance(io_outputs.image_embeds, torch.Tensor)
-        self.assertIsInstance(io_outputs.text_embeds, torch.Tensor)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
 
 
 class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):

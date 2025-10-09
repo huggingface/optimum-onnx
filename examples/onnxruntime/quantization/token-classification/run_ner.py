@@ -37,7 +37,7 @@ from transformers.utils.versions import require_version
 
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModelForTokenClassification
+from optimum.onnxruntime.modeling import ORTModelForTokenClassification
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,

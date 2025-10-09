@@ -31,8 +31,8 @@ from optimum.exporters.onnx.model_configs import CLIPNormalizedConfig
 from optimum.onnx.utils import check_model_uses_external_data
 from optimum.onnxruntime.configuration import OptimizationConfig, ORTConfig
 from optimum.onnxruntime.constants import ONNX_WEIGHTS_NAME
+from optimum.onnxruntime.modeling import ORTModel
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
-from optimum.onnxruntime.modeling_ort import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.utils import ORTConfigManager
 from optimum.utils import CONFIG_NAME, NormalizedConfigManager, logging

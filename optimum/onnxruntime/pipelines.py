@@ -58,7 +58,7 @@ if is_onnxruntime_available():
         ORTModelForVision2Seq,
         ORTModelForZeroShotImageClassification,
     )
-    from optimum.onnxruntime.modeling_ort import ORTModel
+    from optimum.onnxruntime.modeling import ORTModel
 
     ORT_TASKS_MAPPING = {
         "audio-classification": (ORTModelForAudioClassification,),

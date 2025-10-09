@@ -39,7 +39,7 @@ from onnxruntime.transformers.io_binding_helper import TypeHelper
 if TYPE_CHECKING:
     from datasets import Dataset
 
-    from optimum.onnxruntime.modeling_ort import ORTModel
+    from optimum.onnxruntime.modeling import ORTModel
 
 
 logger = logging.get_logger(__name__)
