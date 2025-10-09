@@ -224,7 +224,7 @@ def _get_submodels_and_onnx_configs(
     preprocessors: list[Any] | None = None,
     model_kwargs: dict | None = None,
 ):
-if library_name == "transformers" and model.config.model_type == "metaclip_2":
+    if library_name == "transformers" and model.config.model_type == "metaclip_2":
         export_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=task, library_name="transformers"
         )
