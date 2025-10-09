@@ -76,7 +76,7 @@ from optimum.onnxruntime import (
     ORTModelForZeroShotImageClassification,
     pipeline,
 )
-from optimum.utils import CONFIG_NAME, logging
+from optimum.utils import CONFIG_NAME, is_transformers_version, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
@@ -1932,8 +1932,10 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
 class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "clip",
-        "metaclip_2",
     ]
+
+    if is_transformers_version(">=", "4.56.2"):
+        SUPPORTED_ARCHITECTURES.append("metaclip_2")
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForZeroShotImageClassification
