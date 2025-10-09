@@ -23,15 +23,13 @@ from transformers.utils import is_torch_available
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
-from optimum.utils import DIFFUSERS_MINIMUM_VERSION, ORT_QUANTIZE_MINIMUM_VERSION
+from optimum.utils import DIFFUSERS_MINIMUM_VERSION
 from optimum.utils.import_utils import (
     _diffusers_version,
     is_diffusers_available,
     is_diffusers_version,
     is_transformers_version,
 )
-
-
 
 
 if is_diffusers_available():
