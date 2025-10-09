@@ -56,6 +56,7 @@ if is_onnxruntime_available():
         ORTModelForSpeechSeq2Seq,
         ORTModelForTokenClassification,
         ORTModelForVision2Seq,
+        ORTModelForZeroShotImageClassification,
     )
     from optimum.onnxruntime.modeling_ort import ORTModel
 
@@ -76,6 +77,7 @@ if is_onnxruntime_available():
         "token-classification": (ORTModelForTokenClassification,),
         "translation": (ORTModelForSeq2SeqLM,),
         "zero-shot-classification": (ORTModelForSequenceClassification,),
+        "zero-shot-image-classification": (ORTModelForZeroShotImageClassification,),
     }
 else:
     ORT_TASKS_MAPPING = {}

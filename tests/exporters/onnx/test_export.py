@@ -35,7 +35,14 @@ from utils_tests import (
 )
 
 from optimum.exporters.error_utils import AtolError
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithPast, export_models, main_export, validate_models_outputs
+from optimum.exporters.onnx import (
+    OnnxConfig,
+    OnnxConfigWithPast,
+    export_models,
+    get_metaclip_2_models_for_export,
+    main_export,
+    validate_models_outputs,
+)
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
@@ -213,11 +220,13 @@ class OnnxExportTestCase(TestCase):
         elif model.config.model_type == "speecht5":
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
             models_and_onnx_configs = get_speecht5_models_for_export(model, onnx_config, model_kwargs)
+        elif model.config.model_type == "metaclip_2":
+            models_and_onnx_configs = get_metaclip_2_models_for_export(model, onnx_config)
         else:
             models_and_onnx_configs = {"model": (model, onnx_config)}
 
         with TemporaryDirectory() as tmpdirname:
-            onnx_inputs, onnx_outputs = export_models(
+            _, onnx_outputs = export_models(
                 models_and_onnx_configs=models_and_onnx_configs,
                 opset=onnx_config.DEFAULT_ONNX_OPSET,
                 output_dir=Path(tmpdirname),

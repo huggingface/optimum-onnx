@@ -20,6 +20,7 @@ import logging
 import os
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
@@ -42,6 +43,7 @@ from transformers import (
     AutoModelForSemanticSegmentation,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
+    AutoModelForZeroShotImageClassification,
     GenerationMixin,
 )
 from transformers.file_utils import add_end_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
@@ -125,6 +127,29 @@ ONNX_AUDIO_INPUTS_DOCSTRING = r"""
             Float values of input raw speech waveform..
             Input values can be obtained from audio file loaded into an array using [`AutoFeatureExtractor`](https://huggingface.co/docs/transformers/autoclass_tutorial#autofeatureextractor).
 """
+
+
+@dataclass
+class ZeroShotImageClassificationOutput(ModelOutput):
+    r"""logits_per_image (`torch.FloatTensor` of shape `(image_batch_size, text_batch_size)`):
+        The scaled dot product scores between `image_embeds` and `text_embeds`. This represents the image-text
+        similarity scores.
+    logits_per_text (`torch.FloatTensor` of shape `(text_batch_size, image_batch_size)`):
+        The scaled dot product scores between `text_embeds` and `image_embeds`. This represents the text-image
+        similarity scores.
+    text_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
+        The text embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2TextModel`].
+    image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim`):
+        The image embeddings obtained by applying the projection layer to the pooled output of [`MetaClip2VisionModel`].
+    """
+
+    logits_per_image: torch.FloatTensor = None
+    logits_per_text: torch.FloatTensor = None
+    text_embeds: torch.FloatTensor = None
+    image_embeds: torch.FloatTensor = None
+
+    def to_tuple(self) -> tuple[Any]:
+        return tuple(self[k] for k in self.keys())
 
 
 # TODO: remove OptimizedModel and use a HubMixin to be able to combine it freely with other mixins
@@ -1315,6 +1340,67 @@ class ORTModelForImageClassification(ORTModel):
 
         # converts output to namedtuple for pipelines post-processing
         return ImageClassifierOutput(logits=logits)
+
+
+@add_end_docstrings(ONNX_MODEL_END_DOCSTRING)
+class ORTModelForZeroShotImageClassification(ORTModel):
+    """ONNX Model for zero-shot-image-classification tasks. This class officially supports clip, metaclip-2."""
+
+    auto_model_class = AutoModelForZeroShotImageClassification
+
+    @add_start_docstrings_to_model_forward(
+        ONNX_TEXT_INPUTS_DOCSTRING.format("batch_size, sequence_length")
+        + ONNX_IMAGE_INPUTS_DOCSTRING.format("batch_size, num_channels, height, width")
+    )
+    def forward(
+        self,
+        input_ids: torch.Tensor | np.ndarray,
+        pixel_values: torch.Tensor | np.ndarray,
+        attention_mask: torch.Tensor | np.ndarray | None = None,
+        **kwargs,
+    ):
+        self._warn_on_unhandled_inputs(kwargs)
+        # Determine the tensor type from any available tensor input
+        model_inputs = {
+            "input_ids": input_ids,
+            "pixel_values": pixel_values,
+            "attention_mask": attention_mask,
+        }
+
+        use_torch = isinstance(pixel_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
+
+        if self.use_io_binding:
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            # run inference with binding & synchronize in case of multiple CUDA streams
+            if self.device.type == "cpu":
+                self.session.run_with_iobinding(self._io_binding)
+            else:
+                self._io_binding.synchronize_inputs()
+                self.session.run_with_iobinding(self._io_binding)
+                self._io_binding.synchronize_outputs()
+
+            logits_per_text = output_buffers["logits_per_text"].view(output_shapes["logits_per_text"])
+            logits_per_image = output_buffers["logits_per_image"].view(output_shapes["logits_per_image"])
+            text_embeds = output_buffers["text_embeds"].view(output_shapes["text_embeds"])
+            image_embeds = output_buffers["image_embeds"].view(output_shapes["image_embeds"])
+        else:
+            onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
+            onnx_outputs = self.session.run(None, onnx_inputs)
+            model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
+
+            logits_per_text = model_outputs["logits_per_text"]
+            logits_per_image = model_outputs["logits_per_image"]
+            text_embeds = model_outputs["text_embeds"]
+            image_embeds = model_outputs["image_embeds"]
+
+        return ZeroShotImageClassificationOutput(
+            logits_per_text=logits_per_text,
+            logits_per_image=logits_per_image,
+            text_embeds=text_embeds,
+            image_embeds=image_embeds,
+        )
 
 
 SEMANTIC_SEGMENTATION_EXAMPLE = r"""
