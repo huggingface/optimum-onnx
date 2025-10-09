@@ -374,10 +374,10 @@ class ORTSessionMixin:
                 The names of the outputs that should not be bound.
             known_output_buffers (`Optional[Dict[str, str]]`, defaults to `None`):
                 Sometimes we can reuse the same input buffer for the output. This is the case for the output sample
-                in a diffusion pipeline. It is possible to explicitely pass the buffer via this argument.
+                in a diffusion pipeline. It is possible to explicitly pass the buffer via this argument.
             known_output_shapes (`Optional[Dict[str, Tuple[int]]]`, defaults to `None`):
                 It can be hard to infer all the output shapes from the inputs only. For instance for the past key /
-                values. It is possible to explicitely pass the shape via this argument.
+                values. It is possible to explicitly pass the shape via this argument.
 
         Returns:
             `TupleDict[str, Tuple[int]], Dict[str, torch.Tensor]`: A dictionary of the output shapes and a dictionary of

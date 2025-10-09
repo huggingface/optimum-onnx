@@ -251,7 +251,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             logger.info("Skipping CUDAExecutionProvider/TensorrtExecutionProvider without `onnxruntime-gpu` test")
 
         # need to install first onnxruntime-gpu, then onnxruntime for this test to pass,
-        # thus overwritting onnxruntime/capi/_ld_preload.py
+        # thus overwriting onnxruntime/capi/_ld_preload.py
         if is_onnxruntime_installed and is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
                 with self.assertRaises(ValueError) as cm:

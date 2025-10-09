@@ -355,7 +355,7 @@ PYTORCH_DIFFUSION_MODEL = {
 
 PYTORCH_TIMM_MODEL = {
     "default-timm-config": {
-        "timm/inception_v3.tf_adv_in1k": ["image-classification"],  # one model is enought to test timm integration
+        "timm/inception_v3.tf_adv_in1k": ["image-classification"],  # one model is enough to test timm integration
     }
 }
 

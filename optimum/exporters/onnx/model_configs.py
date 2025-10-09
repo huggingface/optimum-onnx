@@ -1426,7 +1426,7 @@ class UNetOnnxConfig(VisionOnnxConfig):
     def ordered_inputs(self, model) -> dict[str, dict[int, str]]:
         inputs = super().ordered_inputs(model=model)
         # to fix mismatch between model forward signature and expected inputs
-        # a dictionnary of additional embeddings `added_cond_kwargs` is expected depending on config.addition_embed_type
+        # a dictionary of additional embeddings `added_cond_kwargs` is expected depending on config.addition_embed_type
         if getattr(self._normalized_config, "addition_embed_type", None) == "text_time":
             inputs["text_embeds"] = self.inputs["text_embeds"]
             inputs["time_ids"] = self.inputs["time_ids"]

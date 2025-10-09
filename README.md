@@ -14,13 +14,13 @@
 Before you begin, make sure you install all necessary libraries by running:
 
 ```bash
-pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
+pip install "optimum-onnx[onnxruntime] @ git+https://github.com/huggingface/optimum-onnx.git"
 ```
 
 If you want to use the [GPU version of ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#cuda-execution-provider), make sure the CUDA and cuDNN [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) are satisfied, and install the additional dependencies by running :
 
 ```bash
-pip install "optimum-onnx[onnxruntime-gpu]"@git+https://github.com/huggingface/optimum-onnx.git
+pip install "optimum-onnx[onnxruntime-gpu] @ git+https://github.com/huggingface/optimum-onnx.git"
 ```
 
 To avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime` prior to installing Optimum.
@@ -38,7 +38,7 @@ For more information on the ONNX export, please check the [documentation](https:
 
 #### Inference
 
-Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seemless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
+Once the model is exported to the ONNX format, we provide Python classes enabling you to run the exported ONNX model in a seamless manner using [ONNX Runtime](https://onnxruntime.ai/) in the backend:
 
 
 ```diff

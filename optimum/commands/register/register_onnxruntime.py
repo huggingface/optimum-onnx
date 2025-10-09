@@ -13,7 +13,9 @@
 # limitations under the License.
 
 
-from optimum.commands.onnxruntime import ONNXRuntimeCommand
+from optimum.commands.onnxruntime.base import ONNXRuntimeCommand
 
 
-REGISTER_COMMANDS = [ONNXRuntimeCommand]
+REGISTER_COMMANDS = [
+    ONNXRuntimeCommand,
+]

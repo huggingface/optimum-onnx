@@ -33,7 +33,7 @@ class ONNXRuntimeCommand(BaseOptimumCLICommand):
         ),
         CommandInfo(
             name="quantize",
-            help="Dynammic quantization for ONNX models.",
+            help="Dynamic quantization for ONNX models.",
             subcommand_class=ONNXRuntimeQuantizeCommand,
         ),
     )

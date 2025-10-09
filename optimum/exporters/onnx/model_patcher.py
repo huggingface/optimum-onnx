@@ -152,7 +152,7 @@ def scaled_dot_product_attention(
 
 
 def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: str | None = None):
-    """Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+    """Finds all occurrences of `attribute_name` in the loaded modules and patches them with `patch`.
 
     Args:
         attribute_name (`str`):
@@ -476,7 +476,7 @@ class ModelPatcher:
 
         if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
             # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
-            # we fix thoses issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
+            # we fix those issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
             # issues are: support for positional args (use_cache for instance) and fix for _CAN_RECORD_REGISTRY
             # explicitly mapping to None for some models
             self.orig_forward = types.MethodType(
@@ -544,7 +544,7 @@ class ModelPatcher:
 
             outputs = self.orig_forward(*args, **kwargs)
 
-            # This code block handles different cases of the filterd_outputs input to align it with the expected
+            # This code block handles different cases of the filtered_outputs input to align it with the expected
             # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
             # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
             # contains the output names of the model. In the case of Timm classification models, the output
@@ -993,20 +993,20 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 raise ValueError("Should not happen")
 
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filterd_outputs = {}
+            filtered_outputs = {}
             for name, value in result.items():
                 if name != "past_key_values":
-                    filterd_outputs[name] = value
+                    filtered_outputs[name] = value
                 else:
                     if self.real_config._behavior == "decoder" and (
                         self.real_config.is_merged or not self.real_config.use_past_in_inputs
                     ):
-                        filterd_outputs[name] = value
+                        filtered_outputs[name] = value
                     elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                         # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                        filterd_outputs[name] = tuple([v[:2] for v in value])
+                        filtered_outputs[name] = tuple([v[:2] for v in value])
 
-            return filterd_outputs
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
@@ -1063,13 +1063,13 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
 # Triu with possible dynamic `diagonal` argument. Not possible with torch.triu unfortunately.
 def triu_onnx(x, diagonal=0):
     l, w = x.shape
-    arange_rows = torch.arange(l, device=x.device)
+    arrange_rows = torch.arange(l, device=x.device)
 
-    arange_cols = torch.arange(w, device=x.device)
-    mask = arange_cols.expand(l, w)
+    arrange_cols = torch.arange(w, device=x.device)
+    mask = arrange_cols.expand(l, w)
 
-    arange_rows = arange_rows[:, None] + diagonal
-    mask = mask >= arange_rows
+    arrange_rows = arrange_rows[:, None] + diagonal
+    mask = mask >= arrange_rows
     return x.masked_fill(mask == 0, 0)
 
 
@@ -1272,8 +1272,8 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
     # this will be used to easily index which expert is going to be sollicitated
     expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
 
-    # TODO: we loop over all possible experts instead of hitted ones to avoid issues in graph execution.
-    # expert_hitted = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+    # TODO: we loop over all possible experts instead of hit ones to avoid issues in graph execution.
+    # expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
     # Loop over all available experts in the model and perform the computation on each expert
     for expert_idx in range(self.num_experts):
         expert_layer = self.experts[expert_idx]

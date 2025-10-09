@@ -603,13 +603,71 @@ class AutoQuantizationConfig:
         )
 
     @staticmethod
+    def ppc64le(
+        is_static: bool,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
+    ):
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for ppc64le.
+
+        When targeting IBM POWER10 ppc64le, the underlying execution engine leverages 8-bit outer-product instructions
+        (e.g., xvi8ger4pp and signed/unsigned variants) to compute fused byte dot-products and accumulate into 32-bit results, i.e.,
+        i32 += i8(w) * u8(x) at 4-way granularity per output element within a single instruction using a 512-bit MMA accumulator.
+
+        MMA (Matrix-Multiply Assist) is a POWER10 extension of the Power ISA and is part of the Power ISA v3.1 specification,
+        exposed via VSX-backed 512-bit accumulators and compiler intrinsics.
+
+        POWER10 MMA 8-bit outer-product instructions are designed to accelerate INT8 inference on ppc64le by fusing
+        multiply-accumulate data paths and minimizing instruction count.
+
+        Args:
+            is_static (`bool`):
+                Boolean flag to indicate whether we target static or dynamic quantization.
+            use_symmetric_activations (`bool`, defaults to `False`):
+                Whether to use symmetric quantization for activations.
+            use_symmetric_weights (`bool`, defaults to `True`):
+                Whether to use symmetric quantization for weights.
+            per_channel (`bool`, defaults to `True`):
+                Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+                increase overall accuracy while making the quantized model heavier.
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
+        """
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
+
+        return QuantizationConfig(
+            is_static=is_static,
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=False,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize,
+        )
+
+    @staticmethod
     def tensorrt(
         per_channel: bool = True,
         nodes_to_quantize: list[str] | None = None,
         nodes_to_exclude: list[str] | None = None,
         operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
-        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targeting NVIDIA GPUs.
 
         Args:
             per_channel (`bool`, defaults to `True`):
@@ -814,7 +872,7 @@ class AutoOptimizationConfig:
 
         if optimization_level == "O4":
             if for_gpu is False:
-                logger.warning("Overridding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
+                logger.warning("Overriding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
             for_gpu = True
 
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)
