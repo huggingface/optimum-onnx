@@ -23,21 +23,7 @@ from transformers.utils import is_torch_available
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
-from optimum.utils import DIFFUSERS_MINIMUM_VERSION
-from optimum.utils.import_utils import (
-    _diffusers_version,
-    is_diffusers_available,
-    is_diffusers_version,
-    is_transformers_version,
-)
-
-
-if is_diffusers_available():
-    if not is_diffusers_version(">=", DIFFUSERS_MINIMUM_VERSION.base_version):
-        raise ImportError(
-            f"We found an older version of diffusers {_diffusers_version} but we require diffusers to be >= {DIFFUSERS_MINIMUM_VERSION}. "
-            "Please update diffusers by running `pip install --upgrade diffusers`"
-        )
+from optimum.utils.import_utils import is_transformers_version
 
 if TYPE_CHECKING:
     if is_torch_available():
