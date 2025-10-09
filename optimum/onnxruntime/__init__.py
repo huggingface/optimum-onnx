@@ -53,6 +53,7 @@ _import_structure = {
         "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
+        "ORTModelForZeroShotImageClassification",
         "ORTModelForMaskedLM",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
@@ -158,6 +159,7 @@ if TYPE_CHECKING:
         ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
+        ORTModelForZeroShotImageClassification,
     )
     from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
     from optimum.onnxruntime.modeling_seq2seq import (
