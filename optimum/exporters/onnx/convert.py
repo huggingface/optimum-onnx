@@ -567,6 +567,7 @@ def export_pytorch(
                 dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
+                dynamo=False,  # torch dynamo not yet supported
             )
 
         # check if external data was exported
