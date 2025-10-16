@@ -55,6 +55,7 @@ from optimum.utils import (
     is_diffusers_available,
     is_onnxslim_available,
     is_torch_onnx_support_available,
+    is_torch_version,
     is_transformers_version,
     logging,
 )
@@ -556,6 +557,12 @@ def export_pytorch(
             else:
                 dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
+            if is_torch_version(">=", "2.9"):
+                # Starting from 2.9 dynamo's default value is True
+                dynamo_kwargs = {"dynamo": False}
+            else:
+                dynamo_kwargs = {}
+
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
             onnx_export(
@@ -567,7 +574,7 @@ def export_pytorch(
                 dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
-                dynamo=False,  # torch dynamo not yet supported
+                **dynamo_kwargs,
             )
 
         # check if external data was exported
