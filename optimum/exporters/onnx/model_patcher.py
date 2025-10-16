@@ -23,12 +23,16 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 import transformers
-from torch.onnx.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper
 from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.utils import is_diffusers_version, is_torch_version, is_transformers_version, logging
 
+
+if is_torch_version("<", "2.9"):
+    from torch.onnx.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper
+else:
+    from torch.onnx._internal.torchscript_exporter.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper
 
 if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
     from optimum.exporters.onnx._traceable_cache import TraceableCache
