@@ -73,7 +73,7 @@ def __ior_(g, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
 torch.onnx.register_custom_op_symbolic("aten::__ior__", __ior_, 14)
 
 if is_torch_version("<", "2.9"):
-    # this wad fixed in torch in 2.9 https://github.com/pytorch/pytorch/pull/159973
+    # this was fixed in torch in 2.9 https://github.com/pytorch/pytorch/pull/159973
     from torch.onnx import JitScalarType
     from torch.onnx.symbolic_opset14 import _attention_scale, _causal_attention_mask
 
