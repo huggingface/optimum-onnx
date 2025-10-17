@@ -18,21 +18,16 @@ import functools
 import inspect
 import sys
 import types
-import warnings
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 import transformers
+from torch.onnx import symbolic_helper
 from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
 from optimum.utils import is_diffusers_version, is_torch_version, is_transformers_version, logging
 
-
-if is_torch_version("<", "2.9"):
-    from torch.onnx.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper
-else:
-    from torch.onnx._internal.torchscript_exporter.symbolic_opset14 import _onnx_symbolic, jit_utils, symbolic_helper
 
 if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
     from optimum.exporters.onnx._traceable_cache import TraceableCache
@@ -70,30 +65,21 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
-@_onnx_symbolic("aten::__ior_")
 @symbolic_helper.parse_args("v", "v")
-def __ior_(g: jit_utils.GraphContext, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
+def __ior_(g, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
     return g.op("Or", self, other)
 
 
+torch.onnx.register_custom_op_symbolic("aten::__ior__", __ior_, 14)
+
 if is_torch_version("<", "2.9"):
     # this wad fixed in torch in 2.9 https://github.com/pytorch/pytorch/pull/159973
-    from torch.onnx.errors import OnnxExporterWarning
-    from torch.onnx.symbolic_opset14 import (
-        _attention_scale,
-        _causal_attention_mask,
-        _onnx_symbolic,
-        _type_utils,
-        jit_utils,
-        symbolic_helper,
-    )
+    from torch.onnx import JitScalarType
+    from torch.onnx.symbolic_opset14 import _attention_scale, _causal_attention_mask
 
-    warnings.filterwarnings("ignore", category=OnnxExporterWarning)
-
-    @_onnx_symbolic("aten::scaled_dot_product_attention")
     @symbolic_helper.parse_args("v", "v", "v", "v", "f", "b", "v", "b")
     def scaled_dot_product_attention(
-        g: jit_utils.GraphContext,
+        g,
         query: torch._C.Value,
         key: torch._C.Value,
         value: torch._C.Value,
@@ -131,7 +117,7 @@ if is_torch_version("<", "2.9"):
         if symbolic_helper._is_none(attn_mask):
             mul_qk_add = mul_qk
             attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
-        elif _type_utils.JitScalarType.from_value(attn_mask) == _type_utils.JitScalarType.BOOL:
+        elif JitScalarType.from_value(attn_mask) == JitScalarType.BOOL:
             # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
             const_zero = g.op("Constant", value_t=torch.tensor([0.0]))
             const_neg_inf = g.op("Constant", value_t=torch.tensor([-float("inf")]))
@@ -142,15 +128,15 @@ if is_torch_version("<", "2.9"):
             attn_weight = g.op(
                 "Where", g.op("IsNaN", attn_weight), g.op("Constant", value_t=torch.tensor([0.0])), attn_weight
             )
-        elif _type_utils.JitScalarType.from_value(attn_mask) in (
-            _type_utils.JitScalarType.FLOAT,
-            _type_utils.JitScalarType.HALF,
-            _type_utils.JitScalarType.BFLOAT16,
+        elif JitScalarType.from_value(attn_mask) in (
+            JitScalarType.FLOAT,
+            JitScalarType.HALF,
+            JitScalarType.BFLOAT16,
         ):
             mul_qk_add = g.op("Add", mul_qk, attn_mask)
             attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
         else:
-            raise ValueError(f"Unsupported type for attn_mask: {_type_utils.JitScalarType.from_value(attn_mask)}")
+            raise ValueError(f"Unsupported type for attn_mask: {JitScalarType.from_value(attn_mask)}")
 
         if dropout_p != 0:
             attn_weight = g.op(
@@ -161,7 +147,7 @@ if is_torch_version("<", "2.9"):
 
         return g.op("MatMul", attn_weight, value)
 
-    warnings.filterwarnings("default", category=OnnxExporterWarning)
+    torch.onnx.register_custom_op_symbolic("aten::scaled_dot_product_attention", scaled_dot_product_attention, 14)
 
 
 def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: str | None = None):
