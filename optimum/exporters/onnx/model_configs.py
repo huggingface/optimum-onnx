@@ -517,6 +517,13 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
+@register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS)
+class Gemma3OnnxConfig(GemmaOnnxConfig):
+    """ONNX config for Gemma3 text-only models."""
+    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+
+
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
 class GPTOssOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")

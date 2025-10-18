@@ -56,3 +56,7 @@ Once the model is exported to the ONNX format, we provide Python classes enablin
 ```
 
 More details on how to run ONNX models with `ORTModelForXXX` classes [here](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/models).
+
+### Examples
+
+Check out the [examples folder](./examples) for more usage examples including optimization, quantization, and model-specific demonstrations.
