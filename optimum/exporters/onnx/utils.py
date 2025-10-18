@@ -38,6 +38,8 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
     "cohere",
     "falcon",
     "gemma",
+    "gemma2",
+    "gemma3",
     "glm",
     "gpt2",
     "gpt_bigcode",
