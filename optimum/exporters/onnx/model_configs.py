@@ -43,7 +43,6 @@ from optimum.exporters.onnx.model_patcher import (
     CohereModelPatcher,
     FluxTransformerModelPatcher,
     MetaCLIP2Patcher,
-    Gemma3LMModelPatcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
     MusicgenModelPatcher,
@@ -523,7 +522,6 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
 class Gemma3OnnxConfig(GemmaOnnxConfig):
     """ONNX config for Gemma3 text-only models."""
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
-    _MODEL_PATCHER = Gemma3LMModelPatcher
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
