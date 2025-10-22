@@ -580,26 +580,24 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_generation_with_and_without_past_key_values(self, model_arch):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
-        setup_args = {
+        without_pkv_setup_args = {
             "test_name": model_arch + "_False",
             "model_arch": model_arch,
             "use_cache": False,
             "trust_remote_code": trust_remote_code,
         }
-        self._setup(setup_args)
-        setup_args = {
+        self._setup(without_pkv_setup_args)
+        with_pkv_setup_args = {
             "test_name": model_arch + "_True",
             "model_arch": model_arch,
             "use_cache": True,
             "trust_remote_code": trust_remote_code,
         }
-        self._setup(setup_args)
+        self._setup(without_pkv_setup_args)
 
-        model_with_pkv = self.get_onnx_model(test_name=model_arch + "_True", model_arch=model_arch, use_cache=True)
+        model_with_pkv = self.get_onnx_model(**with_pkv_setup_args)
         self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
-        model_without_pkv = self.get_onnx_model(
-            test_name=model_arch + "_False", model_arch=model_arch, use_cache=False
-        )
+        model_without_pkv = self.get_onnx_model(**without_pkv_setup_args)
         self.check_onnx_model_attributes(model_without_pkv, use_cache=False)
 
         inputs = self.get_inputs(model_arch, for_generation=True)
@@ -614,19 +612,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
             "test_name": test_name,
-            "model_arch": model_arch,
             "use_cache": use_cache,
+            "model_arch": model_arch,
             "trust_remote_code": trust_remote_code,
         }
         self._setup(setup_args)
 
-        onnx_model = self.get_onnx_model(
-            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=False
-        )
+        onnx_model = self.get_onnx_model(**setup_args, use_io_binding=False)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
-        io_model = self.get_onnx_model(
-            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=True
-        )
+        io_model = self.get_onnx_model(**setup_args, use_io_binding=True)
         self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
         inputs = self.get_inputs(model_arch)
@@ -648,13 +642,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(setup_args)
 
-        onnx_model = self.get_onnx_model(
-            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=False
-        )
+        onnx_model = self.get_onnx_model(**setup_args, use_io_binding=False)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
-        io_model = self.get_onnx_model(
-            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=True
-        )
+        io_model = self.get_onnx_model(**setup_args, use_io_binding=True)
         self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
         inputs = self.get_inputs(model_arch, for_generation=True)
