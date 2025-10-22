@@ -134,13 +134,6 @@ class OptimizationArguments:
             "99 will enable all available optimizations including layout optimizations."
         },
     )
-    optimize_with_onnxruntime_only: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to only use ONNX Runtime to optimize the model and no graph fusion in Python."
-            "Graph fusion might require offline, Python scripts, to be run."
-        },
-    )
     optimize_for_gpu: bool = field(
         default=False,
         metadata={
@@ -232,7 +225,6 @@ def main():
     # Create the optimization configuration containing all the optimization parameters
     optimization_config = OptimizationConfig(
         optimization_level=optim_args.optimization_level,
-        optimize_with_onnxruntime_only=optim_args.optimize_with_onnxruntime_only,
         optimize_for_gpu=optim_args.optimize_for_gpu,
     )
 

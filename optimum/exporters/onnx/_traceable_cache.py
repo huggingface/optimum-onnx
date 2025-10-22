@@ -1,3 +1,16 @@
+# Copyright 2025 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from __future__ import annotations
 
 import logging
@@ -46,7 +59,7 @@ class TraceableCache:
         # TODO: deprecate this function in favor of `cache_position`
         raise NotImplementedError("Make sure to implement `get_seq_length` in a subclass.")
 
-    # Deprecate in favor of max-cache-shape because we want to be specifc by what we mean with "max_length"
+    # Deprecate in favor of max-cache-shape because we want to be specific by what we mean with "max_length"
     # Prev some cache objects didn't have "max_length" (SlidingWindowCache or SinkCache) because the cache object technically handles
     # infinite amount of tokens. In the codebase what we really need to check is the max capacity of certain cache instances, so
     # we change naming to be more explicit

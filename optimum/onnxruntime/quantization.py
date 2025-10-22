@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 import os
-import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -32,7 +31,7 @@ from onnxruntime.quantization.onnx_quantizer import ONNXQuantizer
 from onnxruntime.quantization.qdq_quantizer import QDQQuantizer
 from optimum.onnxruntime import ORTQuantizableOperator
 from optimum.onnxruntime.configuration import CalibrationConfig, ORTConfig, QuantizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModel
+from optimum.onnxruntime.modeling import ORTModel
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.quantization_base import OptimumQuantizer
@@ -423,7 +422,6 @@ class ORTQuantizer(OptimumQuantizer):
         preprocess_function: Callable | None = None,
         preprocess_batch: bool = True,
         seed: int = 2016,
-        use_auth_token: bool | str | None = None,
         token: bool | str | None = None,
     ) -> Dataset:
         """Creates the calibration `datasets.Dataset` to use for the post-training static quantization calibration step.
@@ -444,8 +442,6 @@ class ORTQuantizer(OptimumQuantizer):
                 Whether the `preprocess_function` should be batched.
             seed (`int`, defaults to 2016):
                 The random seed to use when shuffling the calibration dataset.
-            use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
-                Deprecated. Please use the `token` argument instead.
             token (`Optional[Union[bool,str]]`, defaults to `None`):
                 The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
                 when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
@@ -454,16 +450,6 @@ class ORTQuantizer(OptimumQuantizer):
             The calibration `datasets.Dataset` to use for the post-training static quantization calibration
             step.
         """
-        if use_auth_token is not None:
-            warnings.warn(
-                "The `use_auth_token` argument is deprecated and will be removed soon. Please use the `token` argument instead.",
-                FutureWarning,
-                stacklevel=2,
-            )
-            if token is not None:
-                raise ValueError("You cannot use both `use_auth_token` and `token` arguments at the same time.")
-            token = use_auth_token
-
         if dataset_name is None:
             raise ValueError(
                 "ORTQuantizer: Static quantization calibration step requires a dataset_name if no calib_dataset is "

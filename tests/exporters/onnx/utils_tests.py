@@ -61,6 +61,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "chinese_clip": "hf-internal-testing/tiny-random-ChineseCLIPModel",
     "clip": "hf-internal-testing/tiny-random-CLIPModel",
     "clip_vision_model": "fxmarty/clip-vision-model-tiny",
+    "cohere": "hf-internal-testing/tiny-random-CohereForCausalLM",
     "colpali": "hf-internal-testing/tiny-random-ColPaliForRetrieval",
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "convnext": "hf-internal-testing/tiny-random-convnext",
@@ -75,8 +76,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "deberta-v2": "hf-internal-testing/tiny-random-DebertaV2Model",
     "decision_transformer": "edbeeching/decision-transformer-gym-hopper-medium",
     "deit": "hf-internal-testing/tiny-random-DeiTModel",
+    "deepseek_v3": "hf-internal-testing/tiny-random-DeepseekV3ForCausalLM",
     "dinov2": "hf-internal-testing/tiny-random-Dinov2Model",
-    "donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
     "donut-swin": "hf-internal-testing/tiny-random-DonutSwinModel",
     "detr": "hf-internal-testing/tiny-random-DetrModel",
     "distilbert": "hf-internal-testing/tiny-random-DistilBertModel",
@@ -101,17 +102,23 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
+    "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
+    "gemma3_text": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
+    "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
+    "gpt_oss": "echarlaix/tiny-random-gpt-oss-mxfp4",
     "gptj": "hf-internal-testing/tiny-random-GPTJModel",
     "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
+    "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
-    "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel",
+    # "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel", # The mode is broken on transformers :/
     "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
@@ -139,6 +146,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
     "mt5": "lewtun/tiny-random-mt5",
     "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
+    "nemotron": "badaoui/tiny-random-NemotronForCausalLM",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "olmo": "hf-internal-testing/tiny-random-OlmoForCausalLM",
     "olmo2": "hf-internal-testing/tiny-random-Olmo2ForCausalLM",
@@ -174,6 +182,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "siglip_vision_model": "hf-internal-testing/tiny-random-SiglipVisionModel",
     "splinter": "hf-internal-testing/tiny-random-SplinterModel",
     "squeezebert": "hf-internal-testing/tiny-random-SqueezeBertModel",
+    "stablelm": "hf-internal-testing/tiny-random-StableLmForCausalLM",
     "swin": "hf-internal-testing/tiny-random-SwinModel",
     "swinv2": "hf-internal-testing/tiny-random-Swinv2Model",
     "swin2sr": "hf-internal-testing/tiny-random-Swin2SRModel",
@@ -215,14 +224,20 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "xlm": "hf-internal-testing/tiny-random-XLMModel",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "vision-encoder-decoder": {
+        # vit-gpt2
         "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
             "image-to-text",
             "image-to-text-with-past",
         ],
-        "microsoft/trocr-small-handwritten": ["image-to-text", "image-to-text-with-past"],
+        # donut encoder
         "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
-            "document-question-answering",
-            "document-question-answering-with-past",
+            "image-to-text",
+            "image-to-text-with-past",
+        ],
+        # trocr decoder
+        "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr": [
+            "image-to-text",
+            "image-to-text-with-past",
         ],
     },
 }
@@ -277,6 +292,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "facebook/maskformer-swin-tiny-coco",
     "mbart": "sshleifer/tiny-mbart",
+    "metaclip_2": "vladislavbro/hf-internal-testing-metaclip-2-tiny",
     "mgp-str": "alibaba-damo/mgp-str-base",
     "mobilebert": "google/mobilebert-uncased",
     "mobilenet_v1": "google/mobilenet_v1_0.75_192",
@@ -341,7 +357,7 @@ PYTORCH_DIFFUSION_MODEL = {
 
 PYTORCH_TIMM_MODEL = {
     "default-timm-config": {
-        "timm/inception_v3.tf_adv_in1k": ["image-classification"],  # one model is enought to test timm integration
+        "timm/inception_v3.tf_adv_in1k": ["image-classification"],  # one model is enough to test timm integration
     }
 }
 

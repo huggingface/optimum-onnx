@@ -19,7 +19,6 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-import onnx
 import onnxruntime
 import pytest
 import requests
@@ -30,7 +29,6 @@ from parameterized import parameterized
 from PIL import Image
 from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
 from transformers import (
-    AutoConfig,
     AutoFeatureExtractor,
     AutoImageProcessor,
     AutoModel,
@@ -44,33 +42,23 @@ from transformers import (
     AutoModelForMultipleChoice,
     AutoModelForQuestionAnswering,
     AutoModelForSemanticSegmentation,
-    AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
-    AutoModelForSpeechSeq2Seq,
     AutoModelForTokenClassification,
-    AutoModelForVision2Seq,
+    AutoModelForZeroShotImageClassification,
     AutoTokenizer,
-    MBartForConditionalGeneration,
-    Pix2StructForConditionalGeneration,  # Pix2Struct does not work with AutoModel
     PretrainedConfig,
     set_seed,
 )
 from transformers.modeling_outputs import BaseModelOutput, ImageSuperResolutionOutput
-from transformers.modeling_utils import no_init_weights
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
 from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from transformers.utils import http_user_agent
 
-from optimum.exporters import TasksManager
-from optimum.exporters.onnx import main_export
-from optimum.onnx.utils import has_onnx_input
+from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import (
-    ONNX_DECODER_MERGED_NAME,
-    ONNX_DECODER_NAME,
-    ONNX_DECODER_WITH_PAST_NAME,
-    ONNX_ENCODER_NAME,
     ONNX_WEIGHTS_NAME,
+    ORTModel,
     ORTModelForAudioClassification,
     ORTModelForAudioFrameClassification,
     ORTModelForAudioXVector,
@@ -81,19 +69,14 @@ from optimum.onnxruntime import (
     ORTModelForImageToImage,
     ORTModelForMaskedLM,
     ORTModelForMultipleChoice,
-    ORTModelForPix2Struct,
     ORTModelForQuestionAnswering,
     ORTModelForSemanticSegmentation,
-    ORTModelForSeq2SeqLM,
     ORTModelForSequenceClassification,
-    ORTModelForSpeechSeq2Seq,
     ORTModelForTokenClassification,
-    ORTModelForVision2Seq,
+    ORTModelForZeroShotImageClassification,
+    pipeline,
 )
-from optimum.onnxruntime.modeling_ort import ORTModel
-from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
-from optimum.pipelines import pipeline
-from optimum.utils import CONFIG_NAME, logging
+from optimum.utils import CONFIG_NAME, is_transformers_version, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
@@ -111,9 +94,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.ONNX_MODEL_ID = "philschmid/distilbert-onnx"
         self.TINY_ONNX_MODEL_ID = "fxmarty/resnet-tiny-beans"
         self.FAIL_ONNX_MODEL_ID = "sshleifer/tiny-distilbert-base-cased-distilled-squad"
-        self.ONNX_SEQ2SEQ_MODEL_ID = "optimum/t5-small"
-        self.LARGE_ONNX_SEQ2SEQ_MODEL_ID = "facebook/mbart-large-en-ro"
-        self.TINY_ONNX_SEQ2SEQ_MODEL_ID = "fxmarty/sshleifer-tiny-mbart-onnx"
 
     def test_load_model_from_hub_infer_onnx_model(self):
         model_id = "optimum-internal-testing/tiny-random-llama"
@@ -155,64 +135,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
                 "hf-internal-testing/tiny-random-LlamaForCausalLM", file_name="test.onnx"
             )
 
-    def test_load_model_seq2seq_from_hub_infer_onnx_model(self):
-        model_id = "hf-internal-testing/tiny-random-T5Model"
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
-        model_parts = {part.model_path.name for part in model.parts}
-        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
-        self.assertTrue(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False)
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertEqual(model_parts, expected_model_parts)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, use_merged=False, use_cache=False)
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx"}
-        self.assertFalse(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertEqual(model_parts, expected_model_parts)
-
-        model_id = "optimum-internal-testing/tiny-random-T5Model"
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id)
-        model_parts = {part.model_path.name for part in model.parts}
-        self.assertEqual(model_parts, {"encoder_model.onnx", "decoder_model_merged.onnx"})
-        self.assertTrue(model.use_cache)
-        self.assertTrue(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="onnx-legacy")
-        model_parts = {part.model_path.name for part in model.parts}
-        expected_model_parts = {"encoder_model.onnx", "decoder_model.onnx", "decoder_with_past_model.onnx"}
-        self.assertEqual(model_parts, expected_model_parts)
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-
-        file_names = {
-            "encoder_file_name": "encoder_model_quantized.onnx",
-            "decoder_file_name": "decoder_model_quantized.onnx",
-            "decoder_with_past_file_name": "decoder_with_past_model_quantized.onnx",
-        }
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_id, revision="optimized", subfolder="onnx", **file_names)
-        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            model_id, revision="optimized", subfolder="subfolder", **file_names
-        )
-        self.assertEqual({part.model_path.name for part in model.parts}, set(file_names.values()))
-        self.assertTrue(model.use_cache)
-        self.assertFalse(model.use_merged)
-        self.assertTrue("subfolder" in str(model.model_save_dir))
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model.save_pretrained(tmpdirname)
-            self.assertTrue(set(file_names.values()).issubset(set(os.listdir(tmpdirname))))
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname)
-
     def test_load_model_from_local_path(self):
         model = ORTModel.from_pretrained(self.LOCAL_MODEL_PATH)
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
@@ -235,19 +157,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
-    def test_load_seq2seq_model_from_hub_subfolder(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-subfolder", subfolder="my_folder")
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-        model = ORTModelForSeq2SeqLM.from_pretrained("fxmarty/tiny-mbart-onnx-subfolder", subfolder="my_folder")
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
     def test_load_model_from_cache(self):
         _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID)  # caching
 
@@ -262,23 +171,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
         with self.assertRaises(Exception):  # noqa: B017
             _ = ORTModel.from_pretrained(self.TINY_ONNX_MODEL_ID, local_files_only=True)
-
-    def test_load_seq2seq_model_from_cache(self):
-        _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID)  # caching
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
-
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    def test_load_seq2seq_model_from_empty_cache(self):
-        dirpath = os.path.join(default_cache_path, "models--" + self.TINY_ONNX_SEQ2SEQ_MODEL_ID.replace("/", "--"))
-        remove_directory(dirpath)
-
-        with self.assertRaises(Exception):  # noqa: B017
-            _ = ORTModelForSeq2SeqLM.from_pretrained(self.TINY_ONNX_SEQ2SEQ_MODEL_ID, local_files_only=True)
 
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
@@ -316,50 +208,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
     def test_load_model_unknown_provider(self):
         with self.assertRaises(ValueError):
             ORTModel.from_pretrained(self.ONNX_MODEL_ID, provider="FooExecutionProvider")
-
-    def test_load_seq2seq_model_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.decoder_with_past, ORTDecoderForSeq2Seq)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    def test_load_seq2seq_model_without_past_from_hub(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
-        self.assertIsInstance(model.encoder, ORTEncoder)
-        self.assertIsInstance(model.decoder, ORTDecoderForSeq2Seq)
-        self.assertTrue(model.decoder_with_past is None)
-        self.assertIsInstance(model.config, PretrainedConfig)
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_load_seq2seq_model_cuda_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_load_seq2seq_model_rocm_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-
-    def test_load_seq2seq_model_cpu_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-        self.assertListEqual(model.encoder.session.get_providers(), model.providers)
-        self.assertListEqual(model.decoder.session.get_providers(), model.providers)
-        self.assertEqual(model.device, torch.device("cpu"))
-
-    def test_load_seq2seq_model_unknown_provider(self):
-        with self.assertRaises(ValueError):
-            ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="FooExecutionProvider")
 
     def test_load_model_from_hub_without_onnx_model(self):
         ORTModel.from_pretrained(self.FAIL_ONNX_MODEL_ID)
@@ -404,7 +252,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
             logger.info("Skipping CUDAExecutionProvider/TensorrtExecutionProvider without `onnxruntime-gpu` test")
 
         # need to install first onnxruntime-gpu, then onnxruntime for this test to pass,
-        # thus overwritting onnxruntime/capi/_ld_preload.py
+        # thus overwriting onnxruntime/capi/_ld_preload.py
         if is_onnxruntime_installed and is_onnxruntime_gpu_installed:
             for provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider"]:
                 with self.assertRaises(ValueError) as cm:
@@ -479,13 +327,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model = ORTModel.from_pretrained(self.ONNX_MODEL_ID, session_options=options)
         self.assertEqual(model.model.get_session_options().intra_op_num_threads, 3)
 
-    def test_passing_session_options_seq2seq(self):
-        options = onnxruntime.SessionOptions()
-        options.intra_op_num_threads = 3
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, session_options=options)
-        self.assertEqual(model.encoder.session.get_session_options().intra_op_num_threads, 3)
-        self.assertEqual(model.decoder.session.get_session_options().intra_op_num_threads, 3)
-
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
@@ -543,243 +384,17 @@ class ORTModelIntegrationTest(unittest.TestCase):
         model.to("cuda:1")
         self.assertEqual(model.model.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
 
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    @pytest.mark.trt_ep_test
-    def test_passing_provider_options_seq2seq(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="CUDAExecutionProvider")
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "1",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="CUDAExecutionProvider",
-            provider_options={"do_copy_in_default_stream": 0},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "0",
-        )
-
-        # two providers case
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
-                "trt_engine_cache_enable"
-            ],
-            "0",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="TensorrtExecutionProvider",
-            provider_options={"trt_engine_cache_enable": True},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["TensorrtExecutionProvider"]["trt_engine_cache_enable"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["TensorrtExecutionProvider"][
-                "trt_engine_cache_enable"
-            ],
-            "1",
-        )
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_passing_provider_options_seq2seq_rocm_provider(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, provider="ROCMExecutionProvider")
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "1"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["ROCMExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "1",
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(
-            self.ONNX_SEQ2SEQ_MODEL_ID,
-            provider="ROCMExecutionProvider",
-            provider_options={"do_copy_in_default_stream": 0},
-            use_cache=True,
-        )
-        self.assertEqual(
-            model.encoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder.session.get_provider_options()["ROCMExecutionProvider"]["do_copy_in_default_stream"], "0"
-        )
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["ROCMExecutionProvider"][
-                "do_copy_in_default_stream"
-            ],
-            "0",
-        )
-
-    def test_seq2seq_model_on_cpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        cpu = torch.device("cpu")
-        model.to(cpu)
-        self.assertEqual(model.device, cpu)
-        self.assertEqual(model.encoder.device, cpu)
-        self.assertEqual(model.decoder.device, cpu)
-        self.assertEqual(model.decoder_with_past.device, cpu)
-        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-
-    # test string device input for to()
-    def test_seq2seq_model_on_cpu_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        cpu = torch.device("cpu")
-        model.to("cpu")
-        self.assertEqual(model.device, cpu)
-        self.assertEqual(model.encoder.device, cpu)
-        self.assertEqual(model.decoder.device, cpu)
-        self.assertEqual(model.decoder_with_past.device, cpu)
-        self.assertEqual(model.encoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CPUExecutionProvider")
-        self.assertListEqual(model.providers, ["CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_seq2seq_model_on_gpu(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
-        model.to(gpu)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_seq2seq_model_on_rocm_ep(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        gpu = torch.device("cuda")
-        model.to(gpu)
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-
-    @unittest.skipIf(get_gpu_count() <= 1, "this test requires multi-gpu")
-    def test_seq2seq_model_on_gpu_id(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to(torch.device("cuda:1"))
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to(1)
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda:1")
-        self.assertEqual(model.encoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(model.decoder.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1")
-        self.assertEqual(
-            model.decoder_with_past.session.get_provider_options()["CUDAExecutionProvider"]["device_id"], "1"
-        )
-
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_seq2seq_model_on_gpu_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda")
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "CUDAExecutionProvider")
-        self.assertListEqual(model.providers, ["CUDAExecutionProvider", "CPUExecutionProvider"])
-
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_seq2seq_model_on_rocm_ep_str(self):
-        model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-        model.to("cuda")
-        self.assertEqual(model.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder.device, torch.device("cuda:0"))
-        self.assertEqual(model.decoder_with_past.device, torch.device("cuda:0"))
-        self.assertEqual(model.encoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertEqual(model.decoder_with_past.session.get_providers()[0], "ROCMExecutionProvider")
-        self.assertListEqual(model.providers, ["ROCMExecutionProvider", "CPUExecutionProvider"])
-
     def test_load_model_from_hub_private(self):
-        token = os.environ.get("HF_HUB_READ_TOKEN", None)
+        token = os.environ.get("HF_TOKEN", None)
 
         if not token:
             self.skipTest(
-                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_HUB_READ_TOKEN`."
+                "Test requires a read access token for optimum-internal-testing in the environment variable `HF_TOKEN`."
             )
 
         model = ORTModelForCustomTasks.from_pretrained(
             "optimum-internal-testing/tiny-random-phi-private", revision="onnx", token=token
         )
-
         self.assertIsInstance(model.model, onnxruntime.InferenceSession)
         self.assertIsInstance(model.config, PretrainedConfig)
 
@@ -790,28 +405,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # folder contains all config files and ONNX exported model
             folder_contents = os.listdir(tmpdirname)
             self.assertTrue(ONNX_WEIGHTS_NAME in folder_contents)
-            self.assertTrue(CONFIG_NAME in folder_contents)
-
-    def test_save_seq2seq_model(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=True)
-            model.save_pretrained(tmpdirname)
-            folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder, decoder and decoder with past are present in folder
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-            self.assertTrue(CONFIG_NAME in folder_contents)
-
-    def test_save_seq2seq_model_without_past(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(self.ONNX_SEQ2SEQ_MODEL_ID, use_cache=False)
-            model.save_pretrained(tmpdirname)
-            folder_contents = os.listdir(tmpdirname)
-            # Verify config and ONNX exported encoder and decoder present in folder
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
             self.assertTrue(CONFIG_NAME in folder_contents)
 
     @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
@@ -828,65 +421,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from local folder works
             model = ORTModelForSequenceClassification.from_pretrained(tmpdirname, export=False)
             remove_directory(tmpdirname)
-
-    @parameterized.expand([(False,), (True,)])
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_save_load_seq2seq_model_with_external_data(self, use_cache: bool):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["t5"], export=True, use_cache=use_cache, use_io_binding=use_cache
-            )
-            model.save_pretrained(tmpdirname)
-
-            # verify external data is exported
-            folder_contents = os.listdir(tmpdirname)
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_ENCODER_NAME + "_data" in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME + "_data" in folder_contents)
-
-            if use_cache:
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
-
-            # verify loading from local folder works
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                tmpdirname, export=False, use_cache=use_cache, use_io_binding=use_cache
-            )
-            remove_directory(tmpdirname)
-
-    @parameterized.expand([(False,), (True,)])
-    @unittest.skip("Skipping as this test consumes too much memory")
-    def test_save_load_large_seq2seq_model_with_external_data(self, use_cache: bool):
-        # with tempfile.TemporaryDirectory() as tmpdirname:
-        if True:
-            tmpdirname = tempfile.mkdtemp()
-            # randomly intialize large model
-            config = AutoConfig.from_pretrained(self.LARGE_ONNX_SEQ2SEQ_MODEL_ID)
-            with no_init_weights():
-                model = MBartForConditionalGeneration(config)
-
-            # save transformers model to be able to load it with `ORTModel...`
-            model.save_pretrained(tmpdirname)
-
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, export=True)
-            model.save_pretrained(os.path.join(tmpdirname, "onnx"))
-
-            # Verify config and ONNX exported encoder, decoder and decoder with past are present each in their own folder
-            folder_contents = os.listdir(os.path.join(tmpdirname, "onnx"))
-            self.assertTrue(CONFIG_NAME in folder_contents)
-
-            # try loading models to check if they are valid
-            try:
-                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_ENCODER_NAME))
-                onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_NAME))
-                if use_cache:
-                    onnx.load(os.path.join(tmpdirname, "onnx", ONNX_DECODER_WITH_PAST_NAME))
-            except Exception as e:
-                self.fail("Model with external data wasn't saved properly.\nCould not load model from disk: " + str(e))
-
-            # verify loading from local folder works
-            model = ORTModelForSeq2SeqLM.from_pretrained(tmpdirname, use_cache=use_cache, subfolder="onnx")
 
     @require_hf_token
     def test_save_model_from_hub(self):
@@ -916,26 +450,6 @@ class ORTModelIntegrationTest(unittest.TestCase):
             # verify loading from hub works
             model = ORTModelForSequenceClassification.from_pretrained(
                 MODEL_NAMES["bert"] + "-onnx",
-                export=False,
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-            )
-
-    @require_hf_token
-    @unittest.mock.patch.dict(os.environ, {"FORCE_ONNX_EXTERNAL_DATA": "1"})
-    def test_push_seq2seq_model_with_external_data_to_hub(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["mbart"], export=True)
-            model.save_pretrained(
-                tmpdirname + "/onnx",
-                token=os.environ.get("HF_AUTH_TOKEN", None),
-                repository_id=MODEL_NAMES["mbart"].split("/")[-1] + "-onnx",
-                private=True,
-                push_to_hub=True,
-            )
-
-            # verify loading from hub works
-            model = ORTModelForSeq2SeqLM.from_pretrained(
-                MODEL_NAMES["mbart"] + "-onnx",
                 export=False,
                 token=os.environ.get("HF_AUTH_TOKEN", None),
             )
@@ -2415,6 +1929,130 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
 
+class ORTModelForZeroShotImageClassificationIntegrationTest(ORTModelTestMixin):
+    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
+        "clip",
+    ]
+
+    if is_transformers_version(">=", "4.56.2"):
+        SUPPORTED_ARCHITECTURES.append("metaclip_2")
+
+    FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
+    ORTMODEL_CLASS = ORTModelForZeroShotImageClassification
+    TASK = "zero-shot-image-classification"
+
+    def _get_model_ids(self, model_arch):
+        model_ids = MODEL_NAMES[model_arch]
+        if isinstance(model_ids, dict):
+            model_ids = list(model_ids.keys())
+        else:
+            model_ids = [model_ids]
+        return model_ids
+
+    def _get_onnx_model_dir(self, model_id, model_arch, test_name):
+        onnx_model_dir = self.onnx_model_dirs[test_name]
+        if isinstance(MODEL_NAMES[model_arch], dict):
+            onnx_model_dir = onnx_model_dir[model_id]
+
+        return onnx_model_dir
+
+    def test_load_vanilla_transformers_which_is_not_supported(self):
+        with self.assertRaises(Exception) as context:
+            _ = ORTModelForZeroShotImageClassification.from_pretrained(MODEL_NAMES["t5"])
+        self.assertIn("only supports the tasks", str(context.exception))
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_compare_to_transformers(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
+
+        self.assertIsInstance(onnx_model.model, onnxruntime.InferenceSession)
+        self.assertIsInstance(onnx_model.config, PretrainedConfig)
+
+        set_seed(SEED)
+        trfs_model = AutoModelForZeroShotImageClassification.from_pretrained(model_id)
+        preprocessor = maybe_load_preprocessors(model_id)[1]
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
+        image = Image.open(requests.get(url, stream=True).raw)
+        inputs = preprocessor(text=labels, images=image, return_tensors="pt", padding=True)
+
+        with torch.no_grad():
+            trtfs_outputs = trfs_model(**inputs)
+
+        for input_type in ["pt", "np"]:
+            inputs = preprocessor(text=labels, images=image, return_tensors=input_type, padding=True)
+
+            onnx_outputs = onnx_model(**inputs)
+
+            self.assertIn("logits_per_image", onnx_outputs)
+            self.assertIn("logits_per_text", onnx_outputs)
+            self.assertIn("image_embeds", onnx_outputs)
+            self.assertIn("text_embeds", onnx_outputs)
+            self.assertIsInstance(onnx_outputs.logits_per_image, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.logits_per_text, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.image_embeds, self.TENSOR_ALIAS_TO_TYPE[input_type])
+            self.assertIsInstance(onnx_outputs.text_embeds, self.TENSOR_ALIAS_TO_TYPE[input_type])
+
+            # compare tensor outputs
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits_per_image),
+                trtfs_outputs.logits_per_image,
+                atol=self.ATOL,
+                rtol=self.RTOL,
+            )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.logits_per_text),
+                trtfs_outputs.logits_per_text,
+                atol=self.ATOL,
+                rtol=self.RTOL,
+            )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.image_embeds), trtfs_outputs.image_embeds, atol=self.ATOL, rtol=self.RTOL
+            )
+            torch.testing.assert_close(
+                torch.Tensor(onnx_outputs.text_embeds), trtfs_outputs.text_embeds, atol=self.ATOL, rtol=self.RTOL
+            )
+
+        gc.collect()
+
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    def test_pipeline_ort_model(self, model_arch):
+        model_args = {"test_name": model_arch, "model_arch": model_arch}
+        self._setup(model_args)
+
+        model_id = MODEL_NAMES[model_arch]
+        tokenizer = get_preprocessor(model_id)
+        onnx_model = ORTModelForZeroShotImageClassification.from_pretrained(self.onnx_model_dirs[model_arch])
+        preprocessor = maybe_load_preprocessors(model_id)[1]
+        pipe = pipeline(
+            "zero-shot-image-classification", model=onnx_model, image_processor=preprocessor, tokenizer=tokenizer
+        )
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
+        outputs = pipe(url, candidate_labels=labels)
+
+        self.assertEqual(pipe.device, onnx_model.device)
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+        gc.collect()
+
+    @pytest.mark.run_in_series
+    def test_pipeline_model_is_none(self):
+        pipe = pipeline("zero-shot-image-classification")
+        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+        labels = ["a photo of a cat", "a photo of a dog", "a photo of a car"]
+        outputs = pipe(url, candidate_labels=labels)
+
+        # compare model output class
+        self.assertGreaterEqual(outputs[0]["score"], 0.0)
+        self.assertTrue(isinstance(outputs[0]["label"], str))
+
+
 class ORTModelForSemanticSegmentationIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ("segformer", "dpt")
 
@@ -2773,6 +2411,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "data2vec-audio",
         "hubert",
+        "mctct",
         "sew",
         "sew-d",
         "unispeech",
@@ -3032,1162 +2671,6 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
 
-class ORTModelForSeq2SeqLMIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "bart",
-        "bigbird_pegasus",
-        "blenderbot",
-        "blenderbot-small",
-        "encoder-decoder",
-        "longt5",
-        "m2m_100",
-        "marian",
-        "mbart",
-        "mt5",
-        "pegasus",
-        "t5",
-    ]
-
-    FULL_GRID = {  # noqa: RUF012
-        "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [False, True],
-        "use_merged": [False, True],
-    }
-
-    ORTMODEL_CLASS = ORTModelForSeq2SeqLM
-    TASK = "text2text-generation"
-
-    GENERATION_LENGTH = 100
-
-    def _get_model_ids(self, model_arch):
-        model_ids = MODEL_NAMES[model_arch]
-        if isinstance(model_ids, dict):
-            model_ids = list(model_ids.keys())
-        else:
-            model_ids = [model_ids]
-        return model_ids
-
-    def _get_onnx_model_dir(self, model_id, model_arch, test_name):
-        onnx_model_dir = self.onnx_model_dirs[test_name]
-        if isinstance(MODEL_NAMES[model_arch], dict):
-            onnx_model_dir = onnx_model_dir[model_id]
-
-        return onnx_model_dir
-
-    @parameterized.expand([(True,)])  # old exported model ouputs gibberish when use_cache=False
-    @pytest.mark.run_in_series
-    def test_inference_old_seq2seq_onnx_model(self, use_cache):
-        tokenizer = get_preprocessor("t5-small")
-        model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
-        onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-            "optimum/t5-small", use_cache=use_cache, use_io_binding=False, use_merged=False
-        )
-
-        self.assertEqual(onnx_model.use_cache, use_cache)
-        self.assertEqual(onnx_model.encoder.path.name, ONNX_ENCODER_NAME)
-        self.assertEqual(onnx_model.decoder.path.name, ONNX_DECODER_NAME)
-        if use_cache:
-            self.assertEqual(onnx_model.decoder_with_past.path.name, ONNX_DECODER_WITH_PAST_NAME)
-
-        text = "This is a sample output"
-        tokens = tokenizer(text, return_tensors="pt")
-
-        onnx_outputs = onnx_model.generate(**tokens, min_new_tokens=30, max_new_tokens=30, do_sample=False)
-        outputs = model.generate(**tokens, min_new_tokens=30, max_new_tokens=30, do_sample=False)
-        onnx_text_outputs = tokenizer.decode(onnx_outputs[0], skip_special_tokens=True)
-        text_outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        self.assertEqual(onnx_text_outputs, text_outputs)
-
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        with self.assertRaises(Exception) as context:
-            _ = ORTModelForSeq2SeqLM.from_pretrained(MODEL_NAMES["bert"], export=True)
-
-        self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and use_cache is True
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                continue
-
-            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-            model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
-            tokenizer = get_preprocessor(model_id)
-            text = "This is a sample output"
-            tokens = tokenizer(text, return_tensors="pt")
-
-            # General case
-            outputs = model.generate(**tokens)
-            res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            self.assertIsInstance(res[0], str)
-
-            # With input ids
-            outputs = model.generate(input_ids=tokens["input_ids"])
-            res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            self.assertIsInstance(res[0], str)
-
-        gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        if "text2text-generation-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch, exporter="onnx", library_name="transformers"
-        ):
-            self.skipTest("Unsupported -with-past export case")
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_merged=True is not supported for bert as a decoder")
-                continue
-
-            model = ORTModelForSeq2SeqLM.from_pretrained(model_id, export=True, use_merged=True)
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                model.save_pretrained(tmpdir)
-                save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-                self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-                folder_contents = os.listdir(tmpdir)
-                self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-                self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-                self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_onnx_and_save(self, model_arch):
-        task = "text2text-generation-with-past"
-
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch, exporter="onnx"):
-            self.skipTest("Unsupported export case", library_name="transformers")
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_merged=True is not supported for bert as a decoder")
-                continue
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                main_export(model_id, tmpdir, task=task)
-
-                model = ORTModelForSeq2SeqLM.from_pretrained(tmpdir)
-
-                self.assertTrue(model.use_merged)
-                self.assertTrue(model.decoder_with_past is None)
-
-                model.save_pretrained(tmpdir + "_save")
-                save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
-                self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-                folder_contents = os.listdir(tmpdir + "_save")
-                self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-                self.assertFalse(ONNX_DECODER_NAME in folder_contents)
-                self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and use_cache is True
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
-            self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-            if use_merged is False:
-                model_path = Path(onnx_model_dir, ONNX_DECODER_NAME)
-                self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-                self.assertEqual(onnx_model.use_merged, False)
-            else:
-                model_path = Path(onnx_model_dir, ONNX_DECODER_MERGED_NAME)
-                self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-                self.assertEqual(onnx_model.use_merged, True)
-
-            self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-            if onnx_model.use_cache is True and onnx_model.use_merged is False:
-                self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-            if onnx_model.use_cache is True and onnx_model.use_merged is True:
-                self.assertTrue(onnx_model.decoder_with_past is None)
-
-            self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-            set_seed(SEED)
-            transformers_model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
-            tokenizer = get_preprocessor(model_id)
-            inputs = "This is a sample output"
-            tokens = tokenizer(inputs, return_tensors="pt", padding=True)
-            decoder_start_token_id = transformers_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-            if model_arch == "encoder-decoder":
-                decoder_start_token_id = tokenizer.cls_token_id
-
-            decoder_inputs = {"decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id}
-
-            with torch.no_grad():
-                transformers_outputs = transformers_model(**tokens, **decoder_inputs)
-
-            for input_type in ["pt", "np"]:
-                tokens = tokenizer(inputs, return_tensors=input_type, padding=True)
-
-                if input_type == "np":
-                    decoder_inputs = {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id}
-
-                onnx_outputs = onnx_model(**tokens, **decoder_inputs)
-
-                self.assertTrue("logits" in onnx_outputs)
-                self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-                # Compare tensor outputs
-                torch.testing.assert_close(
-                    torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
-                )
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_text_generation(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and use_cache is True
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
-            tokenizer = get_preprocessor(model_id)
-
-            decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-            if model_arch == "encoder-decoder":
-                decoder_start_token_id = tokenizer.cls_token_id
-
-            # Text2Text generation
-            pipe = pipeline("text2text-generation", model=onnx_model, tokenizer=tokenizer)
-            text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
-            self.assertEqual(pipe.device, onnx_model.device)
-            self.assertIsInstance(outputs[0]["generated_text"], str)
-
-            # Summarization
-            pipe = pipeline("summarization", model=onnx_model, tokenizer=tokenizer)
-            text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
-            self.assertEqual(pipe.device, onnx_model.device)
-            self.assertIsInstance(outputs[0]["summary_text"], str)
-
-            # Translation
-            pipe = pipeline("translation_en_to_de", model=onnx_model, tokenizer=tokenizer)
-            text = "This is a test"
-            outputs = pipe(text, decoder_start_token_id=decoder_start_token_id, min_new_tokens=10, max_new_tokens=10)
-            self.assertEqual(pipe.device, onnx_model.device)
-            self.assertIsInstance(outputs[0]["translation_text"], str)
-
-            if model_arch == "t5":
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    pipe.save_pretrained(tmpdir)
-                    model_kwargs = {"use_cache": use_cache}
-                    pipe = pipeline(
-                        "translation_en_to_de",
-                        model=tmpdir,
-                        model_kwargs=model_kwargs,
-                        accelerator="ort",
-                    )
-                    outputs_local_model = pipe(text, min_new_tokens=10, max_new_tokens=10)
-                    self.assertEqual(outputs[0]["translation_text"], outputs_local_model[0]["translation_text"])
-
-        gc.collect()
-
-    def test_load_pipeline(self):
-        pipe = pipeline(
-            "text2text-generation",
-            model="echarlaix/t5-small-onnx",
-            accelerator="ort",
-        )
-        outputs = pipe("this is an example input")
-        self.assertIsInstance(outputs[0]["generated_text"], str)
-
-    @pytest.mark.run_in_series
-    def test_pipeline_model_is_none(self):
-        # Text2text generation
-        pipe = pipeline("text2text-generation")
-        text = "This is a test"
-        outputs = pipe(text, min_length=1, max_length=2)
-        # compare model output class
-        self.assertIsInstance(outputs[0]["generated_text"], str)
-
-        # Summarization
-        pipe = pipeline("summarization")
-        outputs = pipe(text, min_length=1, max_length=2)
-        # compare model output class
-        self.assertIsInstance(outputs[0]["summary_text"], str)
-
-        # Translation
-        pipe = pipeline("translation_en_to_de")
-        outputs = pipe(text, min_length=1, max_length=2)
-        # compare model output class
-        self.assertIsInstance(outputs[0]["translation_text"], str)
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder"
-                continue
-
-            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
-            tokenizer = get_preprocessor(model_id)
-            pipe = pipeline(
-                "translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=False, device=0
-            )
-            text = "My Name is Philipp and i live"
-            outputs = pipe(text, max_length=2 * len(text) + 1)
-            # check model device
-            self.assertEqual(pipe.model.device.type.lower(), "cuda")
-            # compare model output class
-            self.assertTrue(isinstance(outputs[0]["translation_text"], str))
-
-            pipe = pipeline(
-                "translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=True, device=0
-            )
-
-            outputs = pipe(text, min_length=len(text) + 1, max_length=2 * len(text) + 1)
-            self.assertTrue(isinstance(outputs[0]["translation_token_ids"], torch.Tensor))
-            self.assertTrue(len(outputs[0]["translation_token_ids"]) > len(text))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder"
-                continue
-
-            onnx_model_dir = self._get_onnx_model_dir(model_id, model_arch, test_name)
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(onnx_model_dir, use_cache=use_cache)
-
-            tokenizer = get_preprocessor(model_id)
-            pipe = pipeline(
-                "translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=False, device=0
-            )
-            text = "My Name is Philipp and i live"
-            outputs = pipe(text, max_length=2 * len(text) + 1)
-            # check model device
-            self.assertEqual(pipe.model.device.type.lower(), "cuda")
-            # compare model output class
-            self.assertTrue(isinstance(outputs[0]["translation_text"], str))
-
-            pipe = pipeline(
-                "translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=True, device=0
-            )
-
-            outputs = pipe(text, min_length=len(text) + 1, max_length=2 * len(text) + 1)
-            self.assertTrue(isinstance(outputs[0]["translation_token_ids"], torch.Tensor))
-            self.assertTrue(len(outputs[0]["translation_token_ids"]) > len(text))
-
-    # TRT EP compile time can be long, so we don't test all archs
-    @parameterized.expand(grid_parameters({"model_arch": ["t5"], "use_cache": [True, False]}))
-    @require_torch_gpu
-    @pytest.mark.trt_ep_test
-    def test_pipeline_on_trt_execution_provider(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        with tempfile.TemporaryDirectory() as engine_cache_dir:
-            provider_options = {"trt_engine_cache_enable": True, "trt_engine_cache_path": engine_cache_dir}
-
-            model_id = MODEL_NAMES[model_arch]
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self.onnx_model_dirs[test_name],
-                provider="TensorrtExecutionProvider",
-                provider_options=provider_options,
-                use_cache=use_cache,
-            )
-
-            tokenizer = get_preprocessor(model_id)
-
-            decoder_inputs = {
-                "decoder_input_ids": torch.ones((1, 1), dtype=torch.long) * onnx_model.config.decoder_start_token_id
-            }
-
-            # build engine for a short sequence
-            text = ["short"]
-            encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
-            _ = onnx_model(**encoded_input, **decoder_inputs)
-
-            # build engine for a long sequence
-            text = [" a very long input just for demo purpose, this is very long" * 10]
-            encoded_input = tokenizer(text, return_tensors="pt").to("cuda")
-            _ = onnx_model(**encoded_input, **decoder_inputs)
-
-            pipe = pipeline(
-                "translation_en_to_de", model=onnx_model, tokenizer=tokenizer, return_tensors=True, device=0
-            )
-            text = "My Name is Philipp and i live"
-            outputs = pipe(text, min_length=len(text) + 1, max_length=2 * len(text) + 1)
-            self.assertTrue(isinstance(outputs[0]["translation_token_ids"], torch.Tensor))
-            self.assertTrue(len(outputs[0]["translation_token_ids"]) > len(text))
-
-            encoded_input = tokenizer("Please continue this", return_tensors="pt").to("cuda")
-            _ = onnx_model.generate(**encoded_input)
-
-            gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
-        self._setup(model_args)
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
-        self._setup(model_args)
-
-        if model_arch == "m2m_100":
-            generation_length = 20  # model's predefined maximum length
-        else:
-            generation_length = self.GENERATION_LENGTH
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            tokenizer = get_preprocessor(model_id)
-            text = "This is a sample output"
-            tokens = tokenizer(text, return_tensors="pt")
-            model_with_pkv = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, model_arch + "_True"), use_cache=True
-            )
-
-            outputs_model_with_pkv = model_with_pkv.generate(
-                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-            )
-
-            model_without_pkv = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, model_arch + "_False"), use_cache=False
-            )
-
-            outputs_model_without_pkv = model_without_pkv.generate(
-                **tokens, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-            )
-
-            torch.testing.assert_close(
-                outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL
-            )
-            self.assertEqual(outputs_model_with_pkv.shape[1], generation_length + 1)
-            self.assertEqual(outputs_model_without_pkv.shape[1], generation_length + 1)
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": True,
-        }
-        self._setup(model_args)
-        model_args = {
-            "test_name": test_name + "_False",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": False,
-        }
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            tokenizer = get_preprocessor(model_id)
-            text = "My Name is Philipp and i live"
-            tokens = tokenizer(text, return_tensors="pt")
-
-            model_not_merged_dir = self._get_onnx_model_dir(model_id, model_arch, test_name + "_False")
-            model_merged_dir = self._get_onnx_model_dir(model_id, model_arch, test_name + "_True")
-
-            model_not_merged = ORTModelForSeq2SeqLM.from_pretrained(model_not_merged_dir)
-            not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
-            self.assertEqual(model_not_merged.use_merged, False)
-
-            model_merged = ORTModelForSeq2SeqLM.from_pretrained(model_merged_dir)
-            merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
-            self.assertEqual(model_merged.decoder_with_past, None)
-            self.assertEqual(model_merged.use_merged, True)
-
-            outputs_model_not_merged = model_not_merged.generate(**tokens)
-            outputs_model_merged = model_merged.generate(**tokens)
-
-            torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name),
-                use_io_binding=False,
-                use_cache=use_cache,
-                provider="CUDAExecutionProvider",
-            )
-            io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name),
-                use_io_binding=True,
-                use_cache=use_cache,
-                provider="CUDAExecutionProvider",
-            )
-
-            self.assertFalse(onnx_model.use_io_binding)
-            self.assertTrue(io_model.use_io_binding)
-
-            tokenizer = get_preprocessor(model_id)
-            tokens = tokenizer(["This is a sample output"] * 2, return_tensors="pt").to("cuda")
-            decoder_start_token_id = onnx_model.config.decoder_start_token_id if model_arch != "mbart" else 2
-            if model_arch == "encoder-decoder":
-                decoder_start_token_id = tokenizer.cls_token_id
-            decoder_inputs = {
-                "decoder_input_ids": torch.ones((2, 1), dtype=torch.long).to("cuda") * decoder_start_token_id
-            }
-
-            onnx_outputs = onnx_model(**tokens, **decoder_inputs)
-            io_outputs = io_model(**tokens, **decoder_inputs)
-
-            self.assertTrue("logits" in io_outputs)
-            self.assertIsInstance(io_outputs.logits, torch.Tensor)
-
-            # compare tensor outputs
-            torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "use_cache": [True],
-                "use_merged": [False, True],
-                "num_beams": [1, 3],
-            }
-        )
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_generation_to_io_binding(
-        self,
-        test_name: str,
-        model_arch: str,
-        use_cache: bool,
-        use_merged: bool,
-        num_beams: int,
-    ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-
-        self._setup(model_args)
-
-        model_ids = self._get_model_ids(model_arch)
-        for model_id in model_ids:
-            if (
-                model_arch == "encoder-decoder"
-                and "text2text-generation-with-past" not in MODEL_NAMES[model_arch][model_id]
-            ):
-                # The model with use_cache=True is not supported for bert as a decoder")
-                continue
-
-            onnx_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name),
-                use_io_binding=False,
-                use_cache=use_cache,
-                provider="CUDAExecutionProvider",
-            )
-            io_model = ORTModelForSeq2SeqLM.from_pretrained(
-                self._get_onnx_model_dir(model_id, model_arch, test_name),
-                use_io_binding=True,
-                use_cache=use_cache,
-                provider="CUDAExecutionProvider",
-            )
-
-            self.assertFalse(onnx_model.use_io_binding)
-            self.assertTrue(io_model.use_io_binding)
-
-            tokenizer = get_preprocessor(model_id)
-            tokens = tokenizer("This is a sample output", return_tensors="pt").to("cuda")
-
-            onnx_outputs = onnx_model.generate(**tokens, num_beams=num_beams)
-            io_outputs = io_model.generate(**tokens, num_beams=num_beams)
-
-            # compare tensor outputs
-            torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-
-class ORTModelForSpeechSeq2SeqIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["whisper", "speech_to_text"]  # noqa: RUF012
-
-    FULL_GRID = {  # noqa: RUF012
-        "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [False, True],
-        "use_merged": [False, True],
-    }
-
-    ORTMODEL_CLASS = ORTModelForSpeechSeq2Seq
-    TASK = "automatic-speech-recognition"
-
-    GENERATION_LENGTH = 100
-
-    def _generate_random_audio_data(self):
-        np.random.seed(10)
-        t = np.linspace(0, 5.0, int(5.0 * 18736), endpoint=False)
-        # generate pure sine wave at 220 Hz
-        audio_data = 0.5 * np.sin(2 * np.pi * 220 * t)
-
-        return audio_data
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        if "automatic-speech-recognition-with-past" not in TasksManager.get_supported_tasks_for_model_type(
-            model_arch, exporter="onnx", library_name="transformers"
-        ):
-            self.skipTest("Unsupported -with-past export case")
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForSpeechSeq2Seq.from_pretrained(model_id, export=True, use_merged=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_onnx_and_save(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
-        task = "automatic-speech-recognition-with-past"
-
-        if task not in TasksManager.get_supported_tasks_for_model_type(model_arch, exporter="onnx"):
-            self.skipTest("Unsupported export case", library_name="transformers")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            main_export(model_id, tmpdir, task=task)
-
-            model = ORTModelForSpeechSeq2Seq.from_pretrained(tmpdir)
-
-            self.assertTrue(model.use_merged)
-            self.assertTrue(model.decoder_with_past is None)
-
-            model.save_pretrained(tmpdir + "_save")
-            save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir + "_save")
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        with self.assertRaises(Exception) as context:
-            _ = ORTModelForSpeechSeq2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
-
-        self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name])
-        processor = get_preprocessor(model_id)
-
-        data = self._generate_random_audio_data()
-        features = processor.feature_extractor(data, return_tensors="pt")
-
-        outputs = model.generate(inputs=features["input_features"])
-        res = processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertIsInstance(res[0], str)
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-
-        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        if use_merged is False:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, False)
-        else:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, True)
-
-        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is False:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is True:
-            self.assertTrue(onnx_model.decoder_with_past is None)
-
-        self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-        set_seed(SEED)
-        transformers_model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id)
-
-        processor = get_preprocessor(model_id)
-        data = self._generate_random_audio_data()
-        features = {
-            "np": processor.feature_extractor(data, return_tensors="np"),
-            "pt": processor.feature_extractor(data, return_tensors="pt"),
-        }
-
-        decoder_start_token_id = transformers_model.config.decoder_start_token_id
-        decoder_inputs = {
-            "np": {"decoder_input_ids": np.ones((1, 1), dtype=np.int64) * decoder_start_token_id},
-            "pt": {"decoder_input_ids": torch.ones((1, 1), dtype=torch.int64) * decoder_start_token_id},
-        }
-
-        with torch.no_grad():
-            transformers_outputs = transformers_model(**features["pt"], **decoder_inputs["pt"])
-
-        for input_type in ["pt", "np"]:
-            onnx_outputs = onnx_model(**features[input_type], **decoder_inputs[input_type])
-
-            self.assertTrue("logits" in onnx_outputs)
-            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-            # Compare tensor outputs
-            torch.testing.assert_close(
-                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
-            )
-
-        if model_arch == "speech_to_text":
-            generation_length = 20
-        else:
-            generation_length = self.GENERATION_LENGTH
-
-        with torch.no_grad():
-            transformers_outputs = transformers_model.generate(
-                **features["pt"],
-                max_new_tokens=generation_length,
-                min_new_tokens=generation_length,
-                do_sample=False,
-                num_beams=1,
-            )
-
-        onnx_outputs = onnx_model.generate(
-            **features["pt"],
-            max_new_tokens=generation_length,
-            min_new_tokens=generation_length,
-            do_sample=False,
-            num_beams=1,
-        )
-
-        torch.testing.assert_close(torch.Tensor(onnx_outputs), transformers_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_speech_recognition(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        tokenizer, _, feature_extractor = maybe_load_preprocessors(model_id)
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_merged=use_merged
-        )
-        # Speech recogition generation
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model=onnx_model,
-            tokenizer=tokenizer,
-            feature_extractor=feature_extractor,
-        )
-
-        data = self._generate_random_audio_data()
-        outputs = pipe(data)
-
-        self.assertEqual(pipe.device, onnx_model.device)
-        self.assertIsInstance(outputs["text"], str)
-
-        if model_arch == "whisper":
-            outputs = pipe(data, return_timestamps=True)
-            self.assertTrue("chunks" in outputs)
-
-            outputs = pipe(data, return_timestamps=False)
-            self.assertTrue("chunks" not in outputs)
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        processor = get_preprocessor(model_id)
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model=onnx_model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
-            device=0,
-        )
-
-        data = self._generate_random_audio_data()
-        outputs = pipe(data)
-
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-        # compare model output class
-        self.assertTrue(isinstance(outputs["text"], str))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        processor = get_preprocessor(model_id)
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model=onnx_model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
-            device=0,
-        )
-
-        data = self._generate_random_audio_data()
-        outputs = pipe(data)
-
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-        # compare model output class
-        self.assertTrue(isinstance(outputs["text"], str))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
-        self._setup(model_args)
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        processor = get_preprocessor(model_id)
-
-        data = self._generate_random_audio_data()
-        features = processor.feature_extractor(data, return_tensors="pt")
-
-        if model_arch == "speech_to_text":
-            generation_length = 20  # maximum length for the model
-        else:
-            generation_length = self.GENERATION_LENGTH
-
-        model_with_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
-        )
-        outputs_model_with_pkv = model_with_pkv.generate(
-            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-        )
-
-        model_without_pkv = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
-        )
-        outputs_model_without_pkv = model_without_pkv.generate(
-            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-        )
-
-        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": True,
-        }
-        self._setup(model_args)
-        model_args = {
-            "test_name": test_name + "_False",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": False,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        processor = get_preprocessor(model_id)
-
-        data = self._generate_random_audio_data()
-        features = processor.feature_extractor(data, return_tensors="pt")
-
-        model_not_merged_dir = self.onnx_model_dirs[test_name + "_False"]
-        model_merged_dir = self.onnx_model_dirs[test_name + "_True"]
-
-        model_not_merged = ORTModelForSpeechSeq2Seq.from_pretrained(model_not_merged_dir)
-        not_merged_onnx_path = Path(model_not_merged_dir, ONNX_DECODER_NAME)
-        self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_not_merged.use_merged, False)
-
-        model_merged = ORTModelForSpeechSeq2Seq.from_pretrained(model_merged_dir)
-        merged_onnx_path = Path(model_merged_dir, ONNX_DECODER_MERGED_NAME)
-        self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_merged.decoder_with_past, None)
-        self.assertEqual(model_merged.use_merged, True)
-
-        generation_length = 10
-
-        outputs_model_not_merged = model_not_merged.generate(
-            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-        )
-        outputs_model_merged = model_merged.generate(
-            **features, min_new_tokens=generation_length, max_new_tokens=generation_length, num_beams=1
-        )
-
-        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_io_binding=False,
-            provider="CUDAExecutionProvider",
-            provider_options={
-                "cudnn_conv_algo_search": "DEFAULT",
-            },
-        )
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_io_binding=True,
-            provider="CUDAExecutionProvider",
-            provider_options={
-                "cudnn_conv_algo_search": "DEFAULT",
-            },
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        processor = get_preprocessor(model_id)
-        data = self._generate_random_audio_data()
-        inputs = processor([data] * 2, return_tensors="pt").to("cuda")
-        inputs["decoder_input_ids"] = torch.ones((2, 1), dtype=torch.long).to("cuda")
-
-        onnx_outputs = onnx_model(**inputs)
-        io_outputs = io_model(**inputs)
-
-        self.assertTrue("logits" in io_outputs)
-        self.assertIsInstance(io_outputs.logits, torch.Tensor)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "use_cache": [True],
-                "use_merged": [False, True],
-                "num_beams": [1, 3],
-            }
-        )
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_generation_to_io_binding(
-        self,
-        test_name: str,
-        model_arch: str,
-        use_cache: bool,
-        use_merged: bool,
-        num_beams: int,
-    ):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
-        )
-        io_model = ORTModelForSpeechSeq2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        processor = get_preprocessor(model_id)
-        data = self._generate_random_audio_data()
-        features = processor(data, return_tensors="pt").to("cuda")
-
-        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
-        io_outputs = io_model.generate(**features, num_beams=num_beams)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-
 class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = ["swin2sr"]  # noqa: RUF012
 
@@ -4319,362 +2802,6 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, Image.Image)
 
 
-class ORTModelForVision2SeqIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["vision-encoder-decoder", "trocr", "donut"]  # noqa: RUF012
-
-    FULL_GRID = {  # noqa: RUF012
-        "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [False, True],
-        "use_merged": [False, True],
-    }
-
-    ORTMODEL_CLASS = ORTModelForVision2Seq
-
-    TASK = "image-to-text"
-
-    GENERATION_LENGTH = 100
-
-    ATOL = 1e-3
-    RTOL = 1e-3
-
-    def _get_sample_image(self):
-        url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        image = Image.open(requests.get(url, stream=True).raw)
-        return image
-
-    def _get_preprocessors(self, model_id):
-        image_processor = AutoImageProcessor.from_pretrained(model_id)
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-        return image_processor, tokenizer
-
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        with self.assertRaises(Exception) as context:
-            _ = ORTModelForVision2Seq.from_pretrained(MODEL_NAMES["bert"], export=True)
-
-        self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_generate_utils(self, test_name: str, model_arch: str, use_cache: str):
-        model_args = {"test_name": test_name, "model_arch": model_arch, "use_cache": use_cache}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        image_processor, tokenizer = self._get_preprocessors(model_id)
-
-        data = self._get_sample_image()
-        features = image_processor(data, return_tensors="pt")
-
-        outputs = model.generate(inputs=features["pixel_values"])
-        res = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.assertIsInstance(res[0], str)
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-
-        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        if use_merged is False:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, False)
-        else:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertEqual(onnx_model.use_merged, True)
-
-        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is False:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-        if onnx_model.use_cache is True and onnx_model.use_merged is True:
-            self.assertTrue(onnx_model.decoder_with_past is None)
-
-        self.assertIsInstance(onnx_model.config, PretrainedConfig)
-
-        set_seed(SEED)
-        image_processor, tokenizer = self._get_preprocessors(model_id)
-        transformers_model = AutoModelForVision2Seq.from_pretrained(model_id)
-
-        data = self._get_sample_image()
-        inputs = image_processor(data, return_tensors="pt")
-        inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors="pt").input_ids
-
-        with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs, use_cache=use_cache)
-
-        for input_type in ["pt", "np"]:
-            inputs = image_processor(data, return_tensors=input_type)
-            inputs["decoder_input_ids"] = tokenizer("This is a sample output", return_tensors=input_type).input_ids
-
-            onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
-
-            self.assertTrue("logits" in onnx_outputs)
-            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-            torch.testing.assert_close(
-                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
-            )
-
-            if use_cache:
-                self.assertEqual(
-                    len(onnx_outputs["past_key_values"]),
-                    len(transformers_outputs["past_key_values"]),
-                )
-                for i in range(len(onnx_outputs["past_key_values"])):
-                    self.assertEqual(
-                        len(onnx_outputs["past_key_values"][i]),
-                        len(transformers_outputs["past_key_values"][i]),
-                    )
-                    for j in range(len(onnx_outputs["past_key_values"][i])):
-                        torch.testing.assert_close(
-                            torch.Tensor(onnx_outputs["past_key_values"][i][j]),
-                            transformers_outputs["past_key_values"][i][j],
-                            atol=self.ATOL,
-                            rtol=self.RTOL,
-                        )
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_pipeline_image_to_text(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-        image_processor, tokenizer = self._get_preprocessors(model_id)
-
-        # Speech recogition generation
-        pipe = pipeline(
-            "image-to-text",
-            model=onnx_model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
-            feature_extractor=image_processor,  # for older versions of transformers
-        )
-        data = self._get_sample_image()
-        outputs = pipe(data, max_new_tokens=10)
-        self.assertEqual(pipe.device, onnx_model.device)
-        self.assertIsInstance(outputs[0]["generated_text"], str)
-
-        gc.collect()
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_pipeline_on_gpu(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
-        )
-        image_processor, tokenizer = self._get_preprocessors(model_id)
-        pipe = pipeline(
-            "image-to-text",
-            model=onnx_model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
-            device=0,
-        )
-
-        data = self._get_sample_image()
-        outputs = pipe(data)
-
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-        # compare model output class
-        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    @require_torch_gpu
-    @require_ort_rocm
-    @pytest.mark.rocm_ep_test
-    def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, use_io_binding=False
-        )
-        image_processor, tokenizer = self._get_preprocessors(model_id)
-        pipe = pipeline(
-            "image-to-text",
-            model=onnx_model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
-            device=0,
-        )
-
-        data = self._get_sample_image()
-        outputs = pipe(data)
-
-        # check model device
-        self.assertEqual(pipe.model.device.type.lower(), "cuda")
-        # compare model output class
-        self.assertTrue(isinstance(outputs[0]["generated_text"], str))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES[:1])
-    def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
-        self._setup(model_args)
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        image_processor, _ = self._get_preprocessors(model_id)
-
-        data = self._get_sample_image()
-        features = image_processor(data, return_tensors="pt")
-
-        model_with_pkv = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
-        )
-
-        outputs_model_with_pkv = model_with_pkv.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-
-        model_without_pkv = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
-        )
-
-        outputs_model_without_pkv = model_without_pkv.generate(
-            **features, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-
-        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
-        self.assertEqual(outputs_model_with_pkv.shape[1], self.GENERATION_LENGTH + 1)
-        self.assertEqual(outputs_model_without_pkv.shape[1], self.GENERATION_LENGTH + 1)
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_io_binding=False,
-            provider="CUDAExecutionProvider",
-            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
-        )
-        io_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_io_binding=True,
-            provider="CUDAExecutionProvider",
-            provider_options={"cudnn_conv_algo_search": "DEFAULT"},
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        data = self._get_sample_image()
-        image_processor, _ = self._get_preprocessors(model_id)
-        pixel_values = image_processor([data] * 2, return_tensors="pt").pixel_values.to("cuda")
-        decoder_start_token_id = onnx_model.config.decoder.bos_token_id
-        decoder_input_ids = torch.full((2, 1), decoder_start_token_id, dtype=torch.long).to("cuda")
-
-        onnx_outputs = onnx_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
-        io_outputs = io_model(pixel_values=pixel_values, decoder_input_ids=decoder_input_ids)
-
-        self.assertTrue("logits" in io_outputs)
-        self.assertIsInstance(io_outputs.logits, torch.Tensor)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "use_cache": [True],
-                "use_merged": [False, True],
-                "num_beams": [1, 3],
-            }
-        )
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
-    ):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
-        )
-        io_model = ORTModelForVision2Seq.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        data = self._get_sample_image()
-        image_processor, _ = self._get_preprocessors(model_id)
-        features = image_processor(data, return_tensors="pt").to("cuda")
-
-        onnx_outputs = onnx_model.generate(**features, num_beams=num_beams)
-        io_outputs = io_model.generate(**features, num_beams=num_beams)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-        gc.collect()
-
-
 class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {  # noqa: RUF012
         "sbert": "optimum/sbert-all-MiniLM-L6-with-pooler",
@@ -4682,7 +2809,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_model_call(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
 
@@ -4693,7 +2820,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_pipeline_ort_model(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
@@ -4707,7 +2834,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_pipeline_on_gpu(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -4723,7 +2850,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
     def test_pipeline_on_rocm_ep(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer, device=0)
@@ -4736,7 +2863,7 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_MODEL_ID.items())
     def test_default_pipeline_and_model_device(self, *args, **kwargs):
-        model_arch, model_id = args
+        _, model_id = args
         onnx_model = ORTModelForCustomTasks.from_pretrained(model_id)
         tokenizer = get_preprocessor(model_id)
         pipe = pipeline("feature-extraction", model=onnx_model, tokenizer=tokenizer)
@@ -4777,297 +2904,6 @@ class ORTModelForCustomTasksIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
 
-class ORTModelForPix2StructTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = ["pix2struct"]  # noqa: RUF012
-
-    FULL_GRID = {  # noqa: RUF012
-        "model_arch": SUPPORTED_ARCHITECTURES,
-        "use_cache": [False, True],
-        "use_merged": [False, True],
-    }
-
-    ORTMODEL_CLASS = ORTModelForPix2Struct
-    TASK = "image-to-text"  # is it fine as well with visual-question-answering?
-
-    GENERATION_LENGTH = 100
-
-    IMAGE = Image.open(
-        requests.get(
-            "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/ai2d-demo.jpg",
-            stream=True,
-        ).raw
-    )
-
-    def test_load_vanilla_transformers_which_is_not_supported(self):
-        with self.assertRaises(Exception) as context:
-            _ = ORTModelForPix2Struct.from_pretrained(MODEL_NAMES["bert"], export=True)
-
-        self.assertIn("only supports the tasks", str(context.exception))
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_transformers_and_save(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
-        model = ORTModelForPix2Struct.from_pretrained(model_id, export=True, use_merged=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model.save_pretrained(tmpdir)
-            save_path = os.path.join(tmpdir, ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir)
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertTrue(ONNX_DECODER_NAME not in folder_contents)
-            self.assertTrue(ONNX_DECODER_WITH_PAST_NAME not in folder_contents)
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_merge_from_onnx_and_save(self, model_arch):
-        model_id = MODEL_NAMES[model_arch]
-        task = "image-to-text-with-past"
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            main_export(model_id, tmpdir, task=task)
-
-            model = ORTModelForPix2Struct.from_pretrained(tmpdir)
-
-            self.assertTrue(model.use_merged)
-            self.assertTrue(model.decoder_with_past is None)
-
-            model.save_pretrained(tmpdir + "_save")
-            save_path = os.path.join(tmpdir + "_save", ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(save_path, "use_cache_branch"))
-
-            folder_contents = os.listdir(tmpdir + "_save")
-            self.assertTrue(ONNX_ENCODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_NAME in folder_contents)
-            self.assertFalse(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
-
-    @parameterized.expand(grid_parameters(FULL_GRID))
-    def test_compare_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        if use_cache is False and use_merged is True:
-            self.skipTest("use_cache=False, use_merged=True are uncompatible")
-
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name], use_cache=use_cache)
-
-        self.assertIsInstance(onnx_model.encoder, ORTEncoder)
-        if use_merged is False:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_NAME)
-            self.assertFalse(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertFalse(onnx_model.use_merged)
-        else:
-            model_path = Path(self.onnx_model_dirs[test_name], ONNX_DECODER_MERGED_NAME)
-            self.assertTrue(has_onnx_input(model_path, "use_cache_branch"))
-            self.assertTrue(onnx_model.use_merged)
-
-        self.assertIsInstance(onnx_model.decoder, ORTDecoderForSeq2Seq)
-        if use_cache is True and use_merged is False:
-            self.assertIsInstance(onnx_model.decoder_with_past, ORTDecoderForSeq2Seq)
-        if use_cache is True and use_merged is True:
-            self.assertTrue(onnx_model.decoder_with_past is None)
-
-        set_seed(SEED)
-        transformers_model = Pix2StructForConditionalGeneration.from_pretrained(model_id)
-
-        preprocessor = get_preprocessor(model_id)
-        questions = [
-            "Who am I?",
-            "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud and this is long long very long and super long my dear",
-        ]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors="pt")
-
-        with torch.no_grad():
-            transformers_outputs = transformers_model(**inputs)
-
-        for input_type in ["pt", "np"]:
-            inputs = preprocessor(
-                images=[self.IMAGE, self.IMAGE], text=questions, padding=True, return_tensors=input_type
-            )
-
-            onnx_outputs = onnx_model(**inputs)
-
-            self.assertTrue("logits" in onnx_outputs)
-            self.assertIsInstance(onnx_outputs.logits, self.TENSOR_ALIAS_TO_TYPE[input_type])
-
-            torch.testing.assert_close(
-                torch.Tensor(onnx_outputs.logits), transformers_outputs.logits, atol=self.ATOL, rtol=self.RTOL
-            )
-
-        gc.collect()
-
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
-    def test_compare_with_and_without_past_key_values(self, model_arch: str):
-        model_args = {"test_name": model_arch + "_False", "model_arch": model_arch, "use_cache": False}
-        self._setup(model_args)
-        model_args = {"test_name": model_arch + "_True", "model_arch": model_arch, "use_cache": True}
-        self._setup(model_args)
-
-        model_with_pkv = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True
-        )
-        model_without_pkv = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False
-        )
-
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-
-        outputs_model_with_pkv = model_with_pkv.generate(
-            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-        outputs_model_without_pkv = model_without_pkv.generate(
-            **inputs, min_new_tokens=self.GENERATION_LENGTH, max_new_tokens=self.GENERATION_LENGTH, num_beams=1
-        )
-
-        self.assertEqual(
-            (outputs_model_with_pkv.shape[1], outputs_model_without_pkv.shape[1]),
-            (
-                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
-                inputs["decoder_input_ids"].shape[1] + self.GENERATION_LENGTH + 1,
-            ),
-        )
-
-        torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, rtol=self.RTOL, atol=self.ATOL)
-
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
-    def test_compare_merged_and_not_merged_models_outputs(self, test_name: str, model_arch: str, use_cache: bool):
-        model_args = {
-            "test_name": test_name + "_True",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": True,
-        }
-        self._setup(model_args)
-        model_args = {
-            "test_name": test_name + "_False",
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": False,
-        }
-        self._setup(model_args)
-
-        model_not_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_False"])
-        not_merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_False"], ONNX_DECODER_NAME)
-        self.assertFalse(has_onnx_input(not_merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_not_merged.use_merged, False)
-
-        model_merged = ORTModelForPix2Struct.from_pretrained(self.onnx_model_dirs[test_name + "_True"])
-        merged_onnx_path = Path(self.onnx_model_dirs[test_name + "_True"], ONNX_DECODER_MERGED_NAME)
-        self.assertTrue(has_onnx_input(merged_onnx_path, "use_cache_branch"))
-        self.assertEqual(model_merged.decoder_with_past, None)
-        self.assertEqual(model_merged.use_merged, True)
-
-        model_id = MODEL_NAMES[model_arch]
-        preprocessor = get_preprocessor(model_id)
-        question = "What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud"
-        inputs = preprocessor(images=self.IMAGE, text=question, return_tensors="pt")
-
-        outputs_model_not_merged = model_not_merged.generate(
-            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
-        )
-        outputs_model_merged = model_merged.generate(
-            **inputs, max_new_tokens=self.GENERATION_LENGTH, min_new_tokens=self.GENERATION_LENGTH
-        )
-
-        torch.testing.assert_close(outputs_model_not_merged, outputs_model_merged, rtol=self.RTOL, atol=self.ATOL)
-
-    @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_to_io_binding(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
-        )
-        io_model = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        preprocessor = get_preprocessor(model_id)
-        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
-            "cuda"
-        )
-
-        onnx_outputs = onnx_model(**inputs)
-        io_outputs = io_model(**inputs)
-
-        self.assertTrue("logits" in io_outputs)
-        self.assertTrue("encoder_last_hidden_state" in io_outputs)
-
-        self.assertIsInstance(io_outputs.logits, torch.Tensor)
-        self.assertIsInstance(io_outputs.encoder_last_hidden_state, torch.Tensor)
-
-        torch.testing.assert_close(onnx_outputs.logits, io_outputs.logits, atol=self.ATOL, rtol=self.RTOL)
-
-    @parameterized.expand(
-        grid_parameters(
-            {
-                "model_arch": SUPPORTED_ARCHITECTURES,
-                "use_cache": [True],
-                "use_merged": [False, True],
-                "num_beams": [1, 3],
-            }
-        )
-    )
-    @require_torch_gpu
-    @pytest.mark.cuda_ep_test
-    def test_compare_generation_to_io_binding(
-        self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool, num_beams: int
-    ):
-        model_args = {
-            "test_name": test_name,
-            "model_arch": model_arch,
-            "use_cache": use_cache,
-            "use_merged": use_merged,
-        }
-        self._setup(model_args)
-
-        model_id = MODEL_NAMES[model_arch]
-        onnx_model = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=False, provider="CUDAExecutionProvider"
-        )
-        io_model = ORTModelForPix2Struct.from_pretrained(
-            self.onnx_model_dirs[test_name], use_io_binding=True, provider="CUDAExecutionProvider"
-        )
-
-        self.assertFalse(onnx_model.use_io_binding)
-        self.assertTrue(io_model.use_io_binding)
-
-        preprocessor = get_preprocessor(model_id)
-        question = ["What does the label 15 represent? (1) lava (2) core (3) tunnel (4) ash cloud", "Who are you?"]
-        inputs = preprocessor(images=[self.IMAGE, self.IMAGE], text=question, padding=True, return_tensors="pt").to(
-            "cuda"
-        )
-
-        onnx_outputs = onnx_model.generate(**inputs, num_beams=num_beams)
-        io_outputs = io_model.generate(**inputs, num_beams=num_beams)
-
-        # compare tensor outputs
-        torch.testing.assert_close(onnx_outputs, io_outputs, atol=self.ATOL, rtol=self.RTOL)
-
-
 class TestBothExportersORTModel(unittest.TestCase):
     @parameterized.expand(
         [
@@ -5078,8 +2914,6 @@ class TestBothExportersORTModel(unittest.TestCase):
             ["multiple-choice", ORTModelForMultipleChoiceIntegrationTest],
             ["image-classification", ORTModelForImageClassificationIntegrationTest],
             ["semantic-segmentation", ORTModelForSemanticSegmentationIntegrationTest],
-            ["text2text-generation", ORTModelForSeq2SeqLMIntegrationTest],
-            ["automatic-speech-recognition", ORTModelForSpeechSeq2SeqIntegrationTest],
             ["audio-classification", ORTModelForAudioClassificationIntegrationTest],
             ["automatic-speech-recognition", ORTModelForCTCIntegrationTest],
             ["audio-xvector", ORTModelForAudioXVectorIntegrationTest],

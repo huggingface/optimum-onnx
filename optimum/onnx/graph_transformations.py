@@ -227,16 +227,6 @@ def merge_decoders(
     _unify_onnx_outputs(decoder, decoder_with_past, strict=strict)
     all_inputs = _get_all_inputs([decoder, decoder_with_past])
 
-    # Replace the axis name `sequence_length` of the attention_mask input by `attention_mask_sequence_length`.
-    # This is because the merged model `input_ids` and `attention_mask` inputs may not always have the same length on the 2nd axis.
-    # In the first pass, `input_ids` and `attention_mask` are indeed of the same length, but in later pass `input_ids` is of length 1
-    # while `attention_mask` is of length `past_sequence_length + 1`
-    for _, inp in enumerate(all_inputs):
-        if inp.name == "attention_mask":
-            if inp.type.tensor_type.shape.dim[1].dim_param != "sequence_length":
-                raise ValueError("Expected attention_mask second axis to be dynamic and named `sequence_length`.")
-            inp.type.tensor_type.shape.dim[1].dim_param = "attention_mask_sequence_length"
-
     deduplicated_initializers = _deduplicated_cross_model_initializers([decoder, decoder_with_past], suffix=graph_name)
 
     # Keep initializers of dim 0 (or dim 1 + int32/int64) in subgraphs for readability purposes, and also because
@@ -315,7 +305,7 @@ def cast_slice_nodes_inputs_to_int32(model: onnx.ModelProto) -> onnx.ModelProto:
     they are consumed by is to iterate over nodes and check `node.input` for a match.
 
     Note that constant inputs to nodes as `Squeeze`, `Unsqueeze` can not be converted to int32, as the
-    these operators explicitely expect int64 inputs according to ONNX specifications:
+    these operators explicitly expect int64 inputs according to ONNX specifications:
     https://github.com/onnx/onnx/blob/main/docs/Operators.md
     """
     map_input_node = {}

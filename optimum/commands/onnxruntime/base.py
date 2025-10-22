@@ -16,9 +16,8 @@
 from __future__ import annotations
 
 from optimum.commands.base import BaseOptimumCLICommand, CommandInfo
-
-from .optimize import ONNXRuntimeOptimizeCommand
-from .quantize import ONNXRuntimeQuantizeCommand
+from optimum.commands.onnxruntime.optimize import ONNXRuntimeOptimizeCommand
+from optimum.commands.onnxruntime.quantize import ONNXRuntimeQuantizeCommand
 
 
 class ONNXRuntimeCommand(BaseOptimumCLICommand):
@@ -34,7 +33,7 @@ class ONNXRuntimeCommand(BaseOptimumCLICommand):
         ),
         CommandInfo(
             name="quantize",
-            help="Dynammic quantization for ONNX models.",
+            help="Dynamic quantization for ONNX models.",
             subcommand_class=ONNXRuntimeQuantizeCommand,
         ),
     )

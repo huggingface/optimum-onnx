@@ -20,7 +20,7 @@ from transformers.utils import _LazyModule
 
 
 _import_structure = {
-    "base": ["OnnxConfig", "OnnxConfigWithLoss", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
+    "base": ["OnnxConfig", "OnnxConfigWithPast", "OnnxSeq2SeqConfigWithPast"],
     "config": ["TextDecoderOnnxConfig", "TextEncoderOnnxConfig", "TextSeq2SeqOnnxConfig"],
     "convert": [
         "export",
@@ -29,23 +29,13 @@ _import_structure = {
         "validate_models_outputs",
         "onnx_export_from_model",
     ],
-    "utils": [
-        "get_decoder_models_for_export",
-        "get_encoder_decoder_models_for_export",
-        "get_diffusion_models_for_export",
-        "MODEL_TYPES_REQUIRING_POSITION_IDS",
-    ],
+    "utils": ["MODEL_TYPES_REQUIRING_POSITION_IDS", "get_metaclip_2_models_for_export"],
     "__main__": ["main_export"],
 }
 
 if TYPE_CHECKING:
     from optimum.exporters.onnx.__main__ import main_export
-    from optimum.exporters.onnx.base import (
-        OnnxConfig,
-        OnnxConfigWithLoss,
-        OnnxConfigWithPast,
-        OnnxSeq2SeqConfigWithPast,
-    )
+    from optimum.exporters.onnx.base import OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
     from optimum.exporters.onnx.config import TextDecoderOnnxConfig, TextEncoderOnnxConfig, TextSeq2SeqOnnxConfig
     from optimum.exporters.onnx.convert import (
         export,
@@ -54,13 +44,7 @@ if TYPE_CHECKING:
         validate_model_outputs,
         validate_models_outputs,
     )
-
-    from .utils import (
-        MODEL_TYPES_REQUIRING_POSITION_IDS,
-        get_decoder_models_for_export,
-        get_diffusion_models_for_export,
-        get_encoder_decoder_models_for_export,
-    )
+    from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS, get_metaclip_2_models_for_export
 else:
     import sys
 

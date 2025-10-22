@@ -17,4 +17,4 @@ __all__ = [
     "QuantizationPreprocessor",
 ]
 
-from .quantization import PreprocessorPass, QuantizationPreprocessor
+from optimum.onnxruntime.preprocessors.quantization import PreprocessorPass, QuantizationPreprocessor

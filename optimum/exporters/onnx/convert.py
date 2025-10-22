@@ -36,7 +36,6 @@ from optimum.exporters.onnx.base import OnnxConfig
 from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
 from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
 from optimum.exporters.onnx.utils import (
-    MODEL_TYPES_REQUIRING_POSITION_IDS,
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
     recursive_to_device,
@@ -56,6 +55,7 @@ from optimum.utils import (
     is_diffusers_available,
     is_onnxslim_available,
     is_torch_onnx_support_available,
+    is_torch_version,
     is_transformers_version,
     logging,
 )
@@ -97,7 +97,7 @@ def validate_models_outputs(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
-            A dictionnary containing the models to validate and their corresponding onnx configs.
+            A dictionary containing the models to validate and their corresponding onnx configs.
         onnx_named_outputs (`List[List[str]]`):
             The names of the outputs to check.
         output_dir (`Path`):
@@ -212,7 +212,7 @@ def validate_model_outputs(
         io_process.join()
 
         if io_process.exception:
-            error, traceback = io_process.exception
+            error, _ = io_process.exception
             raise error
     else:
         _run_validation(
@@ -333,9 +333,7 @@ def _run_validation(
 
     # Possibly edit the input for the onnxruntime.InferenceSession, this is for example the case for merged
     # models where the input `use_cache_branch` is added
-    reference_ort_inputs = config.generate_dummy_inputs_for_validation(
-        reference_model_inputs, onnx_input_names=onnx_input_names
-    )
+    reference_ort_inputs = config.generate_dummy_inputs_for_validation(reference_model_inputs, onnx_input_names)
 
     # We flatten potential collection of inputs (i.e. past_keys)
     onnx_inputs = {}
@@ -559,6 +557,12 @@ def export_pytorch(
             else:
                 dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
+            if is_torch_version(">=", "2.9"):
+                # Starting from 2.9 dynamo's default value is True
+                dynamo_kwargs = {"dynamo": False}
+            else:
+                dynamo_kwargs = {}
+
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
             onnx_export(
@@ -570,6 +574,7 @@ def export_pytorch(
                 dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
+                **dynamo_kwargs,
             )
 
         # check if external data was exported
@@ -630,7 +635,7 @@ def export_models(
 
     Args:
         models_and_onnx_configs (`Dict[str, Tuple[Union[`PreTrainedModel`, `ModelMixin`], `OnnxConfig`]]):
-            A dictionnary containing the models to export and their corresponding onnx configs.
+            A dictionary containing the models to export and their corresponding onnx configs.
         output_dir (`Path`):
             Output directory to store the exported ONNX models.
         opset (`Optional[int]`, defaults to `None`):
@@ -814,7 +819,6 @@ def onnx_export_from_model(
     custom_onnx_configs: dict[str, OnnxConfig] | None = None,
     fn_get_submodels: Callable | None = None,
     _variant: str = "default",
-    legacy: bool = False,
     preprocessors: list | None = None,
     device: str = "cpu",
     no_dynamic_axes: bool = False,
@@ -872,8 +876,6 @@ def onnx_export_from_model(
             `if __name__ == "__main__":` block.
         _variant (`str`, defaults to `default`):
             Specify the variant of the ONNX export to use.
-        legacy (`bool`, defaults to `False`):
-            Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         preprocessors (`Optional[List]`, defaults to `None`):
             List of preprocessors to use for the ONNX export.
         no_dynamic_axes (bool, defaults to `False`):
@@ -946,17 +948,8 @@ def onnx_export_from_model(
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
         raise ValueError(
             f"model.config.is_encoder_decoder is True and task is `{task}`, which are incompatible. If the task was auto-inferred, please fill a bug report"
-            f"at https://github.com/huggingface/optimum, if --task was explicitely passed, make sure you selected the right task for the model,"
+            f"at https://github.com/huggingface/optimum, if --task was explicitly passed, make sure you selected the right task for the model,"
             f" referring to `optimum.exporters.tasks.TaskManager`'s `_TRANSFORMERS_TASKS_TO_MODEL_LOADERS`."
-        )
-
-    if (
-        legacy
-        and (model_type in MODEL_TYPES_REQUIRING_POSITION_IDS)
-        and (task.startswith(("text-generation", "feature-extraction")))
-    ):
-        logger.warning(
-            f"legacy=True was specified in the ONNX export, although the model {model_type} requires position_ids for batched inference. Passing `legacy=True` is strongly discouraged, and this option will be removed in a future release. Reference: https://github.com/huggingface/optimum/pull/1381"
         )
 
     if library_name != "diffusers" and model_type in TasksManager._UNSUPPORTED_CLI_MODEL_TYPE:
@@ -998,7 +991,6 @@ def onnx_export_from_model(
         fn_get_submodels=fn_get_submodels,
         preprocessors=preprocessors,
         _variant=_variant,
-        legacy=legacy,
         library_name=library_name,
         model_kwargs=model_kwargs,
     )
@@ -1009,7 +1001,7 @@ def onnx_export_from_model(
             opset = onnx_config.DEFAULT_ONNX_OPSET
         elif opset < onnx_config.DEFAULT_ONNX_OPSET:
             logger.warning(
-                f"Opset {opset} is lower than the recommended minmum opset ({onnx_config.DEFAULT_ONNX_OPSET}) to export {model_type}. "
+                f"Opset {opset} is lower than the recommended minimum opset ({onnx_config.DEFAULT_ONNX_OPSET}) to export {model_type}. "
                 f"The ONNX export may fail or the exported model may be suboptimal."
             )
         if atol is None:
@@ -1170,5 +1162,5 @@ def onnx_export_from_model(
             )
         except Exception as e:
             raise RuntimeError(
-                f"An error occured during validation, but the model was saved nonetheless at {output.as_posix()}"
+                f"An error occurred during validation, but the model was saved nonetheless at {output.as_posix()}"
             ) from e

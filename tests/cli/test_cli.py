@@ -12,26 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
 
-import optimum.commands
-from optimum.onnxruntime.configuration import AutoQuantizationConfig, ORTConfig
-
-
-CLI_WIH_CUSTOM_COMMAND_PATH = Path(__file__).parent / "cli_with_custom_command.py"
-OPTIMUM_COMMANDS_DIR = Path(inspect.getfile(optimum.commands)).parent
-REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH = OPTIMUM_COMMANDS_DIR / "register" / "cli_with_custom_command.py"
+from optimum.onnxruntime.configuration import AutoOptimizationConfig, AutoQuantizationConfig, ORTConfig
 
 
 class TestCLI(unittest.TestCase):
-    def tearDown(self):
-        super().tearDown()
-        REGISTERED_CLI_WITH_CUSTOM_COMMAND_PATH.unlink(missing_ok=True)
-
     def test_helps_no_raise(self):
         commands = [
             "optimum-cli --help",
@@ -51,7 +39,7 @@ class TestCLI(unittest.TestCase):
     def test_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vision_perceiver_conv --task image-classification {tempdir}/onnx",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vit --task image-classification {tempdir}/vit",
             ]
 
             for command in commands:
@@ -59,9 +47,11 @@ class TestCLI(unittest.TestCase):
 
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            # First export a tiny encoder, decoder only and encoder-decoder
+            ort_config = ORTConfig(optimization=AutoOptimizationConfig.O1())
+            ort_config.save_pretrained(tempdir)
+
             export_commands = [
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BertModel {tempdir}/encoder",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bart {tempdir}/encoder-decoder",
             ]
@@ -70,17 +60,24 @@ class TestCLI(unittest.TestCase):
                 f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/decoder -O1 -o {tempdir}/optimized_decoder",
                 f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder-decoder -O1 -o {tempdir}/optimized_encoder_decoder",
             ]
+            optimize_with_config_commands = [
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder --c {tempdir}/ort_config.json -o {tempdir}/optimized_encoder_with_config",
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/decoder --c {tempdir}/ort_config.json -o {tempdir}/optimized_decoder_with_config",
+                f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder-decoder --c {tempdir}/ort_config.json -o {tempdir}/optimized_encoder_decoder_with_config",
+            ]
 
-            for export, optimize in zip(export_commands, optimize_commands):
+            for export, optimize, optimize_with_config in zip(
+                export_commands, optimize_commands, optimize_with_config_commands
+            ):
                 subprocess.run(export, shell=True, check=True)
                 subprocess.run(optimize, shell=True, check=True)
+                subprocess.run(optimize_with_config, shell=True, check=True)
 
     def test_quantize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             ort_config = ORTConfig(quantization=AutoQuantizationConfig.avx2(is_static=False))
             ort_config.save_pretrained(tempdir)
 
-            # First export a tiny encoder, decoder only and encoder-decoder
             export_commands = [
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
@@ -93,9 +90,9 @@ class TestCLI(unittest.TestCase):
             ]
 
             quantize_with_config_commands = [
-                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-bert --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_with_config",
-                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-gpt2 --c {tempdir}/ort_config.json -o {tempdir}/quantized_decoder_with_config",
-                f"optimum-cli onnxruntime quantize --onnx_model hf-internal-testing/tiny-random-t5 --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_decoder_with_config",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_with_config",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --c {tempdir}/ort_config.json -o {tempdir}/quantized_decoder_with_config",
+                f"optimum-cli onnxruntime quantize --onnx_model {tempdir}/encoder --c {tempdir}/ort_config.json -o {tempdir}/quantized_encoder_decoder_with_config",
             ]
 
             for export, quantize, quantize_with_config in zip(

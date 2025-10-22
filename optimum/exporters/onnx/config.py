@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 from optimum.exporters.onnx.base import ConfigBehavior, OnnxConfig, OnnxConfigWithPast, OnnxSeq2SeqConfigWithPast
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
+from optimum.exporters.tasks import TasksManager
+from optimum.onnx import merge_decoders
 from optimum.utils import (
     DummyAudioInputGenerator,
     DummyBboxInputGenerator,
@@ -31,19 +33,13 @@ from optimum.utils import (
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
     DummyVisionInputGenerator,
-    is_diffusers_available,
     logging,
 )
-
-
-# TODO : moved back onnx imports applied in https://github.com/huggingface/optimum/pull/2114/files after refactorization
 
 
 if TYPE_CHECKING:
     from transformers import PretrainedConfig, PreTrainedModel
 
-    if is_diffusers_available():
-        from diffusers import ModelMixin
 
 logger = logging.get_logger(__name__)
 
@@ -70,7 +66,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
         use_past: bool = False,
         use_past_in_inputs: bool = False,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -80,7 +75,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
             use_past=use_past,
             use_past_in_inputs=use_past_in_inputs,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
 
     @property
@@ -110,7 +104,7 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(
@@ -119,8 +113,6 @@ class TextDecoderOnnxConfig(OnnxConfigWithPast):
 
         # Attempt to merge only if the decoder-only was exported separately without/with past
         if self.use_past is True and len(models_and_onnx_configs) == 2:
-            from optimum.onnx import merge_decoders
-
             decoder_path = Path(path, onnx_files_subpaths[0])
             decoder_with_past_path = Path(path, onnx_files_subpaths[1])
             decoder_merged_path = Path(path, ONNX_DECODER_MERGED_NAME + ".onnx")
@@ -156,7 +148,7 @@ class TextDecoderWithPositionIdsOnnxConfig(TextDecoderOnnxConfig):
 
         # Decoders based on GPT2 require a position_ids input to avoid generating wrong position_ids in the model itself:
         # https://github.com/huggingface/transformers/blob/v4.33.1/src/transformers/models/gpt2/modeling_gpt2.py#L802
-        if not self.legacy and self.task in {"text-generation", "feature-extraction"}:
+        if self.task in {"text-generation", "feature-extraction"}:
             common_inputs["position_ids"] = {0: "batch_size", 1: "sequence_length"}
 
         return common_inputs
@@ -172,34 +164,18 @@ class TextSeq2SeqOnnxConfig(OnnxSeq2SeqConfigWithPast):
     )
 
     @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
-
-    @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
-                # TODO: validate the axis name for attention_mask
-                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
                 self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
         return common_inputs
 
@@ -260,30 +236,17 @@ class AudioToTextOnnxConfig(OnnxSeq2SeqConfigWithPast):
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
 
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_features"] = {0: "batch_size", 1: "feature_size", 2: "encoder_sequence_length"}
-
-        if self._behavior is not ConfigBehavior.ENCODER:
-            if self.use_past_in_inputs:
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-                self.add_past_key_values(common_inputs, direction="inputs")
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
-        if self._behavior is ConfigBehavior.DECODER:
+        else:
             common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        return common_inputs
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
+            if self.use_past_in_inputs:
+                self.add_past_key_values(common_inputs, direction="inputs")
 
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
+        return common_inputs
 
 
 class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
@@ -299,7 +262,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         use_past_in_inputs: bool = False,
         behavior: ConfigBehavior = ConfigBehavior.MONOLITH,
         preprocessors: list[Any] | None = None,
-        legacy: bool = False,
     ):
         super().__init__(
             config=config,
@@ -310,10 +272,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             use_past_in_inputs=use_past_in_inputs,
             behavior=behavior,
             preprocessors=preprocessors,
-            legacy=legacy,
         )
-
-        from optimum.exporters.tasks import TasksManager
 
         self.is_decoder_with_past = False
 
@@ -382,40 +341,18 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         common_inputs = {}
-        if self._behavior is not ConfigBehavior.DECODER:
+        if self._behavior in {ConfigBehavior.ENCODER, ConfigBehavior.MONOLITH}:
             common_inputs["input_ids"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
+        else:
+            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
         common_inputs["attention_mask"] = {0: "batch_size", 1: "encoder_sequence_length"}
 
-        if self._behavior is not ConfigBehavior.ENCODER:
-            # TODO: it is likely this pop() is unwanted as we then always hit
-            # https://github.com/huggingface/transformers/blob/v4.26.0/src/transformers/models/t5/modeling_t5.py#L965-L969
-            common_inputs.pop("attention_mask")
-
-            if self.use_past_in_inputs:
-                # TODO: validate the axis name for attention_mask
-                # common_inputs["attention_mask"][1] = "past_encoder_sequence_length + sequence_length"
-                common_inputs["decoder_input_ids"] = {0: "batch_size"}
-            else:
-                common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
-
+        if self._behavior in {ConfigBehavior.DECODER, ConfigBehavior.MONOLITH}:
+            common_inputs["decoder_input_ids"] = {0: "batch_size", 1: "decoder_sequence_length"}
             if self.use_past_in_inputs:
                 self.add_past_key_values(common_inputs, direction="inputs")
 
-        if self._behavior is ConfigBehavior.DECODER:
-            common_inputs["encoder_outputs"] = {0: "batch_size", 1: "encoder_sequence_length"}
-
         return common_inputs
-
-    @property
-    def torch_to_onnx_input_map(self) -> dict[str, str]:
-        if self._behavior is ConfigBehavior.DECODER:
-            return {
-                "decoder_input_ids": "input_ids",
-                "encoder_outputs": "encoder_hidden_states",
-                "attention_mask": "encoder_attention_mask",
-            }
-        return {}
 
     def add_past_key_values(self, inputs_or_outputs: dict[str, dict[int, str]], direction: str):
         if self.is_decoder_with_past:
@@ -429,26 +366,34 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
         return self._decoder_onnx_config.flatten_output_collection_property(name, field)
 
     def generate_dummy_inputs_for_validation(
-        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str] | None = None
+        self, reference_model_inputs: dict[str, Any], onnx_input_names: list[str]
     ) -> dict[str, Any]:
         if self._behavior is ConfigBehavior.ENCODER:
-            return self._encoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
+            return self._encoder_onnx_config.generate_dummy_inputs_for_validation(
+                reference_model_inputs, onnx_input_names
+            )
         else:
             if self._behavior is ConfigBehavior.DECODER:
-                reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+                if "decoder_input_ids" in reference_model_inputs:
+                    reference_model_inputs["input_ids"] = reference_model_inputs.pop("decoder_input_ids")
+                if "attention_mask" in reference_model_inputs:
+                    reference_model_inputs["encoder_attention_mask"] = reference_model_inputs.pop("attention_mask")
+                if "encoder_outputs" in reference_model_inputs:
+                    if "encoder_hidden_states" in onnx_input_names:
+                        reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop(
+                            "encoder_outputs"
+                        )[0]
+                    else:
+                        reference_model_inputs.pop("encoder_outputs")
 
-            if "encoder_outputs" in reference_model_inputs:
-                if "encoder_hidden_states" in onnx_input_names:
-                    reference_model_inputs["encoder_hidden_states"] = reference_model_inputs.pop("encoder_outputs")[0]
-                else:
-                    reference_model_inputs.pop("encoder_outputs")
-
-            return self._decoder_onnx_config.generate_dummy_inputs_for_validation(reference_model_inputs)
+            return self._decoder_onnx_config.generate_dummy_inputs_for_validation(
+                reference_model_inputs, onnx_input_names
+            )
 
     def post_process_exported_models(
         self,
         path: Path,
-        models_and_onnx_configs: dict[str, tuple[PreTrainedModel | ModelMixin, OnnxConfig]],
+        models_and_onnx_configs: dict[str, tuple[PreTrainedModel, OnnxConfig]],
         onnx_files_subpaths: list[str],
     ):
         models_and_onnx_configs, onnx_files_subpaths = super().post_process_exported_models(

@@ -22,24 +22,22 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 import transformers
-from torch.onnx.symbolic_opset14 import (
-    _attention_scale,
-    _causal_attention_mask,
-    _onnx_symbolic,
-    _type_utils,
-    jit_utils,
-    symbolic_helper,
-)
+from torch.onnx import symbolic_helper
+from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from optimum.exporters.onnx._traceable_cache import TraceableCache
-from optimum.utils import is_transformers_version, logging
+from optimum.utils import is_diffusers_version, is_torch_version, is_transformers_version, logging
 
 
+if is_transformers_version(">=", "4.44") and is_transformers_version("<", "4.50"):
+    from optimum.exporters.onnx._traceable_cache import TraceableCache
+if is_transformers_version(">=", "4.54"):
+    from optimum.exporters.onnx._traceable_decorator import traceable_check_model_inputs
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
     from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+    from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
         ALL_MASK_ATTENTION_FUNCTIONS,
@@ -55,6 +53,8 @@ if is_transformers_version(">=", "4.53"):
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
 
+if is_diffusers_version(">=", "0.35.0"):
+    import diffusers.models.transformers.transformer_flux
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
@@ -65,86 +65,93 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
-@_onnx_symbolic("aten::__ior_")
 @symbolic_helper.parse_args("v", "v")
-def __ior_(g: jit_utils.GraphContext, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
+def __ior_(g, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
     return g.op("Or", self, other)
 
 
-@_onnx_symbolic("aten::scaled_dot_product_attention")
-@symbolic_helper.parse_args("v", "v", "v", "v", "f", "b", "v", "b")
-def scaled_dot_product_attention(
-    g: jit_utils.GraphContext,
-    query: torch._C.Value,
-    key: torch._C.Value,
-    value: torch._C.Value,
-    attn_mask: torch._C.Value | None = None,
-    dropout_p: float = 0.0,
-    is_causal: bool = False,
-    scale: torch._C.Value | None = None,
-    enable_gqa: bool = False,
-):
-    assert (not is_causal) or (is_causal and symbolic_helper._is_none(attn_mask)), (
-        "is_causal and attn_mask cannot be set at the same time"
-    )
-    assert not enable_gqa, "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+torch.onnx.register_custom_op_symbolic("aten::__ior__", __ior_, 14)
 
-    if symbolic_helper._is_none(scale):
-        scale = _attention_scale(g, query)
+if is_torch_version("<", "2.9"):
+    # this was fixed in torch in 2.9 https://github.com/pytorch/pytorch/pull/159973
+    from torch.onnx import JitScalarType
+    from torch.onnx.symbolic_opset14 import _attention_scale, _causal_attention_mask
 
-    if is_causal:
-        attn_mask = _causal_attention_mask(g, query, key)
-
-    # Swap the last two axes of key
-    # NOTE: onnx-script has different logic here, because the attribute perms in
-    # transpose needs list of ints
-    key_shape_builtin = symbolic_helper._get_tensor_rank(key)
-    key_transposed_axes = list(range(key_shape_builtin))
-    key_transposed_axes[-1], key_transposed_axes[-2] = (key_transposed_axes[-2], key_transposed_axes[-1])
-    key_transposed = g.op("Transpose", key, perm_i=key_transposed_axes)
-
-    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
-    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    query_scaled = g.op("Mul", query, g.op("Sqrt", scale))
-    key_transposed_scaled = g.op("Mul", key_transposed, g.op("Sqrt", scale))
-    mul_qk = g.op("MatMul", query_scaled, key_transposed_scaled)
-
-    if symbolic_helper._is_none(attn_mask):
-        mul_qk_add = mul_qk
-        attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
-    elif _type_utils.JitScalarType.from_value(attn_mask) == _type_utils.JitScalarType.BOOL:
-        # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
-        const_zero = g.op("Constant", value_t=torch.tensor([0.0]))
-        const_neg_inf = g.op("Constant", value_t=torch.tensor([-float("inf")]))
-        attn_mask = g.op("Where", attn_mask, const_zero, const_neg_inf)
-        mul_qk_add = g.op("Add", mul_qk, attn_mask)
-        attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
-        # when using scaled dot product attention with a boolean mask, we replace NaN values in attn_weight with 0.0
-        attn_weight = g.op(
-            "Where", g.op("IsNaN", attn_weight), g.op("Constant", value_t=torch.tensor([0.0])), attn_weight
-        )
-    elif _type_utils.JitScalarType.from_value(attn_mask) in (
-        _type_utils.JitScalarType.FLOAT,
-        _type_utils.JitScalarType.HALF,
-        _type_utils.JitScalarType.BFLOAT16,
+    @symbolic_helper.parse_args("v", "v", "v", "v", "f", "b", "v", "b")
+    def scaled_dot_product_attention(
+        g,
+        query: torch._C.Value,
+        key: torch._C.Value,
+        value: torch._C.Value,
+        attn_mask: torch._C.Value | None = None,
+        dropout_p: float = 0.0,
+        is_causal: bool = False,
+        scale: torch._C.Value | None = None,
+        enable_gqa: bool = False,
     ):
-        mul_qk_add = g.op("Add", mul_qk, attn_mask)
-        attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
-    else:
-        raise ValueError(f"Unsupported type for attn_mask: {_type_utils.JitScalarType.from_value(attn_mask)}")
-
-    if dropout_p != 0:
-        attn_weight = g.op(
-            "Dropout",
-            attn_weight,
-            g.op("Constant", value_t=torch.tensor(dropout_p, dtype=torch.float)),
+        assert (not is_causal) or (is_causal and symbolic_helper._is_none(attn_mask)), (
+            "is_causal and attn_mask cannot be set at the same time"
         )
+        assert not enable_gqa, "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
-    return g.op("MatMul", attn_weight, value)
+        if symbolic_helper._is_none(scale):
+            scale = _attention_scale(g, query)
+
+        if is_causal:
+            attn_mask = _causal_attention_mask(g, query, key)
+
+        # Swap the last two axes of key
+        # NOTE: onnx-script has different logic here, because the attribute perms in
+        # transpose needs list of ints
+        key_shape_builtin = symbolic_helper._get_tensor_rank(key)
+        key_transposed_axes = list(range(key_shape_builtin))
+        key_transposed_axes[-1], key_transposed_axes[-2] = (key_transposed_axes[-2], key_transposed_axes[-1])
+        key_transposed = g.op("Transpose", key, perm_i=key_transposed_axes)
+
+        # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+        # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+        query_scaled = g.op("Mul", query, g.op("Sqrt", scale))
+        key_transposed_scaled = g.op("Mul", key_transposed, g.op("Sqrt", scale))
+        mul_qk = g.op("MatMul", query_scaled, key_transposed_scaled)
+
+        if symbolic_helper._is_none(attn_mask):
+            mul_qk_add = mul_qk
+            attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
+        elif JitScalarType.from_value(attn_mask) == JitScalarType.BOOL:
+            # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
+            const_zero = g.op("Constant", value_t=torch.tensor([0.0]))
+            const_neg_inf = g.op("Constant", value_t=torch.tensor([-float("inf")]))
+            attn_mask = g.op("Where", attn_mask, const_zero, const_neg_inf)
+            mul_qk_add = g.op("Add", mul_qk, attn_mask)
+            attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
+            # when using scaled dot product attention with a boolean mask, we replace NaN values in attn_weight with 0.0
+            attn_weight = g.op(
+                "Where", g.op("IsNaN", attn_weight), g.op("Constant", value_t=torch.tensor([0.0])), attn_weight
+            )
+        elif JitScalarType.from_value(attn_mask) in (
+            JitScalarType.FLOAT,
+            JitScalarType.HALF,
+            JitScalarType.BFLOAT16,
+        ):
+            mul_qk_add = g.op("Add", mul_qk, attn_mask)
+            attn_weight = g.op("Softmax", mul_qk_add, axis_i=-1)
+        else:
+            raise ValueError(f"Unsupported type for attn_mask: {JitScalarType.from_value(attn_mask)}")
+
+        if dropout_p != 0:
+            attn_weight = g.op(
+                "Dropout",
+                attn_weight,
+                g.op("Constant", value_t=torch.tensor(dropout_p, dtype=torch.float)),
+            )
+
+        return g.op("MatMul", attn_weight, value)
+
+    torch.onnx.register_custom_op_symbolic("aten::scaled_dot_product_attention", scaled_dot_product_attention, 14)
 
 
 def patch_everywhere(attribute_name: str, patch: Any, module_name_prefix: str | None = None):
-    """Finds all occurences of `attribute_name` in the loaded modules and patches them with `patch`.
+    """Finds all occurrences of `attribute_name` in the loaded modules and patches them with `patch`.
 
     Args:
         attribute_name (`str`):
@@ -302,6 +309,21 @@ def onnx_compatible_linalg_norm(x, ord=2, dim=None, keepdim=False, *, dtype=None
     return norm
 
 
+def onnx_compatible_rms_norm(input, normalized_shape, weight=None, eps=None):
+    if eps is None:
+        eps = torch.finfo(input.dtype).eps
+
+    axis = -len(normalized_shape)
+    mean_square = torch.mean(torch.square(input), dim=axis, keepdim=True)
+    rms = torch.sqrt(mean_square + eps)
+    output = input / rms
+
+    if weight is not None:
+        output = output * weight
+
+    return output
+
+
 # A patched version of https://github.com/huggingface/transformers/blob/v4.53.2/src/transformers/masking_utils.py#L602
 # That returns a tensor of zeros with the same shape as position_ids indicating no packed sequence indices.
 def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Tensor:
@@ -395,6 +417,9 @@ def traceable_scaled_dot_product_attention(
     if isinstance(is_causal, torch.Tensor):
         is_causal = is_causal.item()
 
+    if "enable_gqa" in kwargs:
+        kwargs.pop("enable_gqa")
+
     attn_weights = original_scaled_dot_product_attention(
         query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, **kwargs
     )
@@ -410,6 +435,7 @@ def noop_bfloat16_casting(self):
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
+    PatchingSpec(torch, "rms_norm", onnx_compatible_rms_norm, torch.rms_norm),
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
     PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, torch.linalg.norm),
     PatchingSpec(torch.Tensor, "bfloat16", noop_bfloat16_casting, torch.Tensor.bfloat16),
@@ -447,14 +473,17 @@ class ModelPatcher:
         self.orig_forward_name = "forward" if hasattr(self._model, "forward") else "call"
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
+        if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
+            # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
+            # we fix those issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
+            # issues are: support for positional args (use_cache for instance) and fix for _CAN_RECORD_REGISTRY
+            # explicitly mapping to None for some models
+            self.orig_forward = types.MethodType(
+                traceable_check_model_inputs(self.orig_forward.__wrapped__), self._model
+            )
+
+        self.real_config = config
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-
-        # TODO: remove that once we got rid of OnnxConfigWithLoss or we implemented it better.
-        if config.__class__.__name__ == "OnnxConfigWithLoss":
-            self.real_config = config._onnx_config
-        else:
-            self.real_config = config
-
         allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
 
         @functools.wraps(self.orig_forward)
@@ -495,9 +524,26 @@ class ModelPatcher:
                                 f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
                             )
 
+            if is_transformers_version(">=", "4.54"):
+                # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
+                if "encoder_outputs" in signature.parameters:
+                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+                    if (
+                        encoder_outputs_index < len(args)  # encoder_outputs is in args
+                        and isinstance(args[encoder_outputs_index], (list, tuple))
+                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
+                    ):
+                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
+                    elif (
+                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
+                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
+                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
+                    ):
+                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
+
             outputs = self.orig_forward(*args, **kwargs)
 
-            # This code block handles different cases of the filterd_outputs input to align it with the expected
+            # This code block handles different cases of the filtered_outputs input to align it with the expected
             # format of outputs. It is common for the output type of a model to vary, such as tensor, list,
             # tuple, etc. For Transformers models, the output is encapsulated in a ModelOutput object that
             # contains the output names of the model. In the case of Timm classification models, the output
@@ -608,9 +654,12 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
         allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
-        # sometimes the text_config has use_cache set to False
-        if allow_past_in_outputs and hasattr(model.config, "text_config"):
-            model.config.text_config.use_cache = True
+        # sometimes the text_config/decoder is set to False
+        if allow_past_in_outputs:
+            if hasattr(model.config, "text_config"):
+                model.config.text_config.use_cache = True
+            elif hasattr(model.config, "decoder"):
+                model.config.decoder.use_cache = True
 
         # Re-use the patched forward method from the parent class
         self.super_patched_forward = self.patched_forward
@@ -633,7 +682,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
                 ):
                     if name != "past_key_values":
                         if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                            # Who cares about the encoder outputs in the decoder?
                             continue
                         else:
                             filtered_outputs[name] = value
@@ -649,6 +697,24 @@ class Seq2SeqModelPatcher(ModelPatcher):
             return filtered_outputs
 
         self.patched_forward = patched_forward
+
+
+class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            logger.warning(
+                "BigBirdPegasus model is using block sparse attention, which is not supported in ONNX export. "
+                "The model will be exported with original full attention."
+            )
+            self._model.set_attention_type("original_full")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
+            self._model.set_attention_type("block_sparse")
 
 
 class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
@@ -761,8 +827,7 @@ class SAMModelPatcher(ModelPatcher):
                         input_boxes=None,  # Not supported in the ONNX export
                         input_masks=None,  # Not supported in the ONNX export
                     )
-
-                    low_res_masks, iou_predictions, _ = model.mask_decoder(
+                    outputs = model.mask_decoder(
                         image_embeddings=image_embeddings,
                         image_positional_embeddings=image_positional_embeddings,
                         sparse_prompt_embeddings=sparse_embeddings,
@@ -770,8 +835,8 @@ class SAMModelPatcher(ModelPatcher):
                         multimask_output=True,  # Not supported in the ONNX export
                         attention_similarity=None,  # Not supported in the ONNX export
                         target_embedding=None,  # Not supported in the ONNX export
-                        output_attentions=False,
                     )
+                    low_res_masks, iou_predictions = outputs[:2]
 
                     if not return_dict:
                         return (iou_predictions, low_res_masks)
@@ -927,20 +992,20 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 raise ValueError("Should not happen")
 
             # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filterd_outputs = {}
+            filtered_outputs = {}
             for name, value in result.items():
                 if name != "past_key_values":
-                    filterd_outputs[name] = value
+                    filtered_outputs[name] = value
                 else:
                     if self.real_config._behavior == "decoder" and (
                         self.real_config.is_merged or not self.real_config.use_past_in_inputs
                     ):
-                        filterd_outputs[name] = value
+                        filtered_outputs[name] = value
                     elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                         # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                        filterd_outputs[name] = tuple([v[:2] for v in value])
+                        filtered_outputs[name] = tuple([v[:2] for v in value])
 
-            return filterd_outputs
+            return filtered_outputs
 
         self.patched_forward = patched_forward
 
@@ -997,13 +1062,13 @@ class SentenceTransformersCLIPPatcher(ModelPatcher):
 # Triu with possible dynamic `diagonal` argument. Not possible with torch.triu unfortunately.
 def triu_onnx(x, diagonal=0):
     l, w = x.shape
-    arange_rows = torch.arange(l, device=x.device)
+    arrange_rows = torch.arange(l, device=x.device)
 
-    arange_cols = torch.arange(w, device=x.device)
-    mask = arange_cols.expand(l, w)
+    arrange_cols = torch.arange(w, device=x.device)
+    mask = arrange_cols.expand(l, w)
 
-    arange_rows = arange_rows[:, None] + diagonal
-    mask = mask >= arange_rows
+    arrange_rows = arrange_rows[:, None] + diagonal
+    mask = mask >= arrange_rows
     return x.masked_fill(mask == 0, 0)
 
 
@@ -1130,6 +1195,32 @@ class MusicgenModelPatcher(Seq2SeqModelPatcher):
             self.patched_forward = patched_forward
 
 
+class MetaCLIP2Patcher(ModelPatcher):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        model: PreTrainedModel,
+        model_kwargs: dict[str, Any] | None = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+
+        def patched_forward(input_ids=None, pixel_values=None, attention_mask=None):
+            if config.variant == "monolith":
+                return self.orig_forward(input_ids=input_ids, pixel_values=pixel_values, attention_mask=attention_mask)
+
+            if config.variant == "split":
+                if config.vision_model:
+                    image_embeds = model.get_image_features(pixel_values)
+                    return {"image_embeds": image_embeds}
+
+                text_embeds = model.get_text_features(input_ids, attention_mask)
+                return {
+                    "text_embeds": text_embeds,
+                }
+
+        self.patched_forward = patched_forward
+
+
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
@@ -1180,8 +1271,8 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
     # this will be used to easily index which expert is going to be sollicitated
     expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
 
-    # TODO: we loop over all possible experts instead of hitted ones to avoid issues in graph execution.
-    # expert_hitted = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+    # TODO: we loop over all possible experts instead of hit ones to avoid issues in graph execution.
+    # expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
     # Loop over all available experts in the model and perform the computation on each expert
     for expert_idx in range(self.num_experts):
         expert_layer = self.experts[expert_idx]
@@ -1217,3 +1308,138 @@ class Qwen3MoeModelPatcher(DecoderModelPatcher):
 
         if is_transformers_version(">=", "4.53"):
             Qwen3MoeSparseMoeBlock.forward = self.original_moe_forward
+
+
+# This is a traceable version of the original function,
+# the original results in a constant integer due to the use of int(expr)
+def _get_feat_extract_output_lengths_patched(self, input_lengths: torch.LongTensor):
+    output_conv1_length = (input_lengths - 127) // 64 + 1
+    output_conv2_length = (output_conv1_length - 7) // 3 + 1
+    output_conv3_length = (output_conv2_length - 3) // 2 + 1
+    return output_conv3_length
+
+
+class MoonshineModelPatcher(Seq2SeqModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.48"):
+            self.original_feat_extract_output_lengths = MoonshinePreTrainedModel._get_feat_extract_output_lengths
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = _get_feat_extract_output_lengths_patched
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.48"):
+            MoonshinePreTrainedModel._get_feat_extract_output_lengths = self.original_feat_extract_output_lengths
+            del self.original_feat_extract_output_lengths
+
+
+# This is a traceabe of the original function,
+# the original results in a constant shape due to the use of *x.shape[:-1]
+def patched_apply_rotary_emb(
+    x: torch.Tensor,
+    freqs_cis: torch.Tensor | tuple[torch.Tensor],
+    use_real: bool = True,
+    use_real_unbind_dim: int = -1,
+    sequence_dim: int = 2,
+):
+    if use_real:
+        cos, sin = freqs_cis  # [S, D]
+        if sequence_dim == 2:
+            cos = cos[None, None, :, :]
+            sin = sin[None, None, :, :]
+        elif sequence_dim == 1:
+            cos = cos[None, :, None, :]
+            sin = sin[None, :, None, :]
+        else:
+            raise ValueError(f"`sequence_dim={sequence_dim}` but should be 1 or 2.")
+
+        cos, sin = cos.to(x.device), sin.to(x.device)
+
+        if use_real_unbind_dim == -1:
+            # Used for flux, cogvideox, hunyuan-dit
+            # x_real, x_imag = x.reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, H, S, D//2]
+            # We avoid using reshape here because for some reason it gets exported with constant shape.
+            x_real = x[..., 0::2]
+            x_imag = x[..., 1::2]
+            x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
+        elif use_real_unbind_dim == -2:
+            # Used for Stable Audio, OmniGen, CogView4 and Cosmos
+            # x_real, x_imag = x.reshape(*x.shape[:-1], 2, -1).unbind(-2)  # [B, H, S, D//2]
+            # We avoid using reshape here because for some reason it gets exported with constant shape.
+            x_real = x[..., 0::2, :]
+            x_imag = x[..., 1::2, :]
+            x_rotated = torch.cat([-x_imag, x_real], dim=-1)
+        else:
+            raise ValueError(f"`use_real_unbind_dim={use_real_unbind_dim}` but should be -1 or -2.")
+
+        out = (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
+
+        return out
+    else:
+        # used for lumina
+        x_rotated = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+        freqs_cis = freqs_cis.unsqueeze(2)
+        x_out = torch.view_as_real(x_rotated * freqs_cis).flatten(3)
+
+        return x_out.type_as(x)
+
+
+class FluxTransformerModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_diffusers_version(">=", "0.35.0"):
+            self.original_apply_rotary_emb = diffusers.models.transformers.transformer_flux.apply_rotary_emb
+            diffusers.models.transformers.transformer_flux.apply_rotary_emb = patched_apply_rotary_emb
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_diffusers_version(">=", "0.35.0"):
+            diffusers.models.transformers.transformer_flux.apply_rotary_emb = self.original_apply_rotary_emb
+            del self.original_apply_rotary_emb
+
+
+def patched_cohere_rotary_forward(self, x, position_ids):
+    # Get batch size and sequence length for manual expansion
+    batch_size, _ = position_ids.shape[:2]
+
+    # Instead of using expand, manually repeat the tensor.
+    # Problem with expand: it creates a view with shared memory rather than copying data,
+    # which causes ONNX export issues with dynamic shapes and view operations.
+    # Using repeat() ensures actual memory allocation and data copying for ONNX compatibility.
+    # original: inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+    inv_freq_base = self.inv_freq[None, :, None].float()  # Shape: [1, freq_dim, 1]
+    inv_freq_expanded = inv_freq_base.repeat(batch_size, 1, 1)  # Shape: [batch_size, freq_dim, 1]
+
+    position_ids_expanded = position_ids[:, None, :].float()
+    device_type = x.device.type if isinstance(x.device.type, str) and x.device.type != "mps" else "cpu"
+
+    with torch.autocast(device_type=device_type, enabled=False):  # Force float32
+        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+        emb = freqs.repeat_interleave(2, dim=-1)  # diff from Llama: we interleave() instead of cat()
+        cos = emb.cos() * self.attention_scaling
+        sin = emb.sin() * self.attention_scaling
+
+    return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+
+
+class CohereModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.38.0"):
+            from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
+
+            self.original_forward = CohereRotaryEmbedding.forward
+            CohereRotaryEmbedding.forward = patched_cohere_rotary_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.38.0"):
+            from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
+
+            CohereRotaryEmbedding.forward = self.original_forward

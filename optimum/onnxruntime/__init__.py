@@ -32,7 +32,19 @@ _import_structure = {
         "ORTConfig",
         "QuantizationConfig",
     ],
-    "modeling_ort": [
+    "constants": [
+        "DECODER_MERGED_ONNX_FILE_PATTERN",
+        "DECODER_ONNX_FILE_PATTERN",
+        "DECODER_WITH_PAST_ONNX_FILE_PATTERN",
+        "ENCODER_ONNX_FILE_PATTERN",
+        "ONNX_DECODER_MERGED_NAME",
+        "ONNX_DECODER_NAME",
+        "ONNX_DECODER_WITH_PAST_NAME",
+        "ONNX_ENCODER_NAME",
+        "ONNX_FILE_PATTERN",
+        "ONNX_WEIGHTS_NAME",
+    ],
+    "modeling": [
         "ORTModel",
         "ORTModelForAudioClassification",
         "ORTModelForAudioFrameClassification",
@@ -41,6 +53,7 @@ _import_structure = {
         "ORTModelForCTC",
         "ORTModelForFeatureExtraction",
         "ORTModelForImageClassification",
+        "ORTModelForZeroShotImageClassification",
         "ORTModelForMaskedLM",
         "ORTModelForMultipleChoice",
         "ORTModelForQuestionAnswering",
@@ -57,22 +70,16 @@ _import_structure = {
     ],
     "modeling_decoder": ["ORTModelForCausalLM"],
     "optimization": ["ORTOptimizer"],
+    "pipelines": ["pipeline"],
     "quantization": ["ORTQuantizer"],
-    "utils": [
-        "ONNX_DECODER_NAME",
-        "ONNX_DECODER_MERGED_NAME",
-        "ONNX_DECODER_WITH_PAST_NAME",
-        "ONNX_ENCODER_NAME",
-        "ONNX_WEIGHTS_NAME",
-        "ORTQuantizableOperator",
-    ],
+    "utils": ["ORTQuantizableOperator"],
 }
 
 try:
     if not is_diffusers_available():
         raise OptionalDependencyNotAvailable()  # noqa: TRY301
 except OptionalDependencyNotAvailable:
-    _import_structure[".utils.dummy_diffusers_objects"] = [
+    _import_structure["dummy_objects"] = [
         "ORTDiffusionPipeline",
         "ORTPipelineForText2Image",
         "ORTPipelineForImage2Image",
@@ -123,9 +130,20 @@ else:
 
 # Direct imports for type-checking
 if TYPE_CHECKING:
-    from .configuration import ORTConfig, QuantizationConfig
-    from .modeling_decoder import ORTModelForCausalLM
-    from .modeling_ort import (
+    from optimum.onnxruntime.configuration import ORTConfig, QuantizationConfig
+    from optimum.onnxruntime.constants import (
+        DECODER_MERGED_ONNX_FILE_PATTERN,
+        DECODER_ONNX_FILE_PATTERN,
+        DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+        ENCODER_ONNX_FILE_PATTERN,
+        ONNX_DECODER_MERGED_NAME,
+        ONNX_DECODER_NAME,
+        ONNX_DECODER_WITH_PAST_NAME,
+        ONNX_ENCODER_NAME,
+        ONNX_FILE_PATTERN,
+        ONNX_WEIGHTS_NAME,
+    )
+    from optimum.onnxruntime.modeling import (
         ORTModel,
         ORTModelForAudioClassification,
         ORTModelForAudioFrameClassification,
@@ -141,29 +159,25 @@ if TYPE_CHECKING:
         ORTModelForSemanticSegmentation,
         ORTModelForSequenceClassification,
         ORTModelForTokenClassification,
+        ORTModelForZeroShotImageClassification,
     )
-    from .modeling_seq2seq import (
+    from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
+    from optimum.onnxruntime.modeling_seq2seq import (
         ORTModelForPix2Struct,
         ORTModelForSeq2SeqLM,
         ORTModelForSpeechSeq2Seq,
         ORTModelForVision2Seq,
     )
-    from .optimization import ORTOptimizer
-    from .quantization import ORTQuantizer
-    from .utils import (
-        ONNX_DECODER_MERGED_NAME,
-        ONNX_DECODER_NAME,
-        ONNX_DECODER_WITH_PAST_NAME,
-        ONNX_ENCODER_NAME,
-        ONNX_WEIGHTS_NAME,
-        ORTQuantizableOperator,
-    )
+    from optimum.onnxruntime.optimization import ORTOptimizer
+    from optimum.onnxruntime.pipelines import pipeline
+    from optimum.onnxruntime.quantization import ORTQuantizer
+    from optimum.onnxruntime.utils import ORTQuantizableOperator
 
     try:
         if not is_diffusers_available():
             raise OptionalDependencyNotAvailable()  # noqa: TRY301
     except OptionalDependencyNotAvailable:
-        from optimum.utils.dummy_diffusers_objects import (
+        from optimum.onnxruntime.dummy_objects import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux
@@ -189,7 +203,7 @@ if TYPE_CHECKING:
             ORTStableDiffusionXLPipeline,
         )
     else:
-        from .modeling_diffusion import (
+        from optimum.onnxruntime.modeling_diffusion import (
             # generic entrypoint
             ORTDiffusionPipeline,
             # flux

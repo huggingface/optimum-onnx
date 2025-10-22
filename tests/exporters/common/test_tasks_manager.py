@@ -18,8 +18,8 @@ from unittest import TestCase
 
 from transformers import BertConfig
 
-from optimum.exporters import TasksManager
 from optimum.exporters.onnx.model_configs import BertOnnxConfig
+from optimum.exporters.tasks import TasksManager
 
 
 class TasksManagerTestCase(TestCase):

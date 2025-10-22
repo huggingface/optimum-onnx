@@ -34,23 +34,15 @@ from transformers.utils import logging
 
 import onnxruntime as ort
 from onnxruntime.transformers.io_binding_helper import TypeHelper
-from optimum.exporters.onnx import OnnxConfig, OnnxConfigWithLoss
 
 
 if TYPE_CHECKING:
     from datasets import Dataset
 
-    from .modeling_ort import ORTModel
+    from optimum.onnxruntime.modeling import ORTModel
 
 
 logger = logging.get_logger(__name__)
-
-ONNX_WEIGHTS_NAME = "model.onnx"
-
-ONNX_ENCODER_NAME = "encoder_model.onnx"
-ONNX_DECODER_NAME = "decoder_model.onnx"
-ONNX_DECODER_WITH_PAST_NAME = "decoder_with_past_model.onnx"
-ONNX_DECODER_MERGED_NAME = "decoder_model_merged.onnx"
 
 
 def is_cupy_available():
@@ -80,6 +72,7 @@ class ORTConfigManager:
         "bloom": "gpt2",
         "camembert": "bert",
         "codegen": "gpt2",
+        "clip": "clip",
         "deberta": "bert",
         "deberta-v2": "bert",
         "dinov2": "vit",
@@ -152,10 +145,6 @@ def generate_identified_filename(filename, identifier):
     return filename.parent.joinpath(filename.stem + identifier).with_suffix(filename.suffix)
 
 
-def wrap_onnx_config_for_loss(onnx_config: OnnxConfig) -> OnnxConfig:
-    return OnnxConfigWithLoss(onnx_config)
-
-
 def get_device_for_provider(provider: str, provider_options: dict) -> torch.device:
     """Gets the PyTorch device (CPU/CUDA) associated with an ONNX Runtime provider."""
     if provider in ["CUDAExecutionProvider", "TensorrtExecutionProvider", "ROCMExecutionProvider"]:
@@ -207,9 +196,9 @@ def validate_provider_availability(provider: str):
     ):
         path_cuda_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_cuda.so")
         path_trt_lib = os.path.join(ort.__path__[0], "capi", "libonnxruntime_providers_tensorrt.so")
-        path_dependecy_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
+        path_dependency_loading = os.path.join(ort.__path__[0], "capi", "_ld_preload.py")
 
-        with open(path_dependecy_loading) as f:
+        with open(path_dependency_loading) as f:
             file_string = f.read()
 
             if "ORT_CUDA" not in file_string or "ORT_TENSORRT" not in file_string:

@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from optimum.commands.export import ExportCommand
+from optimum.commands.export.base import ExportCommand
 from optimum.commands.export.onnx import ONNXExportCommand
 
 
-REGISTER_COMMANDS = [(ONNXExportCommand, ExportCommand)]
+REGISTER_COMMANDS = [
+    (ONNXExportCommand, ExportCommand),
+]

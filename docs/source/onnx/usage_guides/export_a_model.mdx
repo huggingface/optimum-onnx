@@ -317,7 +317,7 @@ For tasks that require only a single ONNX file (e.g. encoder-only), an exported 
 
 ### Customize the export of Transformers models with custom modeling
 
-Optimum supports the export of Transformers models with custom modeling that use [`trust_remote_code=True`](https://huggingface.co/docs/transformers/en/model_doc/auto#transformers.AutoModel.from_pretrained.trust_remote_code), not officially supported in the Transormers library but usable with its functionality as [pipelines](https://huggingface.co/docs/transformers/main_classes/pipelines) and [generation](https://huggingface.co/docs/transformers/main_classes/text_generation#transformers.GenerationMixin.generate).
+Optimum supports the export of Transformers models with custom modeling that use [`trust_remote_code=True`](https://huggingface.co/docs/transformers/en/model_doc/auto#transformers.AutoModel.from_pretrained.trust_remote_code), not officially supported in the Transformers library but usable with its functionality as [pipelines](https://huggingface.co/docs/transformers/main_classes/pipelines) and [generation](https://huggingface.co/docs/transformers/main_classes/text_generation#transformers.GenerationMixin.generate).
 
 Examples of such models are [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b) and [mosaicml/mpt-30b](https://huggingface.co/mosaicml/mpt-30b).
 
@@ -391,18 +391,9 @@ class CustomMPTOnnxConfig(TextDecoderOnnxConfig):
 
 model_id = "fxmarty/tiny-mpt-random-remote-code"
 config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
-
-onnx_config = CustomMPTOnnxConfig(
-    config=config,
-    task="text-generation",
-    use_past_in_inputs=False,
-)
 onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
 
-custom_onnx_configs = {
-    "decoder_model": onnx_config,
-    "decoder_with_past_model": onnx_config_with_past,
-}
+custom_onnx_configs = {"model": onnx_config_with_past}
 
 main_export(
     model_id,
@@ -411,7 +402,6 @@ main_export(
     trust_remote_code=True,
     custom_onnx_configs=custom_onnx_configs,
     no_post_process=True,
-    legacy=True,
     opset=14
 )
 ```

@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-import warnings
+from argparse import Namespace
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -603,13 +603,71 @@ class AutoQuantizationConfig:
         )
 
     @staticmethod
+    def ppc64le(
+        is_static: bool,
+        use_symmetric_activations: bool = False,
+        use_symmetric_weights: bool = True,
+        per_channel: bool = True,
+        nodes_to_quantize: list[str] | None = None,
+        nodes_to_exclude: list[str] | None = None,
+        operators_to_quantize: list[str] | None = None,
+    ):
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for ppc64le.
+
+        When targeting IBM POWER10 ppc64le, the underlying execution engine leverages 8-bit outer-product instructions
+        (e.g., xvi8ger4pp and signed/unsigned variants) to compute fused byte dot-products and accumulate into 32-bit results, i.e.,
+        i32 += i8(w) * u8(x) at 4-way granularity per output element within a single instruction using a 512-bit MMA accumulator.
+
+        MMA (Matrix-Multiply Assist) is a POWER10 extension of the Power ISA and is part of the Power ISA v3.1 specification,
+        exposed via VSX-backed 512-bit accumulators and compiler intrinsics.
+
+        POWER10 MMA 8-bit outer-product instructions are designed to accelerate INT8 inference on ppc64le by fusing
+        multiply-accumulate data paths and minimizing instruction count.
+
+        Args:
+            is_static (`bool`):
+                Boolean flag to indicate whether we target static or dynamic quantization.
+            use_symmetric_activations (`bool`, defaults to `False`):
+                Whether to use symmetric quantization for activations.
+            use_symmetric_weights (`bool`, defaults to `True`):
+                Whether to use symmetric quantization for weights.
+            per_channel (`bool`, defaults to `True`):
+                Whether we should quantize per-channel (also known as "per-row"). Enabling this can
+                increase overall accuracy while making the quantized model heavier.
+            nodes_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Specific nodes to quantize. If `None`, all nodes being operators from `operators_to_quantize` will be quantized.
+            nodes_to_exclude (`Optional[List[str]]`, defaults to `None`):
+                Specific nodes to exclude from quantization. The list of nodes in a model can be found loading the ONNX model through onnx.load, or through visual inspection with [netron](https://github.com/lutzroeder/netron).
+            operators_to_quantize (`Optional[List[str]]`, defaults to `None`):
+                Type of nodes to perform quantization on. By default, all the quantizable operators will be quantized. Quantizable operators can be found at https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/python/tools/quantization/registry.py.
+        """
+        format, mode, operators_to_quantize = default_quantization_parameters(
+            is_static, operators_to_quantize=operators_to_quantize
+        )
+
+        return QuantizationConfig(
+            is_static=is_static,
+            format=format,
+            mode=mode,
+            activations_dtype=QuantType.QUInt8,
+            activations_symmetric=use_symmetric_activations,
+            weights_dtype=QuantType.QInt8,
+            weights_symmetric=use_symmetric_weights,
+            per_channel=per_channel,
+            reduce_range=False,
+            nodes_to_quantize=nodes_to_quantize or [],
+            nodes_to_exclude=nodes_to_exclude or [],
+            operators_to_quantize=operators_to_quantize,
+        )
+
+    @staticmethod
     def tensorrt(
         per_channel: bool = True,
         nodes_to_quantize: list[str] | None = None,
         nodes_to_exclude: list[str] | None = None,
         operators_to_quantize: list[str] | None = None,
     ) -> QuantizationConfig:
-        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targetting NVIDIA GPUs.
+        """Creates a [`~onnxruntime.QuantizationConfig`] fit for TensorRT static quantization, targeting NVIDIA GPUs.
 
         Args:
             per_channel (`bool`, defaults to `True`):
@@ -714,109 +772,50 @@ class OptimizationConfig:
             Whether to disable Rotary Embedding fusion.
     """
 
+    # Main options
     optimization_level: int = 1
+    enable_transformers_specific_optimizations: bool = True
     optimize_for_gpu: bool = False
-
     fp16: bool = False
 
-    optimize_with_onnxruntime_only: bool | None = None
-    enable_transformers_specific_optimizations: bool = True
-
-    disable_gelu: bool | None = None
+    # Fusion options (only if enable_transformers_specific_optimizations is True)
+    # fusions enabled by default
     disable_gelu_fusion: bool = False
-
-    disable_layer_norm: bool | None = None
-    disable_layer_norm_fusion: bool = False
-
-    disable_attention: bool | None = None
     disable_attention_fusion: bool = False
-
-    disable_skip_layer_norm: bool | None = None
-    disable_skip_layer_norm_fusion: bool = False
-
-    disable_bias_skip_layer_norm: bool | None = None
-    disable_bias_skip_layer_norm_fusion: bool = False
-
-    disable_bias_gelu: bool | None = None
     disable_bias_gelu_fusion: bool = False
-
-    disable_embed_layer_norm: bool | None = None
-    disable_embed_layer_norm_fusion: bool = True
-
-    enable_gelu_approximation: bool = False
-    use_mask_index: bool = False
-    no_attention_mask: bool = False
-    disable_shape_inference: bool = False
-
-    # ONNX Runtime 1.14.0 arguments
-    use_multi_head_attention: bool = False
-    enable_gemm_fast_gelu_fusion: bool = False
-    use_raw_attention_mask: bool = False
-    disable_group_norm_fusion: bool = True
-    disable_packed_kv: bool = True
-
-    # ONNX Runtime 1.16.2 arguments
+    disable_layer_norm_fusion: bool = False
     disable_rotary_embeddings: bool = False
+    disable_skip_layer_norm_fusion: bool = False
+    disable_bias_skip_layer_norm_fusion: bool = False
+    disable_skip_group_norm_fusion: bool = False
+    disable_bias_splitgelu_fusion: bool = False
+    disable_bias_add_fusion: bool = False
+    # fusions disabled by default
+    disable_group_norm_fusion: bool = True
+    disable_embed_layer_norm_fusion: bool = True
+    enable_gemm_fast_gelu_fusion: bool = False
 
-    def __post_init__(self):
-        def deprecate_renamed_attribute(old_name, new_name, mapping_func=None):
-            if getattr(self, old_name, None) is not None:
-                if mapping_func is None:
-
-                    def identity(x):
-                        return x
-
-                    mapping_func = identity
-                setattr(self, new_name, mapping_func(getattr(self, old_name)))
-                warnings.warn(
-                    f"{old_name} will be deprecated soon, use {new_name} instead, {new_name} is set to "
-                    f"{getattr(self, new_name)}.",
-                    FutureWarning,
-                    stacklevel=2,
-                )
-
-        deprecate_renamed_attribute(
-            "optimize_with_onnxruntime_only",
-            "enable_transformers_specific_optimizations",
-            mapping_func=lambda x: not x,
-        )
-
-        deprecate_renamed_attribute("disable_gelu", "disable_bias_gelu_fusion")
-        deprecate_renamed_attribute("disable_layer_norm", "disable_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_attention", "disable_attention_fusion")
-        deprecate_renamed_attribute("disable_skip_layer_norm", "disable_skip_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_bias_skip_layer_norm", "disable_bias_skip_layer_norm_fusion")
-        deprecate_renamed_attribute("disable_bias_gelu", "disable_bias_gelu_fusion")
-        deprecate_renamed_attribute("disable_embed_layer_norm", "disable_embed_layer_norm_fusion")
+    # Non-fusion options (only if enable_transformers_specific_optimizations is True)
+    use_mask_index: bool = False
+    disable_packed_kv: bool = True
+    no_attention_mask: bool = False
+    use_raw_attention_mask: bool = False
+    disable_shape_inference: bool = False
+    use_multi_head_attention: bool = False
+    enable_gelu_approximation: bool = False
+    use_group_norm_channels_first: bool = False
+    disable_packed_qkv: bool = False
+    disable_nhwc_conv: bool = False
 
     def create_fusion_options(self, model_type: str) -> FusionOptions:
-        class Box:
-            pass
-
-        args = Box()
+        args = Namespace()
         args.model_type = model_type
-        attribute_map = {
-            "disable_gelu_fusion": "disable_gelu",
-            "disable_layer_norm_fusion": "disable_layer_norm",
-            "disable_attention_fusion": "disable_attention",
-            "disable_skip_layer_norm_fusion": "disable_skip_layer_norm",
-            "disable_bias_skip_layer_norm_fusion": "disable_bias_skip_layer_norm",
-            "disable_bias_gelu_fusion": "disable_bias_gelu",
-            "disable_embed_layer_norm_fusion": "disable_embed_layer_norm",
-            "disable_group_norm_fusion": "disable_group_norm",
-            "disable_packed_kv": "disable_packed_kv",
-            "use_raw_attention_mask": "use_raw_attention_mask",
-            "enable_gemm_fast_gelu_fusion": "enable_gemm_fast_gelu",
-            "use_multi_head_attention": "use_multi_head_attention",
-            "disable_rotary_embeddings": "disable_rotary_embeddings",
-        }
-        for attr_name, fusion_attr_name in attribute_map.items():
-            setattr(args, fusion_attr_name, getattr(self, attr_name))
 
-        for attr, value in self.__dict__.items():
-            if hasattr(args, attr):
-                continue
-            setattr(args, attr, value)
+        for attr_name, attr_value in self.__dict__.items():
+            if attr_name.endswith("_fusion"):
+                setattr(args, attr_name.replace("_fusion", ""), attr_value)
+            else:
+                setattr(args, attr_name, attr_value)
 
         return FusionOptions.parse(args)
 
@@ -873,7 +872,7 @@ class AutoOptimizationConfig:
 
         if optimization_level == "O4":
             if for_gpu is False:
-                logger.warning("Overridding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
+                logger.warning("Overriding for_gpu=False to for_gpu=True as half precision is available only on GPU.")
             for_gpu = True
 
         return OptimizationConfig(optimize_for_gpu=for_gpu, **cls._LEVELS[optimization_level], **kwargs)

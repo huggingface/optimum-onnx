@@ -16,33 +16,31 @@
 from __future__ import annotations
 
 import logging
-import os
-import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
-import onnx
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from onnx.tools import update_model_dims
 from transformers import AutoModelForCausalLM, GenerationConfig
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.utils import cached_file
 
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from optimum.exporters.tasks import TasksManager
-from optimum.onnx.utils import check_model_uses_external_data
 from optimum.onnxruntime.constants import (
     DECODER_MERGED_ONNX_FILE_PATTERN,
     DECODER_ONNX_FILE_PATTERN,
     DECODER_WITH_PAST_ONNX_FILE_PATTERN,
+    ONNX_DECODER_MERGED_NAME,
+    ONNX_DECODER_NAME,
+    ONNX_DECODER_WITH_PAST_NAME,
     ONNX_FILE_PATTERN,
+    ONNX_WEIGHTS_NAME,
 )
-from optimum.onnxruntime.modeling_ort import ONNX_MODEL_END_DOCSTRING, ORTModel
+from optimum.onnxruntime.modeling import ONNX_MODEL_END_DOCSTRING, ORTModel
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 from optimum.utils import is_transformers_version
 from optimum.utils.file_utils import find_files_matching_pattern
@@ -128,59 +126,19 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     auto_model_class = AutoModelForCausalLM
     main_input_name = "input_ids"
     _supports_cache_class = False
+    _is_stateful = False
 
     def __init__(
         self,
-        *args,
+        *,
         config: PretrainedConfig = None,
         session: InferenceSession = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
         model_save_dir: str | Path | TemporaryDirectory | None = None,
-        **kwargs,
     ):
-        # DEPRECATED BEHAVIOR
-        if args:
-            logger.warning(
-                "Instantiating an ORTModelForCausalLM with positional arguments is deprecated and will be removed in the next version. "
-                "Please use the keywords arguments {config, session, use_io_binding, generation_config, model_save_dir, use_cache} instead."
-            )
-            # the old signature is ORTModelForCausalLM(model, config, use_io_binding, model_save_dir, preprocessors, generation_config, use_cache)
-            session = args[0]
-            if len(args) > 1:
-                config = args[1]
-            if len(args) > 2:
-                use_io_binding = args[2]
-            if len(args) > 3:
-                model_save_dir = args[3]
-            if len(args) > 4:
-                _ = args[4]
-            if len(args) > 5:
-                generation_config = args[5]
-            if len(args) > 6:
-                _ = args[6]
-
-        if kwargs.get("model") is not None:
-            logger.warning(
-                "Passing the inference session as `model` argument to an ORTModelForCausalLM is deprecated. Please use `session` instead."
-            )
-            session = kwargs.pop("model")
-        if kwargs:
-            logger.warning(
-                f"Some keyword arguments were passed to the ORTModelForCausalLM constructor that are not part of its signature: {', '.join(kwargs.keys())}. "
-                "These arguments will be ignored in the current version and will raise an error in the next version."
-            )
-
-        if config is None:
-            raise ValueError(
-                "The parameter config is required. Please pass a config or use the from_pretrained method."
-            )
-        if session is None:
-            raise ValueError(
-                "The parameter session is required. Please pass a session or use the from_pretrained method."
-            )
-        ## END OF DEPRECATED BEHAVIOR
         super().__init__(config=config, session=session, use_io_binding=use_io_binding, model_save_dir=model_save_dir)
+
         self.key_value_input_names = [key for key in self.input_names if (".key" in key) or (".value" in key)]
         self.key_value_output_names = [key for key in self.output_names if (".key" in key) or (".value" in key)]
         self.can_use_cache = len(self.key_value_input_names) > 0 and len(self.key_value_output_names) > 0
@@ -188,62 +146,97 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         self.generation_config = generation_config
 
         # Reference: https://github.com/huggingface/optimum/pull/1381
-        model_type = self.config.model_type
-        if model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
+        if self.config.model_type in MODEL_TYPES_REQUIRING_POSITION_IDS and "position_ids" not in self.input_names:
             logger.warning(
-                f"ORTModelForCausalLM loaded a legacy ONNX model with no position_ids input, although the model type {model_type} "
-                "requires it. for correct batched generation. We strongly encourage to re-export the model with "
-                "a newer version of Optimum for better performance and more reliable generation. "
+                f"ORTModelForCausalLM loaded a legacy ONNX model with no `position_ids` input, although the model type `{self.config.model_type}` requires it. "
+                "We strongly encourage to re-export the model with Optimum-ONNX for better performance and more reliable text generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`. "
+                "Please note that support for legacy models will be removed in a future version of Optimum-ONNX."
             )
 
-        if not self.can_use_cache and self.generation_config.use_cache:
+        if not self.can_use_cache and self.config.use_cache:
             logger.warning(
-                "`model.generation_config.use_cache=True` but the loaded model does not support using the past key values cache."
+                "`model.config.use_cache=True` but the loaded model does not support using the past key values cache."
                 "Please re-export the original model once again with `use_cache=True` to be able to use it during generation. "
-                "Or set `model.generation_config.use_cache=False` to avoid errors from attempting to use the cache. "
+                "To re-export your model, simply set `export=True` in `from_pretrained(... , export=True, use_cache=True)`."
+            )
+
+        self.old_bloom_modeling = self.config.model_type == "bloom" and (
+            len(self.input_shapes.get("past_key_values.0.key", ())) == 3
+            or len(self.output_shapes.get("past_key_values.0.key", ())) == 3
+            or is_transformers_version("<", "4.44.0")
+        )  # Old Bloom style
+        if self.can_use_cache and self.old_bloom_modeling:
+            logger.warning(
+                "The loaded Bloom ONNX model uses an old cache format that squeezes the batch_size and num_key_value_heads dimensions into one. "
+                "We strongly encourage to re-export the model with a newer version of Optimum and Transformers for better performance and more reliable generation. "
                 "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
             )
 
-        if self.config.model_type == "gemma":
+        self.old_gpt_bigcode_modeling = self.config.model_type == "gpt_bigcode" and (
+            self.input_shapes.get("past_key_values.0.key_value", None) is not None
+            or self.output_shapes.get("past_key_values.0.key_value", None) is not None
+            or is_transformers_version("<", "4.54.0")
+        )  # Old GPT BigCode style
+        if self.can_use_cache and self.old_gpt_bigcode_modeling:
+            logger.warning(
+                "The loaded GPT BigCode ONNX model uses an old cache format that fuses keys and values in one tensor. "
+                "We strongly encourage to re-export the model with a newer version of Optimum and Transformers for better performance and more reliable generation. "
+                "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`."
+            )
+
+        if self.config.model_type in {"gemma", "gemma3", "gemma3_text", "gpt_oss", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
-        elif self.config.model_type == "gpt_bigcode":
+        elif self.old_gpt_bigcode_modeling:
+            # (before v4.54) GPT BigCode fuses keys and values in one tensor, doubling the head dimension
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
+        elif self.config.model_type == "deepseek_v3":
+            # For deepseek_v3, keys and values have different head dimensions
+            self.qk_head_dim = self.config.qk_rope_head_dim + self.config.qk_nope_head_dim
+            self.v_head_dim = self.config.v_head_dim
         else:
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads
 
         if self.config.model_type in {
             "arcee",
+            "deepseek_v3",
+            "cohere",
             "gemma",
+            "gemma3",
+            "gemma3_text",
+            "glm",
+            "granite",
+            "gpt_oss",
+            "helium",
             "mistral",
             "llama",
+            "nemotron",
             "qwen2",
             "qwen3",
             "qwen3_moe",
-            "granite",
             "smollm3",
+            "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
-
         elif self.config.model_type == "falcon":
             if self.config.new_decoder_architecture or not self.config.multi_query:
                 self.num_key_value_heads = self.config.num_kv_heads
             else:
                 self.num_key_value_heads = 1
+        elif self.config.model_type == "gpt_bigcode":
+            if self.config.multi_query:
+                self.num_key_value_heads = 1
+            else:
+                self.num_key_value_heads = self.config.num_attention_heads
         else:
             self.num_key_value_heads = self.config.num_attention_heads
-
-        self.old_bloom_modeling = (
-            self.config.model_type == "bloom"
-            and self.input_shapes.get("past_key_values.0.key", None) is not None
-            and len(self.input_shapes["past_key_values.0.key"]) == 3  # Old Bloom style
-        )
 
     @property
     def use_cache(self):
         logger.warning(
             "The `ORTModelForCausalLM.use_cache` property is deprecated and will be removed in a future version. "
             "Please rather use `ORTModelForCausalLM.can_use_cache` to check if a model supports using cache during generation. "
-            "And use `ORTModelForCausalLM.generation_config.use_cache` to check if the model is configured to use cache during generation."
+            "And use `ORTModelForCausalLM.config.use_cache` to check if the model is configured to use cache during generation."
         )
         return self.can_use_cache
 
@@ -278,24 +271,25 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if use_cache and not self.can_use_cache:
             raise ValueError(
-                f"`use_cache={use_cache}` was passed to the model but the loaded model only supports `use_cache={self.can_use_cache}`. "
-                f"Please load your current model with `use_cache={self.can_use_cache}` or export the original model "
-                f"once again with `use_cache={use_cache}` when calling the `from_pretrained` method. "
-                "To re-export your model, simply set `export=True` in the `from_pretrained` method."
+                "`use_cache=True` was passed to the model but the loaded model does not support pkv cache reuse. "
+                "Please load your current model with `use_cache=True` or re-export the original model "
+                "once again with `use_cache=True` when calling the `from_pretrained` method. "
+                "To re-export your model, simply set `export=True` in `from_pretrained`."
             )
 
         # Get the input/output dimensions
-        batch_size, seq_len = input_ids.shape
+        batch_size, in_seq_len = input_ids.shape
         if past_key_values is not None:
-            if self.config.model_type == "gpt_bigcode":
-                if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
-                else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+            if self.old_gpt_bigcode_modeling:
+                # (before v4.54) GPT BigCode fuses keys and values in one tensor
+                past_seq_len = past_key_values[0].shape[-2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                # We use the past value and not key to be compatible with old bloom cache
+                past_seq_len = past_key_values[0][1].shape[-2]
         else:
-            pkv_seq_len = 0
+            past_seq_len = 0
+
+        out_seq_len = past_seq_len + in_seq_len
 
         # Prepare position_ids
         if position_ids is None and "position_ids" in self.input_names:
@@ -304,18 +298,18 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     # OPT models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, -1)
-                    position_ids = position_ids[:, pkv_seq_len:]
+                    position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
                         "The model OPT requires position_ids for batched generation but none were provided. "
                         "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
                     )
-            elif self.config.model_type == "gpt_bigcode":
+            elif self.old_gpt_bigcode_modeling:
                 if attention_mask is not None:
                     # GPT BigCode models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
                     position_ids.masked_fill_(attention_mask == 0, 1)
-                    position_ids = position_ids[:, pkv_seq_len:]
+                    position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
                         "The model gpt_bigcode requires position_ids for batched generation but none were provided. "
@@ -324,7 +318,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             else:
                 # Create position_ids from input_ids
                 position_ids = (
-                    torch.arange(pkv_seq_len, pkv_seq_len + seq_len, dtype=torch.long, device=input_ids.device)
+                    torch.arange(past_seq_len, out_seq_len, dtype=torch.long, device=input_ids.device)
                     .unsqueeze(0)
                     .expand(batch_size, -1)
                 )
@@ -337,11 +331,17 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if len(self.key_value_input_names) > 0 and past_key_values is None:
             # Generates the input pkv for the first forward of the model (merged or with past)
-            if self.config.model_type == "bloom" and self.old_bloom_modeling:
+            if self.old_bloom_modeling:
+                # (before v4.44) Bloom squeezes the batch_size and num_key_value_heads dimensions into one
                 k_shape = (batch_size * self.num_key_value_heads, self.embed_size_per_head, 0)
                 v_shape = (batch_size * self.num_key_value_heads, 0, self.embed_size_per_head)
-            elif self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+            elif self.old_gpt_bigcode_modeling and self.config.multi_query:
+                # (before v4.54) When multi_query is True, GPT BigCode squeezes the num_key_value_heads dimension
                 k_shape = v_shape = (batch_size, 0, self.embed_size_per_head)
+            elif self.config.model_type == "deepseek_v3":
+                # Deepseek V3 uses different head dimensions for keys and values
+                k_shape = (batch_size, self.num_key_value_heads, 0, self.qk_head_dim)
+                v_shape = (batch_size, self.num_key_value_heads, 0, self.v_head_dim)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
             k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
@@ -360,34 +360,35 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if len(self.key_value_input_names) > 0:
             model_inputs.update(zip(self.key_value_input_names, past_key_values))
 
-        known_output_shapes = None
-        outputs_to_not_bind = None
+        known_output_shapes = {}
+        outputs_to_not_bind = set()
         if use_cache and self.use_io_binding:
             # Infers the shape of the output pkv
-            batch_size, seq_len = input_ids.shape
-            if self.config.model_type == "bloom" and self.old_bloom_modeling:
+            batch_size, _ = input_ids.shape
+            if self.old_bloom_modeling:
                 num_key_value_heads_batch_size, embed_size_per_head = past_key_values[0].shape[:2]
-                k_shape = (num_key_value_heads_batch_size, embed_size_per_head, pkv_seq_len + seq_len)
-                v_shape = (num_key_value_heads_batch_size, pkv_seq_len + seq_len, embed_size_per_head)
-            elif self.config.model_type == "gpt_bigcode" and self.config.multi_query:
+                k_shape = (num_key_value_heads_batch_size, embed_size_per_head, out_seq_len)
+                v_shape = (num_key_value_heads_batch_size, out_seq_len, embed_size_per_head)
+            elif self.old_gpt_bigcode_modeling and self.config.multi_query:
+                # (before v4.54) GPT BigCode squeezes the num_key_value_heads dimension when multi_query is True
                 embed_size_per_head = past_key_values[0].shape[-1]
-                k_shape = v_shape = (batch_size, pkv_seq_len + seq_len, embed_size_per_head)
+                k_shape = v_shape = (batch_size, out_seq_len, embed_size_per_head)
+            elif self.config.model_type == "deepseek_v3":
+                # Deepseek V3 uses different head dimensions for keys and values
+                k_shape = (batch_size, self.num_key_value_heads, out_seq_len, self.qk_head_dim)
+                v_shape = (batch_size, self.num_key_value_heads, out_seq_len, self.v_head_dim)
             else:
-                embed_size_per_head = past_key_values[0].shape[-1]
-                k_shape = v_shape = (batch_size, self.num_key_value_heads, pkv_seq_len + seq_len, embed_size_per_head)
-
+                k_shape = v_shape = (batch_size, self.num_key_value_heads, out_seq_len, self.embed_size_per_head)
             known_output_shapes = {
                 name: k_shape if ".key" in name else v_shape for name in self.key_value_output_names
             }
         else:
-            # Don't bind the output pkv if not necessary
-            outputs_to_not_bind = self.key_value_output_names
+            # we don't bind the key/values if they are not gonna be returned/used
+            outputs_to_not_bind.update(self.key_value_output_names)
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(
-                model_inputs,
-                outputs_to_not_bind=outputs_to_not_bind,
-                known_output_shapes=known_output_shapes,
+                model_inputs, outputs_to_not_bind=outputs_to_not_bind, known_output_shapes=known_output_shapes
             )
 
             if self.device.type == "cpu":
@@ -397,8 +398,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 self.session.run_with_iobinding(self._io_binding)
                 self._io_binding.synchronize_outputs()
 
-            loss = output_buffers.get("loss", None)
-            logits = output_buffers["logits"].view(output_shapes["logits"])
+            logits = output_buffers.pop("logits").view(output_shapes["logits"])
 
             if use_cache:
                 past_key_values = tuple(
@@ -409,17 +409,22 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-            loss = model_outputs.pop("loss", None)
             logits = model_outputs.pop("logits")
 
             if use_cache:
                 past_key_values = tuple(model_outputs.pop(name) for name in self.key_value_output_names)
 
-        if use_cache and self.config.model_type != "gpt_bigcode":
-            # Tuple of tuple of length `n_layers`, with each tuple of length equal to the number of self-attention and per decoder layer
-            past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
+        if use_cache:
+            if self.old_gpt_bigcode_modeling:
+                # `n_layers` fused key-value tensors
+                past_key_values = past_key_values
+            else:
+                # `n_layers` tuples of key and value tensors
+                past_key_values = tuple(past_key_values[i : i + 2] for i in range(0, len(past_key_values), 2))
+        else:
+            past_key_values = None
 
-        return CausalLMOutputWithPast(loss=loss, logits=logits, past_key_values=past_key_values)
+        return CausalLMOutputWithPast(logits=logits, past_key_values=past_key_values)
 
     def prepare_inputs_for_generation(self, *args, **kwargs):
         if is_transformers_version("<", "4.46.0"):
@@ -439,18 +444,18 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         **kwargs,
     ):
         if past_key_values is not None:
-            if self.config.model_type == "gpt_bigcode":
-                if self.config.multi_query:
-                    pkv_seq_len = past_key_values[0].shape[1]
-                else:
-                    pkv_seq_len = past_key_values[0].shape[2]
+            if self.old_gpt_bigcode_modeling:
+                # (before v4.54) GPT BigCode fuses keys and values in one tensor
+                past_seq_len = past_key_values[0].shape[-2]
             else:
-                pkv_seq_len = past_key_values[0][0].shape[2]
+                # We use the past value and not key to be compatible with bloom cache
+                past_seq_len = past_key_values[0][1].shape[-2]
 
-            if input_ids.shape[1] > pkv_seq_len:
-                remove_prefix_length = pkv_seq_len
+            if input_ids.shape[1] > past_seq_len:
+                remove_prefix_length = past_seq_len
             else:
                 remove_prefix_length = input_ids.shape[1] - 1
+
             input_ids = input_ids[:, remove_prefix_length:]
 
         # falcon, gpt_bigcode, and other models used to override the prepare_inputs_for_generation method to add this logic
@@ -474,7 +479,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     @staticmethod
     def _reorder_cache(
         past_key_values: tuple[tuple[torch.Tensor]] | tuple[torch.Tensor],
-        beam_idx: torch.Tensor,
+        beam_idx: torch.LongTensor,
     ) -> tuple[tuple[torch.Tensor]]:
         if (
             isinstance(past_key_values, tuple)
@@ -546,9 +551,9 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         session_options: SessionOptions | None = None,
         # inference options
         use_cache: bool = True,
-        use_merged: bool | None = None,
         use_io_binding: bool | None = None,
         generation_config: GenerationConfig | None = None,
+        dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
     ) -> ORTModelForCausalLM:
@@ -557,151 +562,87 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             ONNX_FILE_PATTERN,
             glob_pattern="**/*.onnx",
             subfolder=subfolder,
-            token=token,
             revision=revision,
+            token=token,
         )
-
         if len(onnx_files) == 0:
             raise FileNotFoundError(f"Could not find any ONNX model file in {model_id}")
+        if Path(model_id).is_dir():
+            onnx_files = [f.relative_to(model_id) for f in onnx_files]
 
-        if len(onnx_files) == 1:
-            subfolder = onnx_files[0].parent
-            _file_name = onnx_files[0].name
-            if file_name and file_name != _file_name:
-                raise FileNotFoundError(f"Trying to load {file_name} but only found {_file_name}")
-            file_name = _file_name
-
-        else:
-            model_files = []
-            # Check first for merged models and then for decoder / decoder_with_past models
-            if use_merged is not False:
-                model_files = [p for p in onnx_files if re.search(DECODER_MERGED_ONNX_FILE_PATTERN, str(p))]
-                use_merged = len(model_files) != 0
-
-            if use_merged is False:
-                pattern = DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN
-                model_files = [p for p in onnx_files if re.search(pattern, str(p))]
-
-            # if file_name is specified we don't filter legacy models
-            if not model_files or file_name:
-                model_files = onnx_files
-            else:
-                logger.warning(
-                    f"Legacy models found in {model_files} will be loaded. "
-                    "Legacy models will be deprecated in the next version of optimum, please re-export your model"
-                )
-            _file_name = model_files[0].name
-            subfolder = model_files[0].parent
-
-            defaut_file_name = file_name or "model.onnx"
-            for file in model_files:
-                if file.name == defaut_file_name:
-                    _file_name = file.name
-                    subfolder = file.parent
-                    break
-
-            file_name = _file_name
-
-            if len(model_files) > 1:
-                logger.warning(
-                    f"Too many ONNX model files were found in {' ,'.join(map(str, model_files))}. "
-                    "specify which one to load by using the `file_name` and/or the `subfolder` arguments. "
-                    f"Loading the file {file_name} in the subfolder {subfolder}."
-                )
-
-        if os.path.isdir(model_id):
-            model_id = subfolder
-            subfolder = ""
-
-        if isinstance(subfolder, Path):
-            subfolder = subfolder.as_posix()
-
-        model_cache_path = cached_file(
-            model_id,
-            filename=file_name,
-            # hub options
-            token=token,
-            revision=revision,
-            subfolder=subfolder,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
+        file_path = cls._infer_file_path(
+            ONNX_FILE_PATTERN,
+            onnx_files=onnx_files,
+            standard_file_name=ONNX_WEIGHTS_NAME,
+            target_file_name=file_name,
         )
 
-        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance, in which case we want to keep it
-        # instead of the path only.
+        # TODO: remove this block once legacy merged/unmerged models are no longer supported (definitely)
+        # if the inferred file_path is neither the user-provided file_name nor the standard_file_name,
+        # we try to infer the file path a second time, prioritizing merged models (kinda like seq2seq models)
+        if file_path.name not in {file_name, ONNX_WEIGHTS_NAME}:
+            # we disable logging to avoid meaningless warnings from _infer_file_path in this block
+            original_logging_level = logger.level
+            logger.setLevel(logging.ERROR)
+            use_merged = False
+            legacy = False
+            try:
+                file_path = cls._infer_file_path(
+                    DECODER_MERGED_ONNX_FILE_PATTERN,
+                    onnx_files=onnx_files,
+                    standard_file_name=ONNX_DECODER_MERGED_NAME,
+                    target_file_name=file_name,
+                )
+                use_merged = True
+                legacy = True
+            except FileNotFoundError:
+                try:
+                    # if use_merged is None or False, we try to load a non-merged model
+                    file_path = cls._infer_file_path(
+                        DECODER_WITH_PAST_ONNX_FILE_PATTERN if use_cache else DECODER_ONNX_FILE_PATTERN,
+                        onnx_files=onnx_files,
+                        standard_file_name=ONNX_DECODER_WITH_PAST_NAME if use_cache else ONNX_DECODER_NAME,
+                        target_file_name=file_name,
+                    )
+                    legacy = True
+                except FileNotFoundError:
+                    # we keep the initially inferred file_path
+                    pass
+            logger.setLevel(original_logging_level)
+
+            if legacy:
+                logger.warning(
+                    f"You didn't pass a `file_name` to `from_pretrained` and we have inferred a legacy {'merged' if use_merged else 'non-merged'} ONNX model in {file_path}. "
+                    "We strongly encourage you to either specify `file_name` or re-export the model with a newer version of Optimum for better performance and more reliable generation. "
+                    "To re-export your model, simply set `export=True` as in `from_pretrained(..., export=True, use_cache=True)`. "
+                    "Please note that support for legacy models will be removed in a future version of Optimum-ONNX."
+                )
+
+        model_path = cls._cached_file(
+            model_id,
+            filename=file_path.name,
+            subfolder=file_path.parent.as_posix(),
+            force_download=force_download,
+            local_files_only=local_files_only,
+            cache_dir=cache_dir,
+            revision=revision,
+            token=token,
+        )
+
+        # model_save_dir can be provided in kwargs as a TemporaryDirectory instance,
+        # in which case we want to keep it instead.
         if model_save_dir is None:
-            model_save_dir = Path(model_cache_path).parent
-
-        try:  # noqa: SIM105
-            cached_file(
-                model_id,
-                filename=file_name + "_data",
-                # hub options
-                token=token,
-                revision=revision,
-                subfolder=subfolder,
-                cache_dir=cache_dir,
-                force_download=force_download,
-                local_files_only=local_files_only,
-            )
-        except OSError:
-            # If the external data file is not found, we assume that the model is not using external data.
-            pass
-
-        # This should be removed at some point
-        onnx_model = onnx.load(str(model_cache_path), load_external_data=False)
-        model_uses_external_data = check_model_uses_external_data(onnx_model)
-        if model_uses_external_data:
-            onnx_model = onnx.load(str(model_cache_path), load_external_data=True)
-        input_dims = {
-            node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
-            for node in onnx_model.graph.input
-        }
-        output_dims = {
-            node.name: [dim.dim_value or dim.dim_param for dim in node.type.tensor_type.shape.dim]
-            for node in onnx_model.graph.output
-        }
-        override_dims = False
-        # Since v1.7.0 decoder with past models have fixed sequence length of 1
-        # To keep these models compatible we set this dimension to dynamic
-        if input_dims["input_ids"][1] == 1:
-            input_dims["input_ids"][1] = "sequence_length"
-            output_dims["logits"][1] = "sequence_length"
-            override_dims = True
-        # Since https://github.com/huggingface/optimum/pull/871/
-        # changed axis notation/naming during export, we need to update the dims
-        for input_name in input_dims:
-            if "past" in input_name and input_dims[input_name][2] == "past_sequence_length + sequence_length":
-                input_dims[input_name][2] = "past_sequence_length"
-                override_dims = True
-        if override_dims:
-            # this is kinda dangerous, warning the user is the least we can do
-            logger.warning(
-                "The ONNX model was probably exported with an older version of optimum. "
-                "We are updating the input/output dimensions and overwriting the model file "
-                "with new dimensions. This is necessary for the model to work correctly with "
-                "the current version of optimum. If you encounter any issues, please re-export "
-                "the model with the latest version of optimum for optimal performance."
-            )
-            onnx_model = update_model_dims.update_inputs_outputs_dims(onnx_model, input_dims, output_dims)
-            onnx.save(
-                onnx_model,
-                str(model_cache_path),
-                save_as_external_data=model_uses_external_data,
-                location=Path(model_cache_path).name + "_data",
-                all_tensors_to_one_file=True,
-                convert_attribute=True,
-                size_threshold=0,
-            )
-        del onnx_model
+            model_save_dir = model_path.parent
 
         # Important: for encoder-decoder models used with CausalLM, we need to set the is_decoder flag to True
         # and the is_encoder_decoder flag to False. This is needed for the model to work correctly with generation logic.
+        config.use_cache = use_cache
         if hasattr(config, "is_decoder"):
             config.is_decoder = True
         if hasattr(config, "is_encoder_decoder"):
             config.is_encoder_decoder = False
+        if hasattr(config, "_attn_implementation"):
+            config._attn_implementation = "onnxruntime"
 
         if generation_config is None:
             try:
@@ -719,7 +660,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 generation_config = GenerationConfig.from_model_config(config)
 
         generation_config.use_cache = use_cache
-        config.use_cache = use_cache
+        if hasattr(generation_config, "cache_implementation"):
+            generation_config.cache_implementation = None
 
         if is_transformers_version(">=", "4.45.0"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
@@ -737,7 +679,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             provider=provider, providers=providers, provider_options=provider_options
         )
         session = InferenceSession(
-            model_cache_path,
+            model_path,
             providers=providers,
             provider_options=provider_options,
             sess_options=session_options,
@@ -768,7 +710,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         use_cache: bool = True,
         **kwargs,
     ) -> ORTModelForCausalLM:
-        # this is garanteed to work since we it uses a mapping from model classes to task names
+        # this is guaranteed to work since we it uses a mapping from model classes to task names
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
         if use_cache:
@@ -789,7 +731,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             task=task,
             do_validation=False,
             no_post_process=False,
-            legacy=False,
             subfolder=subfolder,
             revision=revision,
             cache_dir=cache_dir,
@@ -817,3 +758,6 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         """
         self.config.save_pretrained(save_directory)
         self.generation_config.save_pretrained(save_directory)
+
+    def _prepare_cache_for_generation(self, *args, **kwargs):
+        return

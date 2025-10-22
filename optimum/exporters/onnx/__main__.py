@@ -38,6 +38,10 @@ from optimum.utils.import_utils import (
 from optimum.utils.save_utils import maybe_load_preprocessors
 
 
+if is_transformers_version(">=", "4.55"):
+    from transformers import Mxfp4Config
+
+
 if is_torch_available():
     import torch
 
@@ -57,11 +61,10 @@ def main_export(
     opset: int | None = None,
     device: str = "cpu",
     dtype: str | None = None,
-    fp16: bool | None = False,
     optimize: str | None = None,
     monolith: bool = False,
     no_post_process: bool = False,
-    framework: str | None = None,
+    framework: str | None = "pt",
     atol: float | None = None,
     pad_token_id: int | None = None,
     # hub options
@@ -73,7 +76,6 @@ def main_export(
     cache_dir: str = HUGGINGFACE_HUB_CACHE,
     token: bool | str | None = None,
     ########################################
-    for_ort: bool = False,
     do_validation: bool = True,
     model_kwargs: dict[str, Any] | None = None,
     custom_onnx_configs: dict[str, OnnxConfig] | None = None,
@@ -81,7 +83,6 @@ def main_export(
     use_subprocess: bool = False,
     _variant: str = "default",
     library_name: str | None = None,
-    legacy: bool = False,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
@@ -107,8 +108,6 @@ def main_export(
             will be used.
         device (`str`, defaults to `"cpu"`):
             The device to use to do the export. Defaults to "cpu".
-        fp16 (`Optional[bool]`, defaults to `"False"`):
-            Use half precision during the export. PyTorch-only, requires `device="cuda"`.
         dtype (`Optional[str]`, defaults to `None`):
             The floating point precision to use for the export. Supported options: `"fp32"` (float32), `"fp16"` (float16), `"bf16"` (bfloat16). Defaults to `"fp32"`.
         optimize (`Optional[str]`, defaults to `None`):
@@ -141,14 +140,9 @@ def main_export(
             cached versions if they exist.
         local_files_only (`Optional[bool]`, defaults to `False`):
             Whether or not to only look at local files (i.e., do not try to download the model).
-        use_auth_token (`Optional[Union[bool,str]]`, defaults to `None`):
-            Deprecated. Please use the `token` argument instead.
         token (`Optional[Union[bool,str]]`, defaults to `None`):
             The token to use as HTTP bearer authorization for remote files. If `True`, will use the token generated
             when running `huggingface-cli login` (stored in `huggingface_hub.constants.HF_TOKEN_PATH`).
-        for_ort (`bool`, defaults to `False`):
-            Deprecated. The ONNX export is now always compatible with ONNX Runtime, so this argument
-            is not needed anymore. It will be removed in a future release of Optimum.
         do_validation (`bool`, defaults to `True`):
             Whether or not to validate the exported ONNX model by running inference on it.
         model_kwargs (`Optional[Dict[str, Any]]`, defaults to `None`):
@@ -170,8 +164,6 @@ def main_export(
             Specify the variant of the ONNX export to use.
         library_name (`Optional[str]`, defaults to `None`):
             The library of the model (`"transformers"` or `"diffusers"` or `"timm"` or `"sentence_transformers"`). If not provided, will attempt to automatically detect the library name for the checkpoint.
-        legacy (`bool`, defaults to `False`):
-            Disable the use of position_ids for text-generation models that require it for batched generation. Also enable to export decoder only models in three files (without + with past and the merged model). This argument is introduced for backward compatibility and will be removed in a future release of Optimum.
         no_dynamic_axes (bool, defaults to `False`):
             If True, disables the use of dynamic axes during ONNX export.
         do_constant_folding (bool, defaults to `True`):
@@ -188,36 +180,13 @@ def main_export(
     >>> main_export("gpt2", output="gpt2_onnx/")
     ```
     """
-    if fp16:
-        if dtype is not None:
-            raise ValueError(
-                f'Both the arguments `fp16` ({fp16}) and `dtype` ({dtype}) were specified in the ONNX export, which is not supported. Please specify only `dtype`. Possible options: "fp32" (default), "fp16", "bf16".'
-            )
-
-        logger.warning(
-            'The argument `fp16` is deprecated in the ONNX export. Please use the argument `dtype="fp16"` instead, or `--dtype fp16` from the command-line.'
-        )
-
-        dtype = "fp16"
-    elif dtype is None:
+    if dtype is None:
         dtype = "fp32"  # Defaults to float32.
 
     if optimize == "O4" and device != "cuda":
         raise ValueError(
             "Requested O4 optimization, but this optimization requires to do the export on GPU."
             " Please pass the argument `--device cuda`."
-        )
-
-    if for_ort:
-        logger.warning(
-            "The option --for-ort was passed, but its behavior is now the default in the ONNX exporter"
-            " and passing it is not required anymore."
-        )
-
-    if task in ["stable-diffusion", "stable-diffusion-xl", "latent-consistency"]:
-        logger.warning(
-            f"The task `{task}` is deprecated and will be removed in a future release of Optimum. "
-            "Please use one of the following tasks instead: `text-to-image`, `image-to-image`, `inpainting`."
         )
 
     if library_name == "sentence_transformers" and not is_sentence_transformers_available():
@@ -272,6 +241,8 @@ def main_export(
             torch_dtype = torch.float16
         elif dtype == "bf16":
             torch_dtype = torch.bfloat16
+        elif dtype == "fp32":
+            torch_dtype = torch.float32
 
     if task.endswith("-with-past") and monolith:
         task_non_past = task.replace("-with-past", "")
@@ -301,6 +272,7 @@ def main_export(
 
     custom_architecture = False
     loading_kwargs = {}
+    is_mxfp4 = False
     if library_name == "transformers":
         config = AutoConfig.from_pretrained(
             model_name_or_path,
@@ -313,6 +285,12 @@ def main_export(
             trust_remote_code=trust_remote_code,
         )
         model_type = config.model_type
+
+        is_mxfp4 = getattr(config, "quantization_config", {}).get("quant_method", None) == "mxfp4"
+        # mxfp4 quantized model will be dequantized to bf16
+        if is_mxfp4 and is_transformers_version(">=", "4.55"):
+            torch_dtype = torch.float32 if model_type == "gpt_oss" else torch.bfloat16
+            loading_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
 
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
@@ -331,7 +309,7 @@ def main_export(
             )
 
         # TODO: Fix in Transformers so that SdpaAttention class can be exported to ONNX.
-        # This was fixed in transformers 4.42.0, we can remve it when minimum transformers version is updated to 4.42
+        # This was fixed in transformers 4.42.0, we can remove it when minimum transformers version is updated to 4.42
         if model_type in SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTED and is_transformers_version("<", "4.42"):
             loading_kwargs["attn_implementation"] = "eager"
 
@@ -380,13 +358,17 @@ def main_export(
     else:
         model_type = model.config.model_type
 
+    # ensure gpt_oss models dtype is float32 (dequantized to bf16 by default leading to incompatible dtypes)
+    if is_mxfp4 and model_type == "gpt_oss":
+        model.to(torch.float32)
+
     if (
         not custom_architecture
         and library_name != "diffusers"
         and task + "-with-past"
         in TasksManager.get_supported_tasks_for_model_type(model_type, "onnx", library_name=library_name)
     ):
-        # Make -with-past the default if --task was not explicitely specified
+        # Make -with-past the default if --task was not explicitly specified
         if original_task == "auto" and not monolith:
             task = task + "-with-past"
         else:
@@ -427,7 +409,6 @@ def main_export(
         custom_onnx_configs=custom_onnx_configs,
         fn_get_submodels=fn_get_submodels,
         _variant=_variant,
-        legacy=legacy,
         preprocessors=preprocessors,
         device=device,
         no_dynamic_axes=no_dynamic_axes,
@@ -458,7 +439,6 @@ def main():
         task=args.task,
         opset=args.opset,
         device=args.device,
-        fp16=args.fp16,
         optimize=args.optimize,
         monolith=args.monolith,
         no_post_process=args.no_post_process,
@@ -467,10 +447,9 @@ def main():
         cache_dir=args.cache_dir,
         trust_remote_code=args.trust_remote_code,
         pad_token_id=args.pad_token_id,
-        for_ort=args.for_ort,
         library_name=args.library_name,
-        legacy=args.legacy,
         do_constant_folding=not args.no_constant_folding,
+        slim=args.slim,
         **input_shapes,
     )
 

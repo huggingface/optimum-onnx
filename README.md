@@ -25,7 +25,7 @@ source .venv/bin/activate  # macOS / Linux
 ### 2. Install Optimum ONNX (CPU version)
 
 ```
-pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
+pip install optimum-onnx[onnxruntime]
 ```
 
 ### 3. Install Optimum ONNX (GPU version)
@@ -34,7 +34,7 @@ Before installing, ensure your CUDA and cuDNN versions match [ONNX Runtime GPU r
 
 ```
 pip uninstall onnxruntime  # avoid conflicts
-pip install "optimum-onnx[onnxruntime-gpu]"@git+https://github.com/huggingface/optimum-onnx.git
+pip install optimum-onnx[onnxruntime-gpu]
 ```
 
 ---

@@ -36,7 +36,7 @@ from utils_qa import postprocess_qa_predictions
 
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoCalibrationConfig, QuantizationConfig
-from optimum.onnxruntime.modeling_ort import ORTModelForQuestionAnswering
+from optimum.onnxruntime.modeling import ORTModelForQuestionAnswering
 from optimum.onnxruntime.preprocessors import QuantizationPreprocessor
 from optimum.onnxruntime.preprocessors.passes import (
     ExcludeGeLUNodes,
