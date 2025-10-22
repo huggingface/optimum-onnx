@@ -198,6 +198,39 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         return inputs
 
+    def get_transformers_model(self, model_arch: str, use_cache: bool = True, **kwargs):
+        model_kwargs = {"trust_remote_code": model_arch in self.TRUST_REMOTE_CODE_MODELS}
+
+        if model_arch != "gemma3":
+            # When loading a gemma3 model with AutoModelForCausalLM, a Gemma3ForConditionalGeneration is inferred
+            # which doesn't take a use_cache argument at instantiation (yep, that is weird)
+            model_kwargs["use_cache"] = use_cache
+
+        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
+        if "mxfp4" in model_arch:
+            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
+
+        set_seed(SEED)
+        model = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], **model_kwargs).eval()
+
+        if "mxfp4" in model_arch:
+            # we still have to cast to fp32 because model will be dequantized into bf16
+            model.to(torch.float32)
+
+        return model
+
+    def get_onnx_model(
+        self, test_name: str, model_arch: str, use_cache: bool = True, use_io_binding: Optional[bool] = None, **kwargs
+    ):
+        trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
+        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
+            self.onnx_model_dirs[test_name],
+            use_cache=use_cache,
+            use_io_binding=use_io_binding,
+            trust_remote_code=trust_remote_code,
+        )
+        return onnx_model
+
     def mask_logits(self, logits, attention_mask):
         """Mask the logits based on the attention mask."""
         mask = attention_mask.unsqueeze(-1)
@@ -463,23 +496,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self._setup(model_args)
 
         inputs = self.get_inputs(model_arch)
-
-        model_kwargs = {}
-        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
-        if "mxfp4" in model_arch:
-            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
-
-        set_seed(SEED)
-        model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
-        ).eval()
-
-        if "mxfp4" in model_arch:
-            model.to(torch.float32)
-
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
-        )
+        model = self.get_transformers_model(model_arch=model_arch, use_cache=use_cache)
+        onnx_model = self.get_onnx_model(test_name=test_name, model_arch=model_arch, use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         with torch.no_grad():
@@ -499,23 +517,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_kwargs = {}
-        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
-        if "mxfp4" in model_arch:
-            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
-
         inputs = self.get_inputs(model_arch, for_generation=True)
-        set_seed(SEED)
-        model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
-        ).eval()
-
-        if "mxfp4" in model_arch:
-            model.to(torch.float32)
-
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
-        )
+        model = self.get_transformers_model(model_arch=model_arch, use_cache=use_cache)
+        onnx_model = self.get_onnx_model(test_name=test_name, model_arch=model_arch, use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         set_seed(SEED)
@@ -536,24 +540,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_kwargs = {}
-        # the mxfp4 model will be dequantized to bf16 by the Mxfp4HfQuantizer, we later cast it to fp32
-        if "mxfp4" in model_arch:
-            model_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
-
         inputs = self.get_inputs(model_arch, for_generation=True)
-
-        set_seed(SEED)
-        model = self.AUTOMODEL_CLASS.from_pretrained(
-            MODEL_NAMES[model_arch], use_cache=use_cache, trust_remote_code=trust_remote_code, **model_kwargs
-        ).eval()
-
-        if "mxfp4" in model_arch:
-            model.to(torch.float32)
-
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name], use_cache=use_cache, trust_remote_code=trust_remote_code
-        )
+        model = self.get_transformers_model(model_arch=model_arch, use_cache=use_cache)
+        onnx_model = self.get_onnx_model(test_name=test_name, model_arch=model_arch, use_cache=use_cache)
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache)
 
         # beam search with random sampling
@@ -595,12 +584,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        model_with_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_True"], use_cache=True, trust_remote_code=trust_remote_code
-        )
+        model_with_pkv = self.get_onnx_model(test_name=model_arch + "_True", model_arch=model_arch, use_cache=True)
         self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
-        model_without_pkv = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[model_arch + "_False"], use_cache=False, trust_remote_code=trust_remote_code
+        model_without_pkv = self.get_onnx_model(
+            test_name=model_arch + "_False", model_arch=model_arch, use_cache=False
         )
         self.check_onnx_model_attributes(model_without_pkv, use_cache=False)
 
@@ -622,18 +609,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_cache=use_cache,
-            use_io_binding=False,
-            trust_remote_code=trust_remote_code,
+        onnx_model = self.get_onnx_model(
+            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=False
         )
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
-        io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            use_cache=use_cache,
-            use_io_binding=True,
-            trust_remote_code=trust_remote_code,
+        io_model = self.get_onnx_model(
+            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=True
         )
         self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 
@@ -656,18 +637,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         }
         self._setup(model_args)
 
-        onnx_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            trust_remote_code=trust_remote_code,
-            use_io_binding=False,
-            use_cache=use_cache,
+        onnx_model = self.get_onnx_model(
+            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=False
         )
         self.check_onnx_model_attributes(onnx_model, use_cache=use_cache, use_io_binding=False)
-        io_model = self.ORTMODEL_CLASS.from_pretrained(
-            self.onnx_model_dirs[test_name],
-            trust_remote_code=trust_remote_code,
-            use_io_binding=True,
-            use_cache=use_cache,
+        io_model = self.get_onnx_model(
+            test_name=test_name, model_arch=model_arch, use_cache=use_cache, use_io_binding=True
         )
         self.check_onnx_model_attributes(io_model, use_cache=use_cache, use_io_binding=True)
 

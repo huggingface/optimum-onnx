@@ -36,7 +36,7 @@ if is_torch_available():
 
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from optimum.exporters.onnx.model_patcher import DecoderModelPatcher, ModelPatcher, Seq2SeqModelPatcher
+from optimum.exporters.onnx.model_patcher import ModelPatcher, Seq2SeqModelPatcher
 from optimum.utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummySeq2SeqPastKeyValuesGenerator, logging
 from optimum.utils.doc import add_dynamic_docstring
 from optimum.utils.import_utils import (
@@ -428,7 +428,6 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
 
     PAD_ATTENTION_MASK_TO_PAST: bool = False
     SUPPORTS_PAST: bool = True
-    _MODEL_PATCHER = DecoderModelPatcher
 
     def __init__(
         self,
