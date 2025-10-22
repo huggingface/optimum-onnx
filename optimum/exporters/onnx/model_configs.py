@@ -524,21 +524,12 @@ class Gemma3TextOnnxConfig(GemmaOnnxConfig):
 # we still don't support gemma3 for multimodal feature-extraction(-with-past) and image-text-to-text(-with-past) tasks
 @register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS, "text-classification")
 class Gemma3OnnxConfig(GemmaOnnxConfig):
-    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
-        head_dim="text_config.head_dim",
-        vocab_size="text_config.vocab_size",
-        hidden_size="text_config.hidden_size",
-        num_layers="text_config.num_hidden_layers",
-        num_attention_heads="text_config.num_attention_heads",
-        num_key_value_heads="text_config.num_key_value_heads",
-        allow_new=True,
-    )
     # Gemma 3 was added in transformers v4.50 using HybridCache
     # DynamicCache support was added since v4.53
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
-    def __init__(self, config: PretrainedConfig, task: str = "feature-extraction", **kwargs):
-        super().__init__(config, task, **kwargs)
+    def __init__(self, config: PretrainedConfig, **kwargs):
+        super().__init__(config.text_config, **kwargs)
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
