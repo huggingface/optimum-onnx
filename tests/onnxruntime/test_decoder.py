@@ -309,8 +309,16 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if "gemma2" in supported_architectures and is_transformers_version(
             "<", str(Gemma2OnnxConfig.MIN_TRANSFORMERS_VERSION)
         ):
-            # Gemma 2 was added in transformers v4.42 using HybridCache (tuple of past_key_values never supported), DynamicCache since v4.53
+            # Gemma 2 was added in transformers v4.42 supporting HybridCache only,
+            # DynamicCache support was added since v4.53
             supported_architectures.remove("gemma2")
+
+        if "gemma3" in supported_architectures and is_transformers_version(
+            "<", str(Gemma3OnnxConfig.MIN_TRANSFORMERS_VERSION)
+        ):
+            # Gemma 3 was added in transformers v4.50 supporting HybridCache only,
+            # DynamicCache support was added since v4.53
+            supported_architectures.remove("gemma3")
 
         untested_architectures = supported_architectures - tested_architectures
 
