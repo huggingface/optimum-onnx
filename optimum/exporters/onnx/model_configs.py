@@ -520,7 +520,7 @@ class Gemma2OnnxConfig(TextDecoderOnnxConfig):
 @register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS)
 @register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS)
 class Gemma3OnnxConfig(GemmaOnnxConfig):
-    MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+    MIN_TRANSFORMERS_VERSION = version.parse("4.50.0")
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
