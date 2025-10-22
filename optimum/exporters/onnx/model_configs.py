@@ -51,7 +51,6 @@ from optimum.exporters.onnx.model_patcher import (
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
     SpeechT5ModelPatcher,
-    VisionEncoderDecoderPatcher,
     VitPoseModelPatcher,
 )
 from optimum.exporters.tasks import TasksManager
@@ -515,12 +514,22 @@ class Gemma2OnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
+@register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS)
+class Gemma3TextOnnxConfig(GemmaOnnxConfig):
+    # Gemma 3 was added in transformers v4.50 using HybridCache
+    # DynamicCache support was added since v4.53
+    MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+
+# we still don't support gemma3 for multimodal feature-extraction(-with-past) and image-text-to-text(-with-past) tasks
 @register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS, "text-classification")
-@register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS, "text-classification")
 class Gemma3OnnxConfig(GemmaOnnxConfig):
     # Gemma 3 was added in transformers v4.50 using HybridCache
     # DynamicCache support was added since v4.53
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
+
+    def __init__(self, config: PretrainedConfig, **kwargs):
+        super().__init__(config.text_config, **kwargs)
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
@@ -2443,9 +2452,7 @@ class TrOCROnnxConfig(TextSeq2SeqOnnxConfig):
 )
 class VisionEncoderDecoderOnnxConfig(EncoderDecoderBaseOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedEncoderDecoderConfig
-
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyVisionInputGenerator, DummyVisionEncoderDecoderPastKeyValuesGenerator)
-    _MODEL_PATCHER = VisionEncoderDecoderPatcher
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:

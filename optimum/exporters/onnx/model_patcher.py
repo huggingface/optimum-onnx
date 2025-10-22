@@ -484,12 +484,23 @@ class ModelPatcher:
 
         self.real_config = config
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-        allow_past_in_outputs = hasattr(self.real_config, "use_past") and self.real_config.use_past
+        allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
+
+            # Transformers doesn't always respect the config.use_cache attribute
+            # there are even cases where setting use_cache to true in every config and
+            # subconfig of a model still doesn't enable past_key_values in the outputs (gemma3)
+            # Explicitly setting the use_cache argument of the forward method seems to be the most reliable way
+            if "use_cache" in signature.parameters:
+                use_cache_index = list(signature.parameters.keys()).index("use_cache")
+                if use_cache_index < len(args):
+                    args[use_cache_index] = allow_past_in_outputs
+                elif "use_cache" in kwargs:
+                    kwargs["use_cache"] = allow_past_in_outputs
 
             if is_transformers_version(">=", "4.48"):
                 if "past_key_values" in signature.parameters:
@@ -654,13 +665,6 @@ class Seq2SeqModelPatcher(ModelPatcher):
 
         allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
-        # sometimes the text_config/decoder is set to False
-        if allow_past_in_outputs:
-            if hasattr(model.config, "text_config"):
-                model.config.text_config.use_cache = True
-            elif hasattr(model.config, "decoder"):
-                model.config.decoder.use_cache = True
-
         # Re-use the patched forward method from the parent class
         self.super_patched_forward = self.patched_forward
 
@@ -715,28 +719,6 @@ class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
 
         if self.real_config._behavior == "encoder" and self._model.config.attention_type == "block_sparse":
             self._model.set_attention_type("block_sparse")
-
-
-class VisionEncoderDecoderPatcher(Seq2SeqModelPatcher):
-    def __init__(
-        self,
-        config: OnnxConfig,
-        model: PreTrainedModel,
-        model_kwargs: dict[str, Any] | None = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-        use_cache = hasattr(self.real_config, "use_past")
-
-        if config._behavior == "decoder" and model.config.decoder.model_type == "trocr" and use_cache:
-            model.decoder.model.decoder.config.use_cache = True
-
-
-class DecoderModelPatcher(ModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
 
 
 class MgpstrModelPatcher(ModelPatcher):
@@ -1291,7 +1273,7 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
     return final_hidden_states, router_logits
 
 
-class Qwen3MoeModelPatcher(DecoderModelPatcher):
+class Qwen3MoeModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
 
