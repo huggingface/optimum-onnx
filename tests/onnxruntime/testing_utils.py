@@ -66,7 +66,7 @@ MODEL_NAMES = {
     "flux": "optimum-internal-testing/tiny-random-flux",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
-    "gemma3": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
+    "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
     "gemma3_text": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
     "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
     "gpt2": "hf-internal-testing/tiny-random-GPT2LMHeadModel",
