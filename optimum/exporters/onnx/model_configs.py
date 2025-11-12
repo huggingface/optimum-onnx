@@ -483,11 +483,13 @@ class Olmo2OnnxConfig(OlmoOnnxConfig):
 
 @register_tasks_manager_onnx("qwen2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class Qwen2OnnxConfig(LlamaOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.37.0")
 
 
 @register_tasks_manager_onnx("qwen3", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class Qwen3OnnxConfig(LlamaOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
 
 
@@ -495,6 +497,7 @@ class Qwen3OnnxConfig(LlamaOnnxConfig):
     "qwen3_moe", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"]
 )
 class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
     _MODEL_PATCHER = Qwen3MoeModelPatcher
 
