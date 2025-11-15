@@ -323,7 +323,14 @@ def onnx_compatible_rms_norm(input, normalized_shape, weight=None, eps=None):
 
     return output
 
-
+def onnx_compatible_movedim(input_tensor: torch.Tensor, dim1, dim2) -> torch.Tensor:
+    dim = input_tensor.dim()
+    if dim1 < 0:
+        dim1 += dim
+    if dim2 < 0:
+        dim2 += dim
+    return input_tensor.permute([dim2 if i == dim1 else dim1 if i == dim2 else i for i in range(dim)])
+    
 # A patched version of https://github.com/huggingface/transformers/blob/v4.53.2/src/transformers/masking_utils.py#L602
 # That returns a tensor of zeros with the same shape as position_ids indicating no packed sequence indices.
 def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Tensor:
@@ -448,6 +455,7 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
         traceable_scaled_dot_product_attention,
         torch.nn.functional.scaled_dot_product_attention,
     ),
+    PatchingSpec(torch.Tensor, "movedim", onnx_compatible_movedim, torch.Tensor.movedim),
 ]
 
 
@@ -1425,3 +1433,21 @@ class CohereModelPatcher(ModelPatcher):
             from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
 
             CohereRotaryEmbedding.forward = self.original_forward
+
+
+class AutoencoderDCPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+class AutodecoderDCPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+
+        
