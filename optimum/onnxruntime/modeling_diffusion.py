@@ -74,6 +74,12 @@ if is_diffusers_version(">=", "0.25.0"):
 else:
     from diffusers.models.vae import DiagonalGaussianDistribution  # type: ignore
 
+if is_diffusers_version(">=", "0.32.0"):
+    from diffusers import SanaPipeline
+else:
+    SanaPipeline = object
+
+
 if is_diffusers_version(">=", "0.35.0"):
     from diffusers.models.cache_utils import CacheMixin
 else:
@@ -358,6 +364,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
+            model_save_path = Path("/dev/shm/onnx_output")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -668,12 +675,14 @@ class ORTTransformer(ORTModelMixin):
         self,
         hidden_states: np.ndarray | torch.Tensor,
         encoder_hidden_states: np.ndarray | torch.Tensor,
-        pooled_projections: np.ndarray | torch.Tensor,
         timestep: np.ndarray | torch.Tensor,
+        pooled_projections: np.ndarray | torch.Tensor | None = None,
         guidance: np.ndarray | torch.Tensor | None = None,
         txt_ids: np.ndarray | torch.Tensor | None = None,
         img_ids: np.ndarray | torch.Tensor | None = None,
         joint_attention_kwargs: dict[str, Any] | None = None,
+        encoder_attention_mask: torch.Tensor = None,
+        attention_kwargs: Optional[Dict[str, Any]] = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
@@ -688,6 +697,8 @@ class ORTTransformer(ORTModelMixin):
             "img_ids": img_ids,
             **(joint_attention_kwargs or {}),
         }
+
+        is_sana = "Sana" in self.parent.__class__.__name__
 
         if self.use_io_binding:
             known_output_shapes = {"out_hidden_states": hidden_states.shape}
@@ -715,7 +726,8 @@ class ORTTransformer(ORTModelMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-        model_outputs["hidden_states"] = model_outputs.pop("out_hidden_states")
+        if not is_sana:
+            model_outputs["hidden_states"] = model_outputs.pop("out_hidden_states")
 
         if not return_dict:
             return tuple(model_outputs.values())
@@ -736,6 +748,9 @@ class ORTTextEncoder(ORTModelMixin):
         model_inputs = {
             "input_ids": input_ids,
         }
+
+        if attention_mask is not None:
+            model_inputs["attention_mask"] = attention_mask
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
@@ -844,9 +859,14 @@ class ORTVaeDecoder(ORTModelMixin):
     ):
         use_torch = isinstance(latent_sample, torch.Tensor)
 
+        is_sana = "Sana" in self.parent.__class__.__name__
+
         model_inputs = {
             "latent_sample": latent_sample,
         }
+
+        if is_sana:
+            model_inputs["latent"] = model_inputs.pop("latent_sample")
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
@@ -1114,7 +1134,11 @@ else:
     class ORTFluxPipeline(ORTUnavailablePipeline):
         MIN_VERSION = "0.30.0"
 
-
+class ORTSanaPipeline(ORTDiffusionPipeline, SanaPipeline):
+    task = "text-to-image"
+    main_input_name = "prompt"
+    auto_model_class = SanaPipeline
+        
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,
@@ -1128,6 +1152,7 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusion3Img2ImgPipeline,
     ORTStableDiffusion3InpaintPipeline,
     ORTFluxPipeline,
+    ORTSanaPipeline,
 ]
 
 
@@ -1150,6 +1175,7 @@ ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
         ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-3", ORTStableDiffusion3Pipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
+        ("sana", ORTSanaPipeline),
     ]
 )
 
