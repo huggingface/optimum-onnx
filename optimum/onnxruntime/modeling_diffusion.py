@@ -1133,11 +1133,13 @@ else:
     class ORTFluxPipeline(ORTUnavailablePipeline):
         MIN_VERSION = "0.30.0"
 
+
 class ORTSanaPipeline(ORTDiffusionPipeline, SanaPipeline):
     task = "text-to-image"
     main_input_name = "prompt"
     auto_model_class = SanaPipeline
-        
+
+
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,

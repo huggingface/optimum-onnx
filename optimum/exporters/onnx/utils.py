@@ -162,7 +162,6 @@ def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterCon
     return models_for_export
 
 
-
 def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64", float_dtype: str = "fp32"):
     import copy
 
@@ -194,7 +193,7 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
         model.transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
     models_for_export["transformer"] = (transformer, transformer_export_config)
-   
+
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
     vae_encoder = copy.deepcopy(model.vae)
     vae_encoder.forward = lambda sample: {"latent": vae_encoder.encode(x=sample).latent}
@@ -228,6 +227,7 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
     models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
     return models_for_export
 
+
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
     task: str,
@@ -254,10 +254,10 @@ def _get_submodels_and_onnx_configs(
         )
         export_config.variant = _variant
         return export_config, get_metaclip_2_models_for_export(model, export_config)
-       
+
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
-        
+
     return _get_submodels_and_export_configs(
         model,
         task,
