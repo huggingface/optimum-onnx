@@ -364,7 +364,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
-            model_save_path = Path("/dev/shm/onnx_output")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
