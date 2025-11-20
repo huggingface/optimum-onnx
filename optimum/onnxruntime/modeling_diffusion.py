@@ -21,7 +21,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, dict
 
 import numpy as np
 import torch
@@ -681,7 +681,7 @@ class ORTTransformer(ORTModelMixin):
         img_ids: np.ndarray | torch.Tensor | None = None,
         joint_attention_kwargs: dict[str, Any] | None = None,
         encoder_attention_mask: torch.Tensor = None,
-        attention_kwargs: Optional[Dict[str, Any]] = None,
+        attention_kwargs: dict[str, Any] | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)

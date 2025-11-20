@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
+from diffusers import DiffusionPipeline
 from transformers.utils import is_torch_available
 
 from optimum.exporters.base import ExporterConfig
