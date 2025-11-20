@@ -157,6 +157,7 @@ MODEL_NAMES = {
     "xlm-qa": "hf-internal-testing/tiny-random-XLMForQuestionAnsweringSimple",
     "xlm-roberta": "hf-internal-testing/tiny-xlm-roberta",
     "yolos": "hf-internal-testing/tiny-random-YolosModel",
+    "sana": "optimum-intel-internal-testing/tiny-random-sana",
 }
 
 

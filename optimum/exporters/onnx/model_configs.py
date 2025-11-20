@@ -34,10 +34,15 @@ from optimum.exporters.onnx.config import (
     VisionOnnxConfig,
 )
 from optimum.exporters.onnx.input_generators import (
+    DummyAutoEncoderDCInputGenerator,
+    DummyGemma2TextInputGenerator,
     DummyMoonshineAudioInputGenerator,
+    DummySanaTransformerInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from optimum.exporters.onnx.model_patcher import (
+    AutodecoderDCPatcher,
+    AutoencoderDCPatcher,
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
     CohereModelPatcher,
@@ -2778,3 +2783,106 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("d_fine", *["object-detection"])
 class DFineOnnxConfig(RTDetrOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+
+
+@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
+class Gemma2TextEncoderOnnxConfig(CLIPTextOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyGemma2TextInputGenerator)
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        vocab_size="vocab_size",
+        hidden_size="hidden_size",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "last_hidden_state": {0: "batch_size", 1: "sequence_length"}
+            # past_key_values won't be output due to DynamicCache
+            # hidden_size equals config.hidden_sizes
+        }
+
+
+@register_tasks_manager_onnx("sana-transformer", *["semantic-segmentation"], library_name="diffusers")
+class SanaTransformerOnnxConfig(SD3TransformerOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyGemma2TextInputGenerator,
+        DummySanaTransformerInputGenerator,
+        DummyTransformerTimestepInputGenerator,
+    )
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        vocab_size="vocab_size",
+        in_channels="in_channels",
+        out_channels="out_channels",
+        sample_size="sample_size",
+        patch_size="patch_size",
+        hidden_size="caption_channels",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "hidden_states": {0: "batch_size", 2: "height", 3: "width"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "timestep": {0: "batch_size"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {"output": {0: "batch_size", 2: "height", 3: "width"}}
+
+    @property
+    def torch_to_onnx_output_map(self) -> dict[str, str]:
+        return {
+            "sample": "output",
+        }
+
+
+@register_tasks_manager_onnx("dcae-encoder", *["semantic-segmentation"], library_name="diffusers")
+class DcaeEncoderOnnxConfig(VaeEncoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyAutoEncoderDCInputGenerator,)
+    ATOL_FOR_VALIDATION = 3e-4  # TODO: this only happens in test_export.py
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        in_channels="in_channels", latent_channels="latent_channels", height=512, width=512, allow_new=True
+    )
+
+    _MODEL_PATCHER = AutoencoderDCPatcher
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        # (batch_size, in_channels, height, width)
+        return {"sample": {0: "batch_size", 2: "height", 3: "width"}}
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        # (batch_size, latent_channels, height // latent_channels, width // latent_channels)
+        return {"latent": {0: "batch_size", 2: "latent_height", 3: "latent_width"}}
+
+
+@register_tasks_manager_onnx("dcae-decoder", *["semantic-segmentation"], library_name="diffusers")
+class DcaeDecoderOnnxConfig(VaeEncoderOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyAutoEncoderDCInputGenerator,)
+    ATOL_FOR_VALIDATION = 3e-4  # TODO: this only happens in test_export.py
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        in_channels="in_channels", latent_channels="latent_channels", allow_new=True
+    )
+
+    _MODEL_PATCHER = AutodecoderDCPatcher
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        # (batch_size, latent_channels, height // latent_channels, width // latent_channels)
+        return {"latent": {0: "batch_size", 2: "latent_height", 3: "latent_width"}}
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        # (batch_size, in_channels, height, width)
+        return {"sample": {0: "batch_size", 2: "height", 3: "width"}}
