@@ -21,7 +21,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, dict
+from typing import Any
 
 import numpy as np
 import torch

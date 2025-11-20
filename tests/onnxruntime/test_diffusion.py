@@ -25,9 +25,9 @@ from diffusers import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
-    DiffusionPipeline,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from diffusers import DiffusionPipeline
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from parameterized import parameterized
@@ -226,7 +226,6 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
-        "sana",
     ]
     if is_transformers_version(">=", "4.45"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
@@ -277,9 +276,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
 
-        auto_cls = self.AUTOMODEL_CLASS if model_arch != "sana" else DiffusionPipeline
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        auto_pipeline = auto_cls.from_pretrained(MODEL_NAMES[model_arch])
+        auto_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
         self.assertEqual(ort_pipeline.auto_model_class, auto_pipeline.__class__)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "provider": PROVIDERS}))
@@ -290,6 +288,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
+
         self._setup(model_args)
 
         height, width, batch_size = 32, 32, 1
@@ -329,8 +328,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        auto_cls = self.AUTOMODEL_CLASS if model_arch != "sana" else DiffusionPipeline
-        diffusers_pipeline = auto_cls.from_pretrained(MODEL_NAMES[model_arch])
+        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         for output_type in ["latent", "np", "pt"]:
             inputs["output_type"] = output_type
@@ -393,8 +391,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         auto_callback = Callback()
 
         ort_pipe = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        auto_cls = self.AUTOMODEL_CLASS if model_arch != "sana" else DiffusionPipeline
-        auto_pipe = auto_cls.from_pretrained(MODEL_NAMES[model_arch])
+        auto_pipe = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         ort_pipe(**inputs, callback_on_step_end=ort_callback)
         auto_pipe(**inputs, callback_on_step_end=auto_callback)
@@ -466,8 +463,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         inputs["negative_prompt"] = ["This is a negative prompt"] * batch_size
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
-        auto_cls = self.AUTOMODEL_CLASS if model_arch != "sana" else DiffusionPipeline
-        diffusers_pipeline = auto_cls.from_pretrained(MODEL_NAMES[model_arch])
+        diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
         ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
         diffusers_images = diffusers_pipeline(**inputs, generator=get_generator(SEED)).images
@@ -484,8 +480,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             "katuni4ka/tiny-random-stable-diffusion-with-safety-checker", subfolder="safety_checker"
         )
 
-        auto_cls = self.AUTOMODEL_CLASS if model_arch != "sana" else DiffusionPipeline
-        pipeline = auto_cls.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
+        pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch], safety_checker=safety_checker)
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(
             self.onnx_model_dirs[model_arch], safety_checker=safety_checker
         )
