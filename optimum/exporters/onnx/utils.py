@@ -178,7 +178,6 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
     text_encoder_export_config = text_encoder_config_constructor(
         model.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
-    text_encoder_export_config.runtime_options = {"ACTIVATIONS_SCALE_FACTOR": "8.0"}
     models_for_export["text_encoder"] = (text_encoder, text_encoder_export_config)
 
     transformer = model.transformer
@@ -224,8 +223,8 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
     vae_decoder_export_config = vae_config_constructor(
         vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
-    vae_decoder_export_config.runtime_options = {"ACTIVATIONS_SCALE_FACTOR": "8.0"}
     models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
+
     return models_for_export
 
 
