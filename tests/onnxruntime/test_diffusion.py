@@ -73,12 +73,23 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        images = [
-            Image.fromarray(
-                (np.random.rand(height, width, channel) * 255).astype(np.uint8), mode="RGB" if channel == 3 else "L"
-            )
-            for _ in range(batch_size)
-        ]
+        if channel == 1:
+            images = [
+                Image.fromarray((np.random.rand(height, width) * 255).astype(np.uint8), mode="L")
+                for _ in range(batch_size)
+            ]
+        elif channel == 3:
+            images = [
+                Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8), mode="RGB")
+                for _ in range(batch_size)
+            ]
+        elif channel == 4:
+            images = [
+                Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8), mode="RGBA")
+                for _ in range(batch_size)
+            ]
+        else:
+            raise ValueError(f"Unsupported number of channels for PIL image: {channel}")
     elif input_type == "np":
         images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
     elif input_type == "pt":

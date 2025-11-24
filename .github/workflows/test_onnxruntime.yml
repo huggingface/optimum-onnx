@@ -26,7 +26,7 @@ jobs:
       matrix:
         python-version: [3.9]
         runs-on: [ubuntu-22.04]
-        transformers_version: [latest, 4.36.*, 4.45.*]
+        transformers_version: [latest, 4.36.*, 4.45.*, 4.56.*]
         test_file:
           [
             test_decoder.py,
@@ -71,6 +71,8 @@ jobs:
             uv pip install "transformers==4.36.*" "pytest<8.0.0"
           elif [ "${{ matrix.transformers_version }}" == '4.45.*' ]; then
             uv pip install "transformers==4.45.*"
+          elif [ "${{ matrix.transformers_version }}" == '4.56.*' ]; then
+            uv pip install "transformers==4.56.*"
           elif [ "${{ matrix.transformers_version }}" != 'latest' ]; then
             uv pip install "transformers==${{ matrix.transformers_version }}"            
           fi
