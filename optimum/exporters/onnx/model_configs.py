@@ -35,6 +35,7 @@ from optimum.exporters.onnx.config import (
 )
 from optimum.exporters.onnx.input_generators import (
     DummyMoonshineAudioInputGenerator,
+    DummySanaTransforemerTextInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from optimum.exporters.onnx.model_patcher import (
@@ -511,6 +512,7 @@ class GemmaOnnxConfig(TextDecoderOnnxConfig):
 
 
 @register_tasks_manager_onnx("gemma2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
 class Gemma2OnnxConfig(GemmaOnnxConfig):
     # Gemma 2 was added in transformers v4.42 using HybridCache
     # DynamicCache support was added since v4.53
@@ -1468,6 +1470,7 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         down_sampling_factor = 2 ** (len(self._normalized_config.down_block_types) - 1)
+
         return {
             "latent_parameters": {
                 0: "batch_size",
@@ -1490,13 +1493,13 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        upsampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
+        up_sampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
 
         return {
             "sample": {
                 0: "batch_size",
-                2: f"latent_height * {upsampling_factor}",
-                3: f"latent_width * {upsampling_factor}",
+                2: f"latent_height * {up_sampling_factor}",
+                3: f"latent_width * {up_sampling_factor}",
             },
         }
 
@@ -2778,3 +2781,68 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("d_fine", *["object-detection"])
 class DFineOnnxConfig(RTDetrOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+
+
+@register_tasks_manager_onnx("sana-transformer", *["semantic-segmentation"], library_name="diffusers")
+class SanaTransformerOnnxConfig(SD3TransformerOnnxConfig):
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTransformerVisionInputGenerator,
+        DummySanaTransforemerTextInputGenerator,
+        DummyTransformerTimestepInputGenerator,
+    )
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        hidden_size="caption_channels",
+        num_channels="in_channels",
+        allow_new=True,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "hidden_states": {0: "batch_size", 2: "height", 3: "width"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "encoder_attention_mask": {0: "batch_size", 1: "sequence_length"},
+            "timestep": {0: "batch_size"},
+        }
+
+
+@register_tasks_manager_onnx("dcae-encoder", *["semantic-segmentation"], library_name="diffusers")
+class DcaeEncoderOnnxConfig(VaeEncoderOnnxConfig):
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {0: "batch_size", 2: "height", 3: "width"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        down_sampling_factor = 2 ** (len(self._normalized_config.encoder_block_out_channels) - 1)
+
+        return {
+            "latent_sample": {
+                0: "batch_size",
+                2: f"height / {down_sampling_factor}",
+                3: f"width / {down_sampling_factor}",
+            }
+        }
+
+
+@register_tasks_manager_onnx("dcae-decoder", *["semantic-segmentation"], library_name="diffusers")
+class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 2: "latent_height", 3: "latent_width"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        up_sampling_factor = 2 ** (len(self._normalized_config.decoder_block_out_channels) - 1)
+
+        return {
+            "sample": {
+                0: "batch_size",
+                2: f"latent_height * {up_sampling_factor}",
+                3: f"latent_width * {up_sampling_factor}",
+            }
+        }

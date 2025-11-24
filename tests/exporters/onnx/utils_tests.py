@@ -350,6 +350,7 @@ PYTORCH_EXPORT_MODELS_LARGE = {
 PYTORCH_DIFFUSION_MODEL = {
     "flux": "optimum-internal-testing/tiny-random-flux",
     "latent-consistency": "echarlaix/tiny-random-latent-consistency",
+    "sana": "optimum-intel-internal-testing/tiny-random-sana",
     "stable-diffusion": "hf-internal-testing/tiny-stable-diffusion-torch",
     "stable-diffusion-3": "yujiepan/stable-diffusion-3-tiny-random",
     "stable-diffusion-xl": "echarlaix/tiny-random-stable-diffusion-xl",

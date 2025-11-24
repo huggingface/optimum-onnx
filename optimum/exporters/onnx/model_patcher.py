@@ -432,6 +432,18 @@ def noop_bfloat16_casting(self):
     return self
 
 
+original_movedim = torch.Tensor.movedim
+
+
+def onnx_compatible_movedim(self: torch.Tensor, dim1, dim2) -> torch.Tensor:
+    dim = self.dim()
+    if dim1 < 0:
+        dim1 += dim
+    if dim2 < 0:
+        dim2 += dim
+    return original_movedim(self, dim1, dim2)
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
@@ -439,6 +451,7 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch.Tensor, "unfold", onnx_compatible_unfold, torch.Tensor.unfold),
     PatchingSpec(torch.linalg, "norm", onnx_compatible_linalg_norm, torch.linalg.norm),
     PatchingSpec(torch.Tensor, "bfloat16", noop_bfloat16_casting, torch.Tensor.bfloat16),
+    PatchingSpec(torch.Tensor, "movedim", onnx_compatible_movedim, torch.Tensor.movedim),
     PatchingSpec(torch.Tensor, "repeat_interleave", onnx_compatible_repeat_interleave, torch.Tensor.repeat_interleave),
     # TracerWarning: Using len to get tensor shape might cause the trace to be incorrect. Recommended usage would be tensor.shape[0]. Passing a tensor of different shape might lead to errors or silently give incorrect results.
     PatchingSpec(torch.Tensor, "__len__", lambda x: x.shape[0], torch.Tensor.__len__),

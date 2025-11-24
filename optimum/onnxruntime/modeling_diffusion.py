@@ -74,6 +74,12 @@ if is_diffusers_version(">=", "0.25.0"):
 else:
     from diffusers.models.vae import DiagonalGaussianDistribution  # type: ignore
 
+if is_diffusers_version(">=", "0.32.0"):
+    from diffusers import SanaPipeline
+else:
+    SanaPipeline = object
+
+
 if is_diffusers_version(">=", "0.35.0"):
     from diffusers.models.cache_utils import CacheMixin
 else:
@@ -633,6 +639,8 @@ class ORTUnet(ORTModelMixin):
             known_output_shapes = {"out_sample": sample.shape}
 
             known_output_buffers = None
+            # in LCM, the scheduler uses both the input sample (latents) and the output sample (model_pred) to compute the next latents
+            # latents, denoised = self.scheduler.step(model_pred, t, latents, **extra_step_kwargs, return_dict=False)
             if "LatentConsistencyModel" not in self.parent.__class__.__name__:
                 known_output_buffers = {"out_sample": sample}
 
@@ -668,12 +676,14 @@ class ORTTransformer(ORTModelMixin):
         self,
         hidden_states: np.ndarray | torch.Tensor,
         encoder_hidden_states: np.ndarray | torch.Tensor,
-        pooled_projections: np.ndarray | torch.Tensor,
         timestep: np.ndarray | torch.Tensor,
+        pooled_projections: np.ndarray | torch.Tensor | None = None,
         guidance: np.ndarray | torch.Tensor | None = None,
         txt_ids: np.ndarray | torch.Tensor | None = None,
         img_ids: np.ndarray | torch.Tensor | None = None,
         joint_attention_kwargs: dict[str, Any] | None = None,
+        encoder_attention_mask: torch.Tensor = None,
+        attention_kwargs: dict[str, Any] | None = None,
         return_dict: bool = True,
     ):
         use_torch = isinstance(hidden_states, torch.Tensor)
@@ -681,18 +691,22 @@ class ORTTransformer(ORTModelMixin):
         model_inputs = {
             "hidden_states": hidden_states,
             "encoder_hidden_states": encoder_hidden_states,
+            "encoder_attention_mask": encoder_attention_mask,
             "pooled_projections": pooled_projections,
             "timestep": timestep,
             "guidance": guidance,
             "txt_ids": txt_ids,
             "img_ids": img_ids,
             **(joint_attention_kwargs or {}),
+            **(attention_kwargs or {}),
         }
 
         if self.use_io_binding:
             known_output_shapes = {"out_hidden_states": hidden_states.shape}
 
             known_output_buffers = None
+            # in Flux model, the scheduler uses both the input hidden_states (latents) and the output hidden_states (noise_pred) to compute the next latents
+            # latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
             if "Flux" not in self.parent.__class__.__name__:
                 known_output_buffers = {"out_hidden_states": hidden_states}
 
@@ -715,8 +729,6 @@ class ORTTransformer(ORTModelMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-        model_outputs["hidden_states"] = model_outputs.pop("out_hidden_states")
-
         if not return_dict:
             return tuple(model_outputs.values())
 
@@ -735,6 +747,7 @@ class ORTTextEncoder(ORTModelMixin):
 
         model_inputs = {
             "input_ids": input_ids,
+            "attention_mask": attention_mask,
         }
 
         if self.use_io_binding:
@@ -863,9 +876,6 @@ class ORTVaeDecoder(ORTModelMixin):
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
-
-        if "latent_sample" in model_outputs:
-            model_outputs["latents"] = model_outputs.pop("latent_sample")
 
         if not return_dict:
             return tuple(model_outputs.values())
@@ -1115,6 +1125,12 @@ else:
         MIN_VERSION = "0.30.0"
 
 
+class ORTSanaPipeline(ORTDiffusionPipeline, SanaPipeline):
+    task = "text-to-image"
+    main_input_name = "prompt"
+    auto_model_class = SanaPipeline
+
+
 SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusionPipeline,
     ORTStableDiffusionImg2ImgPipeline,
@@ -1128,6 +1144,7 @@ SUPPORTED_ORT_PIPELINES = [
     ORTStableDiffusion3Img2ImgPipeline,
     ORTStableDiffusion3InpaintPipeline,
     ORTFluxPipeline,
+    ORTSanaPipeline,
 ]
 
 
@@ -1150,6 +1167,7 @@ ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
         ("stable-diffusion", ORTStableDiffusionPipeline),
         ("stable-diffusion-3", ORTStableDiffusion3Pipeline),
         ("stable-diffusion-xl", ORTStableDiffusionXLPipeline),
+        ("sana", ORTSanaPipeline),
     ]
 )
 

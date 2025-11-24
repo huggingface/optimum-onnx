@@ -16,6 +16,7 @@ from __future__ import annotations
 from optimum.utils import (
     DummyAudioInputGenerator,
     DummyPastKeyValuesGenerator,
+    DummyTransformerTextInputGenerator,
     NormalizedTextConfig,
     is_transformers_version,
 )
@@ -91,3 +92,19 @@ class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
             )
         else:
             raise ValueError(f"Unsupported input name: {input_name}")
+
+
+class DummySanaTransforemerTextInputGenerator(DummyTransformerTextInputGenerator):
+    SUPPORTED_INPUT_NAMES = ("encoder_hidden_states", "encoder_attention_mask")
+
+    def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "encoder_attention_mask":
+            return self.random_mask_tensor(
+                shape=[self.batch_size, self.sequence_length],
+                framework=framework,
+                dtype=int_dtype,
+            )
+        else:
+            return super().generate(
+                input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+            )

@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
+from diffusers import DiffusionPipeline
 from transformers.utils import is_torch_available
 
 from optimum.exporters.base import ExporterConfig
@@ -162,6 +163,73 @@ def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterCon
     return models_for_export
 
 
+def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "int64", float_dtype: str = "fp32"):
+    import copy
+
+    models_for_export = {}
+    text_encoder = pipeline.text_encoder
+    text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=text_encoder,
+        exporter="onnx",
+        library_name="diffusers",
+        task="feature-extraction",
+        model_type="gemma2-text-encoder",
+    )
+    text_encoder_export_config = text_encoder_config_constructor(
+        pipeline.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["text_encoder"] = (text_encoder, text_encoder_export_config)
+
+    transformer = pipeline.transformer
+    transformer.config.vocab_size = pipeline.text_encoder.config.vocab_size
+    transformer.config.text_encoder_projection_dim = transformer.config.caption_channels
+    transformer.config.requires_aesthetics_score = False
+    transformer.config.time_cond_proj_dim = None
+    export_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=transformer,
+        exporter="onnx",
+        library_name="diffusers",
+        task="semantic-segmentation",
+        model_type="sana-transformer",
+    )
+    transformer_export_config = export_config_constructor(
+        pipeline.transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["transformer"] = (transformer, transformer_export_config)
+
+    # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample).latent}
+    vae_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=vae_encoder,
+        exporter="onnx",
+        library_name="diffusers",
+        task="semantic-segmentation",
+        model_type="dcae-encoder",
+    )
+    vae_encoder_export_config = vae_config_constructor(
+        vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_export_config)
+
+    # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    vae_config_constructor = TasksManager.get_exporter_config_constructor(
+        model=vae_decoder,
+        exporter="onnx",
+        library_name="diffusers",
+        task="semantic-segmentation",
+        model_type="dcae-decoder",
+    )
+    vae_decoder_export_config = vae_config_constructor(
+        vae_decoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+    )
+    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_export_config)
+
+    return models_for_export
+
+
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
     task: str,
@@ -188,6 +256,10 @@ def _get_submodels_and_onnx_configs(
         )
         export_config.variant = _variant
         return export_config, get_metaclip_2_models_for_export(model, export_config)
+
+    if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
+        return None, get_sana_models_for_export(model, int_dtype, float_dtype)
+
     return _get_submodels_and_export_configs(
         model,
         task,

@@ -73,7 +73,9 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        images = [Image.fromarray(np.random.rand(height, width, channel), mode="RGB") for _ in range(batch_size)]
+        images = [
+            Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8)) for _ in range(batch_size)
+        ]
     elif input_type == "np":
         images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
     elif input_type == "pt":
@@ -227,7 +229,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "latent-consistency",
     ]
     if is_transformers_version(">=", "4.45"):
-        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux"]
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux", "sana"]
 
     NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
@@ -236,7 +238,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
     ]
 
     if is_transformers_version(">=", "4.45"):
-        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "sana"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
@@ -244,7 +246,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "latent-consistency",
     ]
     if is_transformers_version(">=", "4.45"):
-        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
+        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux", "sana"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -287,6 +289,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             self.skipTest("Testing a single arch for TensorrtExecutionProvider")
 
         model_args = {"test_name": model_arch, "model_arch": model_arch}
+
         self._setup(model_args)
 
         height, width, batch_size = 32, 32, 1
@@ -324,6 +327,11 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
 
         height, width, batch_size = 64, 64, 2
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        if "sana" in model_arch:
+            # resolution binning will lead to resize output to standard
+            # resolution and back that can interpolate floating-point deviations
+            inputs["use_resolution_binning"] = False
 
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
@@ -409,6 +417,11 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         height, width, batch_size = 64, 64, 1
 
         inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size)
+
+        if "sana" in model_arch:
+            # resolution binning will lead to resize output to standard
+            # resolution and back that can interpolate floating-point deviations
+            inputs["use_resolution_binning"] = False
 
         for output_type in ["pil", "np", "pt", "latent"]:
             inputs["output_type"] = output_type
