@@ -639,6 +639,8 @@ class ORTUnet(ORTModelMixin):
             known_output_shapes = {"out_sample": sample.shape}
 
             known_output_buffers = None
+            # in LCM, the scheduler uses both the input sample (latents) and the output sample (model_pred) to compute the next latents
+            # latents, denoised = self.scheduler.step(model_pred, t, latents, **extra_step_kwargs, return_dict=False)
             if "LatentConsistencyModel" not in self.parent.__class__.__name__:
                 known_output_buffers = {"out_sample": sample}
 
@@ -703,6 +705,8 @@ class ORTTransformer(ORTModelMixin):
             known_output_shapes = {"out_hidden_states": hidden_states.shape}
 
             known_output_buffers = None
+            # in Flux model, the scheduler uses both the input hidden_states (latents) and the output hidden_states (noise_pred) to compute the next latents
+            # latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
             if "Flux" not in self.parent.__class__.__name__:
                 known_output_buffers = {"out_hidden_states": hidden_states}
 

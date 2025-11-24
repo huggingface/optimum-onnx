@@ -1466,6 +1466,7 @@ class VaeEncoderOnnxConfig(VisionOnnxConfig):
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         down_sampling_factor = 2 ** (len(self._normalized_config.down_block_types) - 1)
+
         return {
             "latent_parameters": {
                 0: "batch_size",
@@ -1488,13 +1489,13 @@ class VaeDecoderOnnxConfig(VisionOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        upsampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
+        up_sampling_factor = 2 ** (len(self._normalized_config.up_block_types) - 1)
 
         return {
             "sample": {
                 0: "batch_size",
-                2: f"latent_height * {upsampling_factor}",
-                3: f"latent_width * {upsampling_factor}",
+                2: f"latent_height * {up_sampling_factor}",
+                3: f"latent_width * {up_sampling_factor}",
             },
         }
 
@@ -2827,6 +2828,7 @@ class DcaeEncoderOnnxConfig(VaeEncoderOnnxConfig):
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         down_sampling_factor = 2 ** (len(self._normalized_config.encoder_block_out_channels) - 1)
+
         return {
             "latent_sample": {
                 0: "batch_size",
