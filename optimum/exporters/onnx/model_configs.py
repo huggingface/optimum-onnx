@@ -34,15 +34,11 @@ from optimum.exporters.onnx.config import (
     VisionOnnxConfig,
 )
 from optimum.exporters.onnx.input_generators import (
-    DummyAutoEncoderDCInputGenerator,
-    DummyGemma2TextInputGenerator,
     DummyMoonshineAudioInputGenerator,
-    DummySanaTransformerInputGenerator,
+    DummySanaTransforemerTextInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
 from optimum.exporters.onnx.model_patcher import (
-    AutodecoderDCPatcher,
-    AutoencoderDCPatcher,
     BigBirdPegasusModelPatcher,
     CLIPModelPatcher,
     CohereModelPatcher,
@@ -2783,13 +2779,6 @@ class DFineOnnxConfig(RTDetrOnnxConfig):
 
 @register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
 class Gemma2TextEncoderOnnxConfig(CLIPTextOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, DummyGemma2TextInputGenerator)
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        vocab_size="vocab_size",
-        hidden_size="hidden_size",
-        allow_new=True,
-    )
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {
@@ -2799,27 +2788,21 @@ class Gemma2TextEncoderOnnxConfig(CLIPTextOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "last_hidden_state": {0: "batch_size", 1: "sequence_length"}
-            # past_key_values won't be output due to DynamicCache
-            # hidden_size equals config.hidden_sizes
-        }
+        outputs = super().outputs
+        outputs.pop("pooler_output", None)
+        return outputs
 
 
 @register_tasks_manager_onnx("sana-transformer", *["semantic-segmentation"], library_name="diffusers")
 class SanaTransformerOnnxConfig(SD3TransformerOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (
-        DummyGemma2TextInputGenerator,
-        DummySanaTransformerInputGenerator,
+        DummyTransformerVisionInputGenerator,
+        DummySanaTransforemerTextInputGenerator,
         DummyTransformerTimestepInputGenerator,
     )
     NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        vocab_size="vocab_size",
-        in_channels="in_channels",
-        out_channels="out_channels",
-        sample_size="sample_size",
-        patch_size="patch_size",
         hidden_size="caption_channels",
+        num_channels="in_channels",
         allow_new=True,
     )
 
@@ -2832,60 +2815,39 @@ class SanaTransformerOnnxConfig(SD3TransformerOnnxConfig):
             "timestep": {0: "batch_size"},
         }
 
-    @property
-    def outputs(self) -> dict[str, dict[int, str]]:
-        return {"output": {0: "batch_size", 2: "height", 3: "width"}}
-
-    @property
-    def torch_to_onnx_output_map(self) -> dict[str, str]:
-        return {
-            "sample": "output",
-        }
-
 
 @register_tasks_manager_onnx("dcae-encoder", *["semantic-segmentation"], library_name="diffusers")
 class DcaeEncoderOnnxConfig(VaeEncoderOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyAutoEncoderDCInputGenerator,)
-    ATOL_FOR_VALIDATION = 3e-4  # TODO: this only happens in test_export.py
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        in_channels="in_channels", latent_channels="latent_channels", height=512, width=512, allow_new=True
-    )
-
-    _MODEL_PATCHER = AutoencoderDCPatcher
-
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        # (batch_size, in_channels, height, width)
-        return {"sample": {0: "batch_size", 2: "height", 3: "width"}}
+        return {
+            "sample": {0: "batch_size", 2: "height", 3: "width"},
+        }
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         down_sampling_factor = 2 ** (len(self._normalized_config.encoder_block_out_channels) - 1)
-        # (batch_size, latent_channels, height // latent_channels, width // latent_channels)
         return {
-            "latent": {0: "batch_size", 2: f"height / {down_sampling_factor}", 3: f"width / {down_sampling_factor}"}
+            "latent_sample": {
+                0: "batch_size",
+                2: f"height / {down_sampling_factor}",
+                3: f"width / {down_sampling_factor}",
+            }
         }
 
 
 @register_tasks_manager_onnx("dcae-decoder", *["semantic-segmentation"], library_name="diffusers")
-class DcaeDecoderOnnxConfig(VaeEncoderOnnxConfig):
-    DUMMY_INPUT_GENERATOR_CLASSES = (DummyAutoEncoderDCInputGenerator,)
-    ATOL_FOR_VALIDATION = 3e-4  # TODO: this only happens in test_export.py
-    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
-        in_channels="in_channels", latent_channels="latent_channels", allow_new=True
-    )
-
-    _MODEL_PATCHER = AutodecoderDCPatcher
-
+class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        # (batch_size, latent_channels, height // latent_channels, width // latent_channels)
-        return {"latent": {0: "batch_size", 2: "latent_height", 3: "latent_width"}}
+        return {
+            "latent_sample": {0: "batch_size", 2: "latent_height", 3: "latent_width"},
+        }
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
         up_sampling_factor = 2 ** (len(self._normalized_config.decoder_block_out_channels) - 1)
-        # (batch_size, in_channels, height, width)
+
         return {
             "sample": {
                 0: "batch_size",

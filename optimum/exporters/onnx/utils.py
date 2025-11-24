@@ -163,11 +163,11 @@ def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterCon
     return models_for_export
 
 
-def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64", float_dtype: str = "fp32"):
+def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "int64", float_dtype: str = "fp32"):
     import copy
 
     models_for_export = {}
-    text_encoder = model.text_encoder
+    text_encoder = pipeline.text_encoder
     text_encoder_config_constructor = TasksManager.get_exporter_config_constructor(
         model=text_encoder,
         exporter="onnx",
@@ -176,12 +176,15 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
         model_type="gemma2-text-encoder",
     )
     text_encoder_export_config = text_encoder_config_constructor(
-        model.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
+        pipeline.text_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
     models_for_export["text_encoder"] = (text_encoder, text_encoder_export_config)
 
-    transformer = model.transformer
-    transformer.config.vocab_size = text_encoder.config.vocab_size
+    transformer = pipeline.transformer
+    transformer.config.vocab_size = pipeline.text_encoder.config.vocab_size
+    transformer.config.text_encoder_projection_dim = transformer.config.caption_channels
+    transformer.config.requires_aesthetics_score = False
+    transformer.config.time_cond_proj_dim = None
     export_config_constructor = TasksManager.get_exporter_config_constructor(
         model=transformer,
         exporter="onnx",
@@ -190,13 +193,13 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
         model_type="sana-transformer",
     )
     transformer_export_config = export_config_constructor(
-        model.transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
+        pipeline.transformer.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
     models_for_export["transformer"] = (transformer, transformer_export_config)
 
     # VAE Encoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L565
-    vae_encoder = copy.deepcopy(model.vae)
-    vae_encoder.forward = lambda sample: {"latent": vae_encoder.encode(x=sample).latent}
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    vae_encoder.forward = lambda sample: {"latent_sample": vae_encoder.encode(x=sample).latent}
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_encoder,
         exporter="onnx",
@@ -207,12 +210,11 @@ def get_sana_models_for_export(model: DiffusionPipeline, int_dtype: str = "int64
     vae_encoder_export_config = vae_config_constructor(
         vae_encoder.config, int_dtype=int_dtype, float_dtype=float_dtype
     )
-    vae_encoder_export_config.runtime_options = {"ACTIVATIONS_SCALE_FACTOR": "8.0"}
     models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_export_config)
 
     # VAE Decoder https://github.com/huggingface/diffusers/blob/v0.11.1/src/diffusers/models/vae.py#L600
-    vae_decoder = copy.deepcopy(model.vae)
-    vae_decoder.forward = lambda latent: {"sample": vae_decoder.decode(z=latent).sample}
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
     vae_config_constructor = TasksManager.get_exporter_config_constructor(
         model=vae_decoder,
         exporter="onnx",

@@ -696,9 +696,8 @@ class ORTTransformer(ORTModelMixin):
             "txt_ids": txt_ids,
             "img_ids": img_ids,
             **(joint_attention_kwargs or {}),
+            **(attention_kwargs or {}),
         }
-
-        is_sana = "Sana" in self.parent.__class__.__name__
 
         if self.use_io_binding:
             known_output_shapes = {"out_hidden_states": hidden_states.shape}
@@ -726,9 +725,6 @@ class ORTTransformer(ORTModelMixin):
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
 
-        if not is_sana:
-            model_outputs["hidden_states"] = model_outputs.pop("out_hidden_states")
-
         if not return_dict:
             return tuple(model_outputs.values())
 
@@ -747,10 +743,8 @@ class ORTTextEncoder(ORTModelMixin):
 
         model_inputs = {
             "input_ids": input_ids,
+            "attention_mask": attention_mask,
         }
-
-        if attention_mask is not None:
-            model_inputs["attention_mask"] = attention_mask
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
@@ -859,14 +853,9 @@ class ORTVaeDecoder(ORTModelMixin):
     ):
         use_torch = isinstance(latent_sample, torch.Tensor)
 
-        is_sana = "Sana" in self.parent.__class__.__name__
-
         model_inputs = {
             "latent_sample": latent_sample,
         }
-
-        if is_sana:
-            model_inputs["latent"] = model_inputs.pop("latent_sample")
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
@@ -883,9 +872,6 @@ class ORTVaeDecoder(ORTModelMixin):
             onnx_inputs = self._prepare_onnx_inputs(use_torch, model_inputs)
             onnx_outputs = self.session.run(None, onnx_inputs)
             model_outputs = self._prepare_onnx_outputs(use_torch, onnx_outputs)
-
-        if "latent_sample" in model_outputs:
-            model_outputs["latents"] = model_outputs.pop("latent_sample")
 
         if not return_dict:
             return tuple(model_outputs.values())
