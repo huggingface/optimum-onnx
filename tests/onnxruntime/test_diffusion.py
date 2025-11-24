@@ -74,7 +74,8 @@ def generate_prompts(batch_size=1):
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
         images = [
-            Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8)) for _ in range(batch_size)
+            Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8), model="RGB")
+            for _ in range(batch_size)
         ]
     elif input_type == "np":
         images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
