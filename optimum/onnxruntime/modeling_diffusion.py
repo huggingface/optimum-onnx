@@ -689,6 +689,7 @@ class ORTTransformer(ORTModelMixin):
         model_inputs = {
             "hidden_states": hidden_states,
             "encoder_hidden_states": encoder_hidden_states,
+            "encoder_attention_mask": encoder_attention_mask,
             "pooled_projections": pooled_projections,
             "timestep": timestep,
             "guidance": guidance,

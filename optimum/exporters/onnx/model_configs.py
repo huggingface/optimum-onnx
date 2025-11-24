@@ -2828,6 +2828,7 @@ class SanaTransformerOnnxConfig(SD3TransformerOnnxConfig):
         return {
             "hidden_states": {0: "batch_size", 2: "height", 3: "width"},
             "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "encoder_attention_mask": {0: "batch_size", 1: "sequence_length"},
             "timestep": {0: "batch_size"},
         }
 
@@ -2859,8 +2860,11 @@ class DcaeEncoderOnnxConfig(VaeEncoderOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
+        down_sampling_factor = 2 ** (len(self._normalized_config.encoder_block_out_channels) - 1)
         # (batch_size, latent_channels, height // latent_channels, width // latent_channels)
-        return {"latent": {0: "batch_size", 2: "latent_height", 3: "latent_width"}}
+        return {
+            "latent": {0: "batch_size", 2: f"height / {down_sampling_factor}", 3: f"width / {down_sampling_factor}"}
+        }
 
 
 @register_tasks_manager_onnx("dcae-decoder", *["semantic-segmentation"], library_name="diffusers")
@@ -2880,5 +2884,12 @@ class DcaeDecoderOnnxConfig(VaeEncoderOnnxConfig):
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
+        up_sampling_factor = 2 ** (len(self._normalized_config.decoder_block_out_channels) - 1)
         # (batch_size, in_channels, height, width)
-        return {"sample": {0: "batch_size", 2: "height", 3: "width"}}
+        return {
+            "sample": {
+                0: "batch_size",
+                2: f"latent_height * {up_sampling_factor}",
+                3: f"latent_width * {up_sampling_factor}",
+            }
+        }

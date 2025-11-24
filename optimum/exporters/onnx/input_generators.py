@@ -97,13 +97,19 @@ class DummyMoonshineAudioInputGenerator(DummyAudioInputGenerator):
 
 
 class DummyGemma2TextInputGenerator(DummySeq2SeqDecoderTextInputGenerator):
-    SUPPORTED_INPUT_NAMES = ("last_hidden_state", "encoder_hidden_states")
+    SUPPORTED_INPUT_NAMES = ("last_hidden_state", "encoder_hidden_states", "encoder_attention_mask")
 
     def __init__(self, task: str, normalized_config: NormalizedTextConfig, **kwargs):
         super().__init__(task=task, normalized_config=normalized_config, **kwargs)
         self.hidden_size = normalized_config.hidden_size
 
     def generate(self, input_name: str, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+        if input_name == "encoder_attention_mask":
+            return self.random_mask_tensor(
+                shape=[self.batch_size, self.sequence_length],
+                framework=framework,
+                dtype=int_dtype,
+            )
         return self.random_float_tensor(
             shape=[self.batch_size, self.sequence_length, self.hidden_size],
             min_value=-1,
