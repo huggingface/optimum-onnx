@@ -42,7 +42,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
 from optimum.onnxruntime.utils import get_device_for_provider
-from optimum.utils import is_tensorrt_available, is_transformers_version
+from optimum.utils import is_diffusers_version, is_tensorrt_available
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
@@ -242,25 +242,32 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
-        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux", "sana"]
+    if is_diffusers_version(">=", "0.29.0"):
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+    if is_diffusers_version(">=", "0.30.0"):
+        SUPPORTED_ARCHITECTURES += ["flux"]
+    if is_diffusers_version(">=", "0.32.0"):
+        SUPPORTED_ARCHITECTURES += ["sana"]
 
     NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-
-    if is_transformers_version(">=", "4.45"):
-        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "sana"]
+    if is_diffusers_version(">=", "0.29.0"):
+        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+    if is_diffusers_version(">=", "0.32.0"):
+        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["sana"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
-        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux", "sana"]
+    if is_diffusers_version(">=", "0.30.0"):
+        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux"]
+    if is_diffusers_version(">=", "0.32.0"):
+        CALLBACK_SUPPORTED_ARCHITECTURES += ["sana"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -537,8 +544,10 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
+    if is_diffusers_version(">=", "0.29.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+    if is_diffusers_version(">=", "0.30.0"):
+        SUPPORTED_ARCHITECTURES += ["flux"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         "stable-diffusion",
@@ -792,7 +801,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
     ]
-    if is_transformers_version(">=", "4.45"):
+    if is_diffusers_version(">=", "0.30.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
