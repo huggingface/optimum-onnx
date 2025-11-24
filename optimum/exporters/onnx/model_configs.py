@@ -509,6 +509,7 @@ class GemmaOnnxConfig(TextDecoderOnnxConfig):
 
 
 @register_tasks_manager_onnx("gemma2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
 class Gemma2OnnxConfig(GemmaOnnxConfig):
     # Gemma 2 was added in transformers v4.42 using HybridCache
     # DynamicCache support was added since v4.53
@@ -2776,22 +2777,6 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("d_fine", *["object-detection"])
 class DFineOnnxConfig(RTDetrOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
-
-
-@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
-class Gemma2TextEncoderOnnxConfig(CLIPTextOnnxConfig):
-    @property
-    def inputs(self) -> dict[str, dict[int, str]]:
-        return {
-            "input_ids": {0: "batch_size", 1: "sequence_length"},
-            "attention_mask": {0: "batch_size", 1: "sequence_length"},
-        }
-
-    @property
-    def outputs(self) -> dict[str, dict[int, str]]:
-        outputs = super().outputs
-        outputs.pop("pooler_output", None)
-        return outputs
 
 
 @register_tasks_manager_onnx("sana-transformer", *["semantic-segmentation"], library_name="diffusers")
