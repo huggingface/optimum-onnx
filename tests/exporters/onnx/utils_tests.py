@@ -134,6 +134,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "mbart": "hf-internal-testing/tiny-random-mbart",
     "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "megatron-bert": "hf-internal-testing/tiny-random-MegatronBertModel",
+    "metaclip_2": "facebook/metaclip-2-worldwide-s16",
     "mgp-str": "hf-internal-testing/tiny-random-MgpstrForSceneTextRecognition",
     "mistral": "echarlaix/tiny-random-mistral",
     "mobilebert": "hf-internal-testing/tiny-random-MobileBertModel",
