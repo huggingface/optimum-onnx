@@ -250,19 +250,20 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(outputs, onnx_outputs)
 
-        # group beam search with diversity penalty
-        gen_config = GenerationConfig(
-            num_beams=4,
-            do_sample=False,
-            max_new_tokens=10,
-            min_new_tokens=10,
-            num_beam_groups=2,
-            diversity_penalty=0.0001,
-            use_cache=use_cache,
-        )
-        outputs = model.generate(**inputs, generation_config=gen_config)
-        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
-        torch.testing.assert_close(outputs, onnx_outputs)
+        if is_transformers_version("<=", "4.57.0"):
+            # group beam search with diversity penalty
+            gen_config = GenerationConfig(
+                num_beams=4,
+                do_sample=False,
+                max_new_tokens=10,
+                min_new_tokens=10,
+                num_beam_groups=2,
+                diversity_penalty=0.0001,
+                use_cache=use_cache,
+            )
+            outputs = model.generate(**inputs, generation_config=gen_config)
+            onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
+            torch.testing.assert_close(outputs, onnx_outputs)
 
     # NUMERICAL CONSISTENCY WITH DECODER MERGING
     def _test_compare_logits_merged_and_not_merged(self, model_arch: str, use_cache: bool = True):
