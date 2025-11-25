@@ -39,6 +39,11 @@ from diffusers.pipelines import (
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
 )
+from diffusers.pipelines.auto_pipeline import (
+    AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+    AUTO_INPAINT_PIPELINES_MAPPING,
+    AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+)
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import SchedulerMixin
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
@@ -1055,18 +1060,6 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
 
-SUPPORTED_ORT_PIPELINES = [
-    ORTStableDiffusionPipeline,
-    ORTStableDiffusionImg2ImgPipeline,
-    ORTStableDiffusionInpaintPipeline,
-    ORTStableDiffusionXLPipeline,
-    ORTStableDiffusionXLImg2ImgPipeline,
-    ORTStableDiffusionXLInpaintPipeline,
-    ORTLatentConsistencyModelPipeline,
-    ORTLatentConsistencyModelImg2ImgPipeline,
-]
-
-
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("latent-consistency", ORTLatentConsistencyModelPipeline),
@@ -1126,9 +1119,10 @@ if is_diffusers_version(">=", "0.29.0"):
         main_input_name = "image"
         auto_model_class = StableDiffusion3Img2ImgPipeline
 
-    SUPPORTED_ORT_PIPELINES.extend([ORTStableDiffusion3Pipeline, ORTStableDiffusion3Img2ImgPipeline])
-    ORT_TEXT2IMAGE_PIPELINES_MAPPING["stable-diffusion-3"] = ORTStableDiffusion3Pipeline
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING["stable-diffusion-3"] = ORTStableDiffusion3Img2ImgPipeline
+    AUTO_IMAGE2IMAGE_PIPELINES_MAPPING["stable-diffusion-3"] = StableDiffusion3Img2ImgPipeline
+    ORT_TEXT2IMAGE_PIPELINES_MAPPING["stable-diffusion-3"] = ORTStableDiffusion3Pipeline
+    AUTO_TEXT2IMAGE_PIPELINES_MAPPING["stable-diffusion-3"] = StableDiffusion3Pipeline
 
 
 else:
@@ -1159,9 +1153,10 @@ if is_diffusers_version(">=", "0.30.0"):
         main_input_name = "prompt"
         auto_model_class = FluxPipeline
 
-    SUPPORTED_ORT_PIPELINES.extend([ORTStableDiffusion3InpaintPipeline, ORTFluxPipeline])
     ORT_INPAINT_PIPELINES_MAPPING["stable-diffusion-3"] = ORTStableDiffusion3InpaintPipeline
+    AUTO_INPAINT_PIPELINES_MAPPING["stable-diffusion-3"] = StableDiffusion3InpaintPipeline
     ORT_TEXT2IMAGE_PIPELINES_MAPPING["flux"] = ORTFluxPipeline
+    AUTO_TEXT2IMAGE_PIPELINES_MAPPING["flux"] = FluxPipeline
 
 else:
 
@@ -1182,13 +1177,20 @@ if is_diffusers_version(">=", "0.32.0"):
         main_input_name = "prompt"
         auto_model_class = SanaPipeline
 
-    SUPPORTED_ORT_PIPELINES.append(ORTSanaPipeline)
+    AUTO_TEXT2IMAGE_PIPELINES_MAPPING["sana"] = SanaPipeline
     ORT_TEXT2IMAGE_PIPELINES_MAPPING["sana"] = ORTSanaPipeline
 
 else:
 
     class ORTSanaPipeline(ORTUnavailablePipeline):
         MIN_VERSION = "0.32.0"
+
+
+SUPPORTED_ORT_PIPELINES = [
+    *ORT_TEXT2IMAGE_PIPELINES_MAPPING.values(),
+    *ORT_IMAGE2IMAGE_PIPELINES_MAPPING.values(),
+    *ORT_INPAINT_PIPELINES_MAPPING.values(),
+]
 
 
 def _get_ort_class(pipeline_class_name: str, throw_error_if_not_exist: bool = True):
