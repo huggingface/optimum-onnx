@@ -51,7 +51,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "nreimers/BERT-Tiny_L-2_H-128_A-2": ["feature-extraction"],
     },
-    "bart": "hf-internal-testing/tiny-random-bart",
+    "bart": "hf-internal-testing/tiny-random-BartModel",
     "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
     "bigbird_pegasus": "hf-internal-testing/tiny-random-bigbird_pegasus",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",

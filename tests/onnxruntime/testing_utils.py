@@ -32,7 +32,7 @@ MODEL_NAMES = {
     "audio-spectrogram-transformer": "Ericwang/tiny-random-ast",
     "beit": "hf-internal-testing/tiny-random-BeitForImageClassification",
     "bert": "hf-internal-testing/tiny-random-BertModel",
-    "bart": "hf-internal-testing/tiny-random-bart",
+    "bart": "hf-internal-testing/tiny-random-BartModel",
     "big_bird": "hf-internal-testing/tiny-random-BigBirdModel",
     "bigbird_pegasus": "hf-internal-testing/tiny-random-BigBirdPegasusModel",
     "blenderbot-small": "hf-internal-testing/tiny-random-BlenderbotModel",

@@ -91,7 +91,7 @@ class ORTOptimizerTest(unittest.TestCase):
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = (
         (ORTModelForCausalLM, "hf-internal-testing/tiny-random-gpt2"),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart"),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-BartModel"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-big_bird"),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert"),
@@ -131,8 +131,8 @@ class ORTOptimizerTest(unittest.TestCase):
 
     # Contribution note: Please add test models in alphabetical order. Find test models here: https://huggingface.co/hf-internal-testing.
     SUPPORTED_SEQ2SEQ_ARCHITECTURES_WITH_MODEL_ID = (
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", False),
-        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-bart", True),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-BartModel", False),
+        (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-BartModel", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-LongT5ForConditionalGeneration", False),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-LongT5ForConditionalGeneration", True),
         (ORTModelForSeq2SeqLM, "hf-internal-testing/tiny-random-marian", False),

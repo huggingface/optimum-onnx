@@ -53,7 +53,7 @@ class TestCLI(unittest.TestCase):
             export_commands = [
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bert {tempdir}/encoder",
                 f"optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 {tempdir}/decoder",
-                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-bart {tempdir}/encoder-decoder",
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-BartModel {tempdir}/encoder-decoder",
             ]
             optimize_commands = [
                 f"optimum-cli onnxruntime optimize --onnx_model {tempdir}/encoder -O1 -o {tempdir}/optimized_encoder",

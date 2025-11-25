@@ -69,7 +69,7 @@ class WeightSharingTestCase(TestCase):
 class OnnxMergingTestCase(TestCase):
     SUPPORTED_ARCHITECTURES_WITH_MODEL_ID = {  # noqa: RUF012
         "hf-internal-testing/tiny-random-t5": "text2text-generation-with-past",
-        "hf-internal-testing/tiny-random-bart": "text2text-generation-with-past",
+        "hf-internal-testing/tiny-random-BartModel": "text2text-generation-with-past",
         "optimum-internal-testing/tiny-random-whisper": "automatic-speech-recognition-with-past",
     }
 
