@@ -554,6 +554,7 @@ class ModelPatcher:
                 # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
                 if "encoder_outputs" in signature.parameters:
                     encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+
                     if (
                         encoder_outputs_index < len(args)  # encoder_outputs is in args
                         and isinstance(args[encoder_outputs_index], (list, tuple))
@@ -1001,6 +1002,11 @@ class SpeechT5ModelPatcher(ModelPatcher):
                     elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
                         # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
                         filtered_outputs[name] = tuple([v[:2] for v in value])
+
+            if is_transformers_version(">=", "4.48") and isinstance(
+                filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)
+            ):
+                filtered_outputs["past_key_values"] = result["past_key_values"].to_legacy_cache()
 
             return filtered_outputs
 

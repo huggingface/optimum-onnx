@@ -42,7 +42,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
 from optimum.onnxruntime.utils import get_device_for_provider
-from optimum.utils import is_diffusers_version, is_tensorrt_available
+from optimum.utils import is_diffusers_version, is_tensorrt_available, is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
@@ -242,11 +242,11 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_diffusers_version(">=", "0.29.0"):
+    if is_diffusers_version(">=", "0.29.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
-    if is_diffusers_version(">=", "0.30.0"):
+    if is_diffusers_version(">=", "0.30.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["flux"]
-    if is_diffusers_version(">=", "0.32.0"):
+    if is_diffusers_version(">=", "0.32.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["sana"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
@@ -524,7 +524,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_diffusers_version(">=", "0.29.0"):
+    if is_diffusers_version(">=", "0.29.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
@@ -773,7 +773,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
     ]
-    if is_diffusers_version(">=", "0.30.0"):
+    if is_diffusers_version(">=", "0.30.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
