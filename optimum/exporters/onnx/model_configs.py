@@ -43,6 +43,7 @@ from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
     CohereModelPatcher,
     FluxTransformerModelPatcher,
+    GptOssModelPatcher,
     MetaCLIP2Patcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
@@ -539,6 +540,7 @@ class Gemma3OnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
 class GPTOssOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")
+    _MODEL_PATCHER = GptOssModelPatcher
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)

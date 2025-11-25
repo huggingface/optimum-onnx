@@ -52,6 +52,8 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
+if is_transformers_version(">=", "4.55.0"):
+    from transformers.models.gpt_oss.modeling_gpt_oss import GptOssExperts
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
@@ -1438,3 +1440,37 @@ class CohereModelPatcher(ModelPatcher):
             from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
 
             CohereRotaryEmbedding.forward = self.original_forward
+
+
+def gpt_oss_forward(self, hidden_states: torch.Tensor, router_indices=None, routing_weights=None) -> torch.Tensor:
+    batch_size = hidden_states.shape[0]
+    hidden_states = hidden_states.reshape(-1, self.hidden_size)
+    num_experts = routing_weights.shape[1]
+    hidden_states = hidden_states.repeat(num_experts, 1)
+    hidden_states = hidden_states.view(num_experts, -1, self.hidden_size)
+    gate_up = torch.bmm(hidden_states, self.gate_up_proj) + self.gate_up_proj_bias[..., None, :]
+    gate, up = gate_up[..., ::2], gate_up[..., 1::2]
+    gate = gate.clamp(min=None, max=self.limit)
+    up = up.clamp(min=-self.limit, max=self.limit)
+    glu = gate * torch.sigmoid(gate * self.alpha)
+    next_states = torch.bmm(((up + 1) * glu), self.down_proj)
+    next_states = next_states + self.down_proj_bias[..., None, :]
+    next_states = next_states.view(num_experts, batch_size, -1, self.hidden_size)
+    next_states = next_states * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
+    next_states = next_states.sum(dim=0)
+    return next_states
+
+
+class GptOssModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.55.0"):
+            self.original_gpt_oss_forward = GptOssExperts.forward
+            GptOssExperts.forward = gpt_oss_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.55.0"):
+            GptOssExperts.forward = self.original_gpt_oss_forward
