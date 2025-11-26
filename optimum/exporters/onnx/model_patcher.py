@@ -501,13 +501,17 @@ class ModelPatcher:
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
         allow_past_in_outputs = getattr(self.real_config, "use_past", False)
 
+        for module in self._model.modules():
+            if hasattr(module, "config") and hasattr(module.config, "use_cache"):
+                module.config.use_cache = allow_past_in_outputs
+
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
             signature = inspect.signature(self.orig_forward)
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             # Transformers doesn't always respect the config.use_cache attribute
-            # there are even cases where setting use_cache to true in every config and
+            # there are cases where setting use_cache to true in every config and
             # subconfig of a model still doesn't enable past_key_values in the outputs (gemma3)
             # Explicitly setting the use_cache argument of the forward method seems to be the most reliable way
             if "use_cache" in signature.parameters:
@@ -603,8 +607,15 @@ class ModelPatcher:
                 filtered_outputs[name] = outputs
 
             if is_transformers_version(">=", "4.48"):
-                if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
-                    filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+                if isinstance(filtered_outputs.get("past_key_values"), EncoderDecoderCache):
+                    if any("encoder" in output_name for output_name in config.outputs):
+                        filtered_outputs["past_key_values"] = filtered_outputs["past_key_values"].to_legacy_cache()
+                    else:
+                        filtered_outputs["past_key_values"] = filtered_outputs[
+                            "past_key_values"
+                        ].self_attention_cache.to_legacy_cache()
+                elif isinstance(filtered_outputs.get("past_key_values"), DynamicCache):
+                    filtered_outputs["past_key_values"] = filtered_outputs["past_key_values"].to_legacy_cache()
 
             return filtered_outputs
 

@@ -661,7 +661,7 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
             cache_position = torch.arange(past_seq_len, out_seq_len, dtype=torch.int64, device=self.device)
 
         # Generate dummy attention mask for Pix2Struct text model
-        if self.config.model_type == "pix2struct" and attention_mask is None:
+        if "attention_mask" in self.input_names and attention_mask is None:
             attention_mask = torch.ones((batch_size, out_seq_len), dtype=torch.int64, device=self.device)
 
         model_inputs = {
@@ -680,13 +680,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         if use_cache:
             # Infers the shape of the output pkv
             self_attn_shape = (batch_size, self.num_attention_heads, out_seq_len, self.embed_size_per_head)
-            cross_attn_shape = (batch_size, self.num_attention_heads, encoder_seq_len, self.embed_size_per_head)
-            known_output_shapes.update(
-                {
-                    name: (cross_attn_shape if "encoder" in name else self_attn_shape)
-                    for name in self.key_value_output_names
-                }
-            )
+            known_output_shapes.update(dict.fromkeys(self.self_attention_output_names, self_attn_shape))
+            if cross_attention_key_values is None:
+                cross_attn_shape = (batch_size, self.num_attention_heads, encoder_seq_len, self.embed_size_per_head)
+                known_output_shapes.update(dict.fromkeys(self.cross_attention_output_names, cross_attn_shape))
         else:
             # we don't bind the key/values if they are not gonna be returned/used
             outputs_to_not_bind.update(self.key_value_output_names)

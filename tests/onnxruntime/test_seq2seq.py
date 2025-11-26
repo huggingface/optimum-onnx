@@ -151,8 +151,12 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
             self.assertIsInstance(outputs2.past_key_values[0], tuple)
 
             if isinstance(outputs1.past_key_values, Cache):
+                if "encoder-decoder" in model_arch:
+                    outputs1.past_key_values = outputs1.past_key_values.self_attention_cache
                 outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
             if isinstance(outputs2.past_key_values, Cache):
+                if "encoder-decoder" in model_arch:
+                    outputs2.past_key_values = outputs2.past_key_values.self_attention_cache
                 outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
 
             torch.testing.assert_close(outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol)
