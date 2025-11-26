@@ -145,7 +145,7 @@ MODEL_NAMES = {
     "unispeech": "hf-internal-testing/tiny-random-unispeech",
     "unispeech-sat": "hf-internal-testing/tiny-random-UnispeechSatModel",
     "vision-encoder-decoder": "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2",
-    "vision-encoder-decoder-donut": "fxmarty/tiny-doc-qa-vision-encoder-decoder",
+    "vision-encoder-decoder-donut": "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-donut",
     "vision-encoder-decoder-trocr": "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr",
     "visual_bert": "hf-internal-testing/tiny-random-VisualBertModel",
     "vit": "hf-internal-testing/tiny-random-vit",

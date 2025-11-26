@@ -124,6 +124,17 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
 
+    def process_past_key_values(self, model_arch: str, past_key_values):
+        if isinstance(past_key_values, Cache):
+            # convert transformers Cache to tuple of tuples
+            past_key_values = past_key_values.to_legacy_cache()
+            if model_arch.endswith("encoder-decoder"):
+                # we don't output non-reusable bert-gpt2 cross attention pkv
+                # but transformers started returning them for some reason
+                past_key_values = tuple(pkv[:2] for pkv in past_key_values)
+
+        return past_key_values
+
     def compare_logits(self, model_arch: str, outputs1, outputs2, use_cache: bool = True):
         atol = self.MODEL_ATOL.get(model_arch, self.ATOL)
         rtol = self.MODEL_RTOL.get(model_arch, self.RTOL)
@@ -150,15 +161,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
             self.assertIsInstance(outputs1.past_key_values[0], tuple)
             self.assertIsInstance(outputs2.past_key_values[0], tuple)
 
-            if isinstance(outputs1.past_key_values, Cache):
-                if "encoder-decoder" in model_arch:
-                    outputs1.past_key_values = outputs1.past_key_values.self_attention_cache
-                outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
-            if isinstance(outputs2.past_key_values, Cache):
-                if "encoder-decoder" in model_arch:
-                    outputs2.past_key_values = outputs2.past_key_values.self_attention_cache
-                outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
-
+            outputs1.past_key_values = self.process_past_key_values(model_arch, outputs1.past_key_values)
+            outputs2.past_key_values = self.process_past_key_values(model_arch, outputs2.past_key_values)
             torch.testing.assert_close(outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol)
 
     # INTEGRATION TESTS
