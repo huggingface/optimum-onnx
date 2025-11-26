@@ -104,7 +104,7 @@ MODEL_NAMES = {
     "moonshine": "hf-internal-testing/tiny-random-MoonshineForConditionalGeneration",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
-    "mt5": "lewtun/tiny-random-mt5",
+    "mt5": "optimum-internal-testing/tiny-random-mt5",
     "nemotron": "badaoui/tiny-random-NemotronForCausalLM",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
     "olmo": "katuni4ka/tiny-random-olmo-hf",

@@ -145,7 +145,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "moonshine": "hf-internal-testing/tiny-random-MoonshineForConditionalGeneration",
     "mpnet": "hf-internal-testing/tiny-random-MPNetModel",
     "mpt": "hf-internal-testing/tiny-random-MptForCausalLM",
-    "mt5": "lewtun/tiny-random-mt5",
+    "mt5": "optimum-internal-testing/tiny-random-mt5",
     "musicgen": "hf-internal-testing/tiny-random-MusicgenForConditionalGeneration",
     "nemotron": "badaoui/tiny-random-NemotronForCausalLM",
     "nystromformer": "hf-internal-testing/tiny-random-NystromformerModel",
