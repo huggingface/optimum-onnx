@@ -36,7 +36,7 @@ if is_torch_available():
 
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.onnx.constants import ONNX_DECODER_MERGED_NAME, ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME
-from optimum.exporters.onnx.model_patcher import ModelPatcher, Seq2SeqModelPatcher
+from optimum.exporters.onnx.model_patcher import ModelPatcher
 from optimum.utils import DEFAULT_DUMMY_SHAPES, DummyInputGenerator, DummySeq2SeqPastKeyValuesGenerator, logging
 from optimum.utils.doc import add_dynamic_docstring
 from optimum.utils.import_utils import (
@@ -623,7 +623,6 @@ class OnnxSeq2SeqConfigWithPast(OnnxConfigWithPast):
     """Inherits from [`~exporters.onnx.OnnxConfigWithPast`]. A base class to handle the ONNX configuration of encoder-decoder models."""
 
     DUMMY_PKV_GENERATOR_CLASS = DummySeq2SeqPastKeyValuesGenerator
-    _MODEL_PATCHER = Seq2SeqModelPatcher
 
     def __init__(
         self,
