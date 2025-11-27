@@ -197,7 +197,11 @@ def preprocess_encoder_outputs(encoder_outputs):
 
 
 def preprocess_past_key_values(past_key_values):
-    if is_transformers_version(">=", "4.48") and isinstance(past_key_values, (list, tuple)):
+    if (
+        is_transformers_version(">=", "4.48")
+        and isinstance(past_key_values, (list, tuple))
+        and isinstance(past_key_values[0], (list, tuple))
+    ):
         if len(past_key_values[0]) == 2:
             past_key_values = DynamicCache.from_legacy_cache(past_key_values)
         elif len(past_key_values[0]) == 4:
@@ -214,7 +218,11 @@ def postprocess_past_key_values(past_key_values, output_names: list[str]):
     if is_transformers_version(">=", "4.48") and isinstance(past_key_values, (EncoderDecoderCache, DynamicCache)):
         past_key_values = past_key_values.to_legacy_cache()
 
-    if not any("encoder.key" in output_name for output_name in output_names):
+    if (
+        isinstance(past_key_values, (list, tuple))
+        and isinstance(past_key_values[0], (list, tuple))
+        and not any("encoder.key" in output_name for output_name in output_names)
+    ):
         past_key_values = tuple(pkv[:2] for pkv in past_key_values)
 
     return past_key_values
