@@ -608,7 +608,7 @@ class ModelPatcher:
 
             if is_transformers_version(">=", "4.48"):
                 if isinstance(filtered_outputs.get("past_key_values"), EncoderDecoderCache):
-                    if any("encoder" in output_name for output_name in config.outputs):
+                    if any("encoder.key" in output_name for output_name in config.outputs):
                         filtered_outputs["past_key_values"] = filtered_outputs["past_key_values"].to_legacy_cache()
                     else:
                         filtered_outputs["past_key_values"] = filtered_outputs[
@@ -891,15 +891,14 @@ def patched_speecht5_prenet_forward(
 
 class SpeechT5ModelPatcher(ModelPatcher):
     def __enter__(self):
-        self.patch_ops()
+        super().__enter__()
+        self.original_speecht5_prenet_forward = self._model.speecht5.decoder.prenet.forward
         self._model.speecht5.decoder.prenet.forward = types.MethodType(
             patched_speecht5_prenet_forward, self._model.speecht5.decoder.prenet
         )
-        setattr(self._model, self.orig_forward_name, self.patched_forward)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.restore_ops()
-        setattr(self._model, self.orig_forward_name, self.orig_forward)
+        super().__exit__(exc_type, exc_value, traceback)
         self._model.speecht5.decoder.prenet.forward = types.MethodType(
             self.original_speecht5_prenet_forward, self._model.speecht5.decoder.prenet
         )
@@ -912,8 +911,7 @@ class SpeechT5ModelPatcher(ModelPatcher):
     ):
         super().__init__(config, model, model_kwargs)
 
-        self.original_speecht5_prenet_forward = model.speecht5.decoder.prenet.forward
-
+        use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
         model.vocoder = model_kwargs["vocoder_model"].eval()
 
         def patched_forward(
@@ -925,10 +923,23 @@ class SpeechT5ModelPatcher(ModelPatcher):
             spectrogram=None,
             encoder_attention_mask=None,
         ):
-            use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
+            if (
+                past_key_values is not None
+                and is_transformers_version(">=", "4.48")
+                and isinstance(past_key_values, (list, tuple))
+                and isinstance(past_key_values[0], (list, tuple))
+            ):
+                if len(past_key_values[0]) == 2:
+                    past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                elif len(past_key_values[0]) == 4:
+                    past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
+                else:
+                    raise ValueError(
+                        f"past_key_values should have either 2 or 4 elements, but it has {len(past_key_values[0])} elements"
+                    )
+
             if self.real_config._behavior == "encoder":
                 encoder_attention_mask = torch.ones_like(input_ids)
-
                 encoder_out = model.speecht5.encoder(
                     input_values=input_ids,
                     attention_mask=encoder_attention_mask,
@@ -939,16 +950,13 @@ class SpeechT5ModelPatcher(ModelPatcher):
                     encoder_attention_mask = model.speecht5.encoder.prenet._get_feature_vector_attention_mask(
                         encoder_out[0].shape[1], encoder_attention_mask
                     )
-
-                result = {
+                outputs = {
                     "encoder_outputs": encoder_out.last_hidden_state,
                     "encoder_attention_mask": encoder_attention_mask,
                 }
-
             elif self.real_config._behavior == "decoder":
                 # TODO: and self.real_config.use_past_in_inputs
                 encoder_hidden_states = encoder_outputs[0]
-
                 decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
 
                 # Run the decoder layers on the last element of the prenet output.
@@ -962,26 +970,20 @@ class SpeechT5ModelPatcher(ModelPatcher):
                     output_attentions=False,
                     return_dict=True,
                 )
-
                 last_decoder_output = decoder_out.last_hidden_state[0, -1]
                 past_key_values = decoder_out.past_key_values
-
                 # Predict the new mel spectrum for this step in the sequence.
                 spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
                 spectrum = spectrum.view(model.config.reduction_factor, model.config.num_mel_bins)
-
                 # NOTE: extending the spectrogram should is to be handled outside of the ONNX.
                 # spectrogram.append(spectrum)
-
                 # Extend the output sequence with the new mel spectrum.
                 output_sequence = torch.cat(
                     (output_sequence, spectrum[-1].view(1, 1, model.config.num_mel_bins)), dim=1
                 )
-
                 # Predict the probability that this is the stop token.
                 prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
-
-                result = {
+                outputs = {
                     "output_sequence_out": output_sequence,
                     "spectrum": spectrum,
                     "prob": prob,
@@ -993,33 +995,21 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 spectrogram = spectrogram.unsqueeze(0)
                 spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
                 spectrogram = spectrogram.squeeze(0)
-
                 waveform = model.vocoder(spectrogram)
-
-                result = {"waveform": waveform}
+                outputs = {"waveform": waveform}
             else:
                 raise ValueError("Should not happen")
 
-            # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filtered_outputs = {}
-            for name, value in result.items():
-                if name != "past_key_values":
-                    filtered_outputs[name] = value
-                else:
-                    if self.real_config._behavior == "decoder" and (
-                        self.real_config.is_merged or not self.real_config.use_past_in_inputs
-                    ):
-                        filtered_outputs[name] = value
-                    elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
-                        # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                        filtered_outputs[name] = tuple([v[:2] for v in value])
+            if is_transformers_version(">=", "4.48"):
+                if isinstance(outputs.get("past_key_values"), EncoderDecoderCache):
+                    if any("encoder.key" in output_name for output_name in config.outputs):
+                        outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+                    else:
+                        outputs["past_key_values"] = outputs["past_key_values"].self_attention_cache.to_legacy_cache()
+                elif isinstance(outputs.get("past_key_values"), DynamicCache):
+                    outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
 
-            if is_transformers_version(">=", "4.48") and isinstance(
-                filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)
-            ):
-                filtered_outputs["past_key_values"] = result["past_key_values"].to_legacy_cache()
-
-            return filtered_outputs
+            return outputs
 
         self.patched_forward = patched_forward
 
