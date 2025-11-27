@@ -52,8 +52,10 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
-if is_transformers_version(">=", "4.55.0"):
+if is_transformers_version(">=", "4.55"):
     from transformers.models.gpt_oss.modeling_gpt_oss import GptOssExperts
+if is_transformers_version(">=", "4.56"):
+    from transformers.cache_utils import DynamicLayer
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
@@ -485,6 +487,21 @@ def onnx_compatible_movedim(self: torch.Tensor, dim1, dim2) -> torch.Tensor:
     return original_movedim(self, dim1, dim2)
 
 
+def patched_dynamic_layer_update(
+    self, key_states: torch.Tensor, value_states: torch.Tensor, cache_kwargs: dict[str, Any] | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if self.keys is None:
+        self.keys = key_states
+        self.values = value_states
+        self.device = key_states.device
+        self.dtype = key_states.dtype
+        self.is_initialized = True
+    else:
+        self.keys = torch.cat([self.keys, key_states], dim=-2)
+        self.values = torch.cat([self.values, value_states], dim=-2)
+    return self.keys, self.values
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
@@ -652,6 +669,13 @@ class ModelPatcher:
             self.original_find_packed_sequence_indices = find_packed_sequence_indices
             transformers.masking_utils.find_packed_sequence_indices = find_packed_sequence_indices_patched
 
+        # Starting from transformers 4.56.0, DynamicCache uses DynamicLayer which has an update method
+        # that uses torch.cat to concatenate an empty tensor with the key/value states during the first call.
+        # This causes issues during TorchScript tracing.
+        if is_transformers_version(">=", "4.56"):
+            self.original_dynamic_layer_update = DynamicLayer.update
+            DynamicLayer.update = patched_dynamic_layer_update
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
@@ -665,6 +689,9 @@ class ModelPatcher:
 
         if is_transformers_version(">=", "4.53.1"):
             transformers.masking_utils.find_packed_sequence_indices = self.original_find_packed_sequence_indices
+
+        if is_transformers_version(">=", "4.56"):
+            DynamicLayer.update = self.original_dynamic_layer_update
 
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:
