@@ -258,7 +258,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(outputs, onnx_outputs)
 
-        if is_transformers_version("<=", "4.57.0"):
+        if is_transformers_version("<", "4.57.0"):
             # group beam search with diversity penalty
             gen_config = GenerationConfig(
                 num_beams=4,

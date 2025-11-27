@@ -564,7 +564,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(onnx_outputs, outputs, atol=self.ATOL, rtol=self.RTOL)
 
-        if is_transformers_version("<=", "4.57.0"):
+        if is_transformers_version("<", "4.57.0"):
             # group beam search with diversity penalty
             gen_config = GenerationConfig(
                 num_beams=4,
