@@ -1360,6 +1360,7 @@ class CohereModelPatcher(ModelPatcher):
             CohereRotaryEmbedding.forward = self.original_forward
 
 
+# Copied from https://github.com/huggingface/transformers/blob/v4.56.0/src/transformers/models/gpt_oss/modeling_gpt_oss.py#L81
 def gpt_oss_forward(self, hidden_states: torch.Tensor, router_indices=None, routing_weights=None) -> torch.Tensor:
     batch_size = hidden_states.shape[0]
     hidden_states = hidden_states.reshape(-1, self.hidden_size)
