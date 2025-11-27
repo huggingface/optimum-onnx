@@ -127,11 +127,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
     "longformer": "hf-internal-testing/tiny-random-LongformerModel",
-    "m2m_100": "hf-internal-testing/tiny-random-m2m_100",
+    "m2m_100": "hf-internal-testing/tiny-random-M2M100Model",
     "marian": "sshleifer/tiny-marian-en-de",  # hf-internal-testing ones are broken
     "markuplm": "hf-internal-testing/tiny-random-MarkupLMModel",
     "maskformer": "hf-internal-testing/tiny-random-MaskFormerForInstanceSegmentation",
-    "mbart": "hf-internal-testing/tiny-random-mbart",
+    "mbart": "hf-internal-testing/tiny-random-MBartModel",
     "mctct": "hf-internal-testing/tiny-random-MCTCTModel",
     "megatron-bert": "hf-internal-testing/tiny-random-MegatronBertModel",
     # "metaclip_2": "facebook/metaclip-2-worldwide-s16",
