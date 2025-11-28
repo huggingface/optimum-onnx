@@ -14,7 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  UV_SYSTEM_PYTHON: true
+  UV_TORCH_BACKEND: auto
   TRANSFORMERS_IS_CI: true
+  HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
 jobs:
   build:
@@ -37,9 +40,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install .[tests,onnxruntime]
+          pip install --upgrade pip uv
+          uv pip install .[tests,onnxruntime]
 
       - name: Test with pytest
         run: |

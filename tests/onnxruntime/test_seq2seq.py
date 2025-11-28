@@ -124,6 +124,17 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         if use_io_binding is not None:
             self.assertEqual(onnx_model.use_io_binding, use_io_binding)
 
+    def process_past_key_values(self, model_arch: str, past_key_values):
+        if isinstance(past_key_values, Cache):
+            # convert transformers Cache to tuple of tuples
+            past_key_values = past_key_values.to_legacy_cache()
+            if model_arch.endswith("encoder-decoder"):
+                # we don't output non-reusable bert-gpt2 cross attention pkv
+                # but transformers started returning them for some reason
+                past_key_values = tuple(pkv[:2] for pkv in past_key_values)
+
+        return past_key_values
+
     def compare_logits(self, model_arch: str, outputs1, outputs2, use_cache: bool = True):
         atol = self.MODEL_ATOL.get(model_arch, self.ATOL)
         rtol = self.MODEL_RTOL.get(model_arch, self.RTOL)
@@ -150,11 +161,8 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
             self.assertIsInstance(outputs1.past_key_values[0], tuple)
             self.assertIsInstance(outputs2.past_key_values[0], tuple)
 
-            if isinstance(outputs1.past_key_values, Cache):
-                outputs1.past_key_values = outputs1.past_key_values.to_legacy_cache()
-            if isinstance(outputs2.past_key_values, Cache):
-                outputs2.past_key_values = outputs2.past_key_values.to_legacy_cache()
-
+            outputs1.past_key_values = self.process_past_key_values(model_arch, outputs1.past_key_values)
+            outputs2.past_key_values = self.process_past_key_values(model_arch, outputs2.past_key_values)
             torch.testing.assert_close(outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol)
 
     # INTEGRATION TESTS
@@ -250,19 +258,20 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
         torch.testing.assert_close(outputs, onnx_outputs)
 
-        # group beam search with diversity penalty
-        gen_config = GenerationConfig(
-            num_beams=4,
-            do_sample=False,
-            max_new_tokens=10,
-            min_new_tokens=10,
-            num_beam_groups=2,
-            diversity_penalty=0.0001,
-            use_cache=use_cache,
-        )
-        outputs = model.generate(**inputs, generation_config=gen_config)
-        onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
-        torch.testing.assert_close(outputs, onnx_outputs)
+        if is_transformers_version("<", "4.57.0"):
+            # group beam search with diversity penalty
+            gen_config = GenerationConfig(
+                num_beams=4,
+                do_sample=False,
+                max_new_tokens=10,
+                min_new_tokens=10,
+                num_beam_groups=2,
+                diversity_penalty=0.0001,
+                use_cache=use_cache,
+            )
+            outputs = model.generate(**inputs, generation_config=gen_config)
+            onnx_outputs = onnx_model.generate(**inputs, generation_config=gen_config)
+            torch.testing.assert_close(outputs, onnx_outputs)
 
     # NUMERICAL CONSISTENCY WITH DECODER MERGING
     def _test_compare_logits_merged_and_not_merged(self, model_arch: str, use_cache: bool = True):

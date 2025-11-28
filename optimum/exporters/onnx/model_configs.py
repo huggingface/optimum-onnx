@@ -43,6 +43,7 @@ from optimum.exporters.onnx.model_patcher import (
     CLIPModelPatcher,
     CohereModelPatcher,
     FluxTransformerModelPatcher,
+    GptOssModelPatcher,
     MetaCLIP2Patcher,
     MgpstrModelPatcher,
     MoonshineModelPatcher,
@@ -512,7 +513,6 @@ class GemmaOnnxConfig(TextDecoderOnnxConfig):
 
 
 @register_tasks_manager_onnx("gemma2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
-@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
 class Gemma2OnnxConfig(GemmaOnnxConfig):
     # Gemma 2 was added in transformers v4.42 using HybridCache
     # DynamicCache support was added since v4.53
@@ -540,6 +540,7 @@ class Gemma3OnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)
 class GPTOssOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.55.0")
+    _MODEL_PATCHER = GptOssModelPatcher
 
 
 @register_tasks_manager_onnx("nemotron", *COMMON_TEXT_GENERATION_TASKS)
@@ -2781,6 +2782,11 @@ class ColPaliOnnxConfig(GemmaOnnxConfig):
 @register_tasks_manager_onnx("d_fine", *["object-detection"])
 class DFineOnnxConfig(RTDetrOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.52.0")
+
+
+@register_tasks_manager_onnx("gemma2-text-encoder", *["feature-extraction"], library_name="diffusers")
+class Gemma2TextEncoderOnnxConfig(Gemma2OnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.42.0")
 
 
 @register_tasks_manager_onnx("sana-transformer", *["semantic-segmentation"], library_name="diffusers")

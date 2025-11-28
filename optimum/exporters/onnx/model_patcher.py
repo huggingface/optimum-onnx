@@ -52,6 +52,10 @@ if is_transformers_version(">=", "4.53"):
     from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
 if is_transformers_version(">=", "4.53.1"):
     from transformers.masking_utils import find_packed_sequence_indices
+if is_transformers_version(">=", "4.55"):
+    from transformers.models.gpt_oss.modeling_gpt_oss import GptOssExperts
+if is_transformers_version(">=", "4.56"):
+    from transformers.cache_utils import DynamicLayer
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
@@ -185,6 +189,45 @@ def override_arguments(args, kwargs, forward_signature, model_kwargs: dict[str, 
             kwargs[argument] = model_kwargs[argument]
 
     return args, kwargs
+
+
+def preprocess_encoder_outputs(encoder_outputs):
+    if is_transformers_version(">=", "4.54") and isinstance(encoder_outputs, (list, tuple)):
+        encoder_outputs = BaseModelOutput(*encoder_outputs)
+
+    return encoder_outputs
+
+
+def preprocess_past_key_values(past_key_values):
+    if (
+        is_transformers_version(">=", "4.48")
+        and isinstance(past_key_values, (list, tuple))
+        and isinstance(past_key_values[0], (list, tuple))
+    ):
+        if len(past_key_values[0]) == 2:
+            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+        elif len(past_key_values[0]) == 4:
+            past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
+        else:
+            raise ValueError(
+                f"past_key_values should have either 2 or 4 elements, but it has {len(past_key_values[0])} elements."
+            )
+
+    return past_key_values
+
+
+def postprocess_past_key_values(past_key_values, output_names: list[str]):
+    if is_transformers_version(">=", "4.48") and isinstance(past_key_values, (EncoderDecoderCache, DynamicCache)):
+        past_key_values = past_key_values.to_legacy_cache()
+
+    if (
+        isinstance(past_key_values, (list, tuple))
+        and isinstance(past_key_values[0], (list, tuple))
+        and not any("encoder.key" in output_name for output_name in output_names)
+    ):
+        past_key_values = tuple(pkv[:2] for pkv in past_key_values)
+
+    return past_key_values
 
 
 @dataclasses.dataclass
@@ -444,6 +487,21 @@ def onnx_compatible_movedim(self: torch.Tensor, dim1, dim2) -> torch.Tensor:
     return original_movedim(self, dim1, dim2)
 
 
+def patched_dynamic_layer_update(
+    self, key_states: torch.Tensor, value_states: torch.Tensor, cache_kwargs: dict[str, Any] | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if self.keys is None:
+        self.keys = key_states
+        self.values = value_states
+        self.device = key_states.device
+        self.dtype = key_states.dtype
+        self.is_initialized = True
+    else:
+        self.keys = torch.cat([self.keys, key_states], dim=-2)
+        self.values = torch.cat([self.values, value_states], dim=-2)
+    return self.keys, self.values
+
+
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
@@ -496,8 +554,12 @@ class ModelPatcher:
             )
 
         self.real_config = config
+        use_cache = getattr(self.real_config, "use_past", False)
         self.model_kwargs = model_kwargs if model_kwargs is not None else {}
-        allow_past_in_outputs = getattr(self.real_config, "use_past", False)
+
+        for module in self._model.modules():
+            if hasattr(module, "config") and hasattr(module.config, "use_cache"):
+                module.config.use_cache = use_cache
 
         @functools.wraps(self.orig_forward)
         def patched_forward(*args, **kwargs):
@@ -505,65 +567,31 @@ class ModelPatcher:
             args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
 
             # Transformers doesn't always respect the config.use_cache attribute
-            # there are even cases where setting use_cache to true in every config and
+            # there are cases where setting use_cache to true in every config and
             # subconfig of a model still doesn't enable past_key_values in the outputs (gemma3)
             # Explicitly setting the use_cache argument of the forward method seems to be the most reliable way
             if "use_cache" in signature.parameters:
                 use_cache_index = list(signature.parameters.keys()).index("use_cache")
                 if use_cache_index < len(args):
-                    args[use_cache_index] = allow_past_in_outputs
+                    args[use_cache_index] = use_cache
                 elif "use_cache" in kwargs:
-                    kwargs["use_cache"] = allow_past_in_outputs
+                    kwargs["use_cache"] = use_cache
 
-            if is_transformers_version(">=", "4.48"):
-                if "past_key_values" in signature.parameters:
-                    pkv_index = list(signature.parameters.keys()).index("past_key_values")
+            if "past_key_values" in signature.parameters:
+                # Most models require past_key_values to be a cache instance instead of a tuple now
+                pkv_index = list(signature.parameters.keys()).index("past_key_values")
+                if pkv_index < len(args) and args[pkv_index] is not None:
+                    args[pkv_index] = preprocess_past_key_values(args[pkv_index])
+                elif kwargs.get("past_key_values") is not None:
+                    kwargs["past_key_values"] = preprocess_past_key_values(kwargs["past_key_values"])
 
-                    if (
-                        pkv_index < len(args)  # pkv is in args
-                        and isinstance(args[pkv_index], (list, tuple))
-                        and isinstance(args[pkv_index][0], (list, tuple))
-                    ):
-                        if len(args[pkv_index][0]) == 2:
-                            args[pkv_index] = DynamicCache.from_legacy_cache(args[pkv_index])
-                        elif len(args[pkv_index][0]) == 4:
-                            args[pkv_index] = EncoderDecoderCache.from_legacy_cache(args[pkv_index])
-                        else:
-                            raise ValueError(
-                                f"past_key_values should have either 2 or 4 elements, but it has {len(args[pkv_index][0])} elements"
-                            )
-                    elif (
-                        "past_key_values" in kwargs  # pkv is in kwargs
-                        and isinstance(kwargs["past_key_values"], (list, tuple))
-                        and isinstance(kwargs["past_key_values"][0], (list, tuple))
-                    ):
-                        if len(kwargs["past_key_values"][0]) == 2:
-                            kwargs["past_key_values"] = DynamicCache.from_legacy_cache(kwargs["past_key_values"])
-                        elif len(kwargs["past_key_values"][0]) == 4:
-                            kwargs["past_key_values"] = EncoderDecoderCache.from_legacy_cache(
-                                kwargs["past_key_values"]
-                            )
-                        else:
-                            raise ValueError(
-                                f"past_key_values should have either 2 or 4 elements, but it has {len(kwargs['past_key_values'][0])} elements"
-                            )
-
-            if is_transformers_version(">=", "4.54"):
+            if "encoder_outputs" in signature.parameters:
                 # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
-                if "encoder_outputs" in signature.parameters:
-                    encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
-                    if (
-                        encoder_outputs_index < len(args)  # encoder_outputs is in args
-                        and isinstance(args[encoder_outputs_index], (list, tuple))
-                        and not isinstance(args[encoder_outputs_index], transformers.file_utils.ModelOutput)
-                    ):
-                        args[encoder_outputs_index] = BaseModelOutput(*args[encoder_outputs_index])
-                    elif (
-                        "encoder_outputs" in kwargs  # encoder_outputs is in kwargs
-                        and isinstance(kwargs["encoder_outputs"], (list, tuple))
-                        and not isinstance(kwargs["encoder_outputs"], transformers.file_utils.ModelOutput)
-                    ):
-                        kwargs["encoder_outputs"] = BaseModelOutput(*kwargs["encoder_outputs"])
+                encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+                if encoder_outputs_index < len(args) and args[encoder_outputs_index] is not None:
+                    args[encoder_outputs_index] = preprocess_encoder_outputs(args[encoder_outputs_index])
+                elif kwargs.get("encoder_outputs") is not None:
+                    kwargs["encoder_outputs"] = preprocess_encoder_outputs(kwargs["encoder_outputs"])
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -574,34 +602,34 @@ class ModelPatcher:
             # is of type tensor. By default, it is assumed that the output names mentioned in the ONNX config
             # match the outputs in order.
             filtered_outputs = {}
+            output_names = list(config.outputs.keys())
             if isinstance(outputs, dict):
                 for name, value in outputs.items():
                     onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
                     if (
-                        onnx_output_name in config.outputs
-                        or (allow_past_in_outputs and name.startswith("past_key_values"))
-                        or any(key.startswith(onnx_output_name) for key in config.outputs)
+                        onnx_output_name in output_names
+                        or (use_cache and name.startswith("past_key_values"))
+                        or any(key.startswith(onnx_output_name) for key in output_names)
                     ):
                         filtered_outputs[name] = value
             elif isinstance(outputs, (list, tuple)):
-                outputs_list = list(config.outputs.keys())
-                filtered_outputs = dict(zip(outputs_list, outputs))
+                filtered_outputs = dict(zip(output_names, outputs))
             else:
-                if len(config.outputs) > 1:
-                    num_outputs = len(config.outputs)
-                    outputs_str = ", ".join(config.outputs.keys())
+                if len(output_names) > 1:
+                    num_outputs = len(output_names)
+                    output_names_str = ", ".join(output_names)
                     raise ValueError(
-                        f"config.outputs should have only one outputs, but it has {num_outputs} keys: {outputs_str}"
+                        f"{config.__class__.__name__} expects the model to return {num_outputs} outputs: {output_names_str}, "
+                        f"but the it returned a single output of type {type(outputs)}. Please make sure either that the model "
+                        "returns all the expected outputs, or that the ONNX config is correctly defined with the expected outputs."
                     )
-                else:
-                    name = next(iter(config.outputs.keys()))
-                    filtered_outputs[name] = outputs
-                name = next(iter(config.outputs.keys()))
-                filtered_outputs[name] = outputs
+                output_name = output_names[0]
+                filtered_outputs[output_name] = outputs
 
-            if is_transformers_version(">=", "4.48"):
-                if isinstance(filtered_outputs.get("past_key_values"), (DynamicCache, EncoderDecoderCache)):
-                    filtered_outputs["past_key_values"] = outputs["past_key_values"].to_legacy_cache()
+            if filtered_outputs.get("past_key_values") is not None:
+                filtered_outputs["past_key_values"] = postprocess_past_key_values(
+                    filtered_outputs["past_key_values"], output_names=output_names
+                )
 
             return filtered_outputs
 
@@ -641,6 +669,13 @@ class ModelPatcher:
             self.original_find_packed_sequence_indices = find_packed_sequence_indices
             transformers.masking_utils.find_packed_sequence_indices = find_packed_sequence_indices_patched
 
+        # Starting from transformers 4.56.0, DynamicCache uses DynamicLayer which has an update method
+        # that uses torch.cat to concatenate an empty tensor with the key/value states during the first call.
+        # This causes issues during TorchScript tracing.
+        if is_transformers_version(">=", "4.56"):
+            self.original_dynamic_layer_update = DynamicLayer.update
+            DynamicLayer.update = patched_dynamic_layer_update
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.restore_ops()
         setattr(self._model, self.orig_forward_name, self.orig_forward)
@@ -655,68 +690,16 @@ class ModelPatcher:
         if is_transformers_version(">=", "4.53.1"):
             transformers.masking_utils.find_packed_sequence_indices = self.original_find_packed_sequence_indices
 
+        if is_transformers_version(">=", "4.56"):
+            DynamicLayer.update = self.original_dynamic_layer_update
+
     def __call__(self, *args, **kwargs):
         if getattr(self._model, self.orig_forward_name) is self.orig_forward:
             logger.warning("Running the non-patched model")
         return self._model(*args, **kwargs)
 
 
-class Seq2SeqModelPatcher(ModelPatcher):
-    def __enter__(self):
-        super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        super().__exit__(exc_type, exc_value, traceback)
-
-    def __init__(
-        self,
-        config: OnnxConfig,
-        model: PreTrainedModel,
-        model_kwargs: dict[str, Any] | None = None,
-    ):
-        super().__init__(config, model, model_kwargs)
-
-        allow_past_in_outputs = getattr(self.real_config, "use_past", False)
-
-        # Re-use the patched forward method from the parent class
-        self.super_patched_forward = self.patched_forward
-
-        @functools.wraps(self.super_patched_forward)
-        def patched_forward(*args, **kwargs):
-            signature = inspect.signature(self.super_patched_forward)
-            args, kwargs = override_arguments(args, kwargs, signature, model_kwargs=self.model_kwargs)
-
-            outputs = self.super_patched_forward(*args, **kwargs)
-
-            # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filtered_outputs = {}
-            for name, value in outputs.items():
-                onnx_output_name = config.torch_to_onnx_output_map.get(name, name)
-                if (
-                    onnx_output_name in config.outputs
-                    or (allow_past_in_outputs and name.startswith("past_key_values"))
-                    or any(key.startswith(onnx_output_name) for key in config.outputs)
-                ):
-                    if name != "past_key_values":
-                        if self.real_config._behavior == "decoder" and name == "encoder_last_hidden_state":
-                            continue
-                        else:
-                            filtered_outputs[name] = value
-                    else:
-                        if self.real_config._behavior == "monolith" or (
-                            self.real_config._behavior == "decoder"
-                            and (self.real_config.is_merged or not self.real_config.use_past_in_inputs)
-                        ):
-                            filtered_outputs[name] = value
-                        elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
-                            # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                            filtered_outputs[name] = tuple([v[:2] for v in value])
-            return filtered_outputs
-
-        self.patched_forward = patched_forward
-
-
-class BigBirdPegasusModelPatcher(Seq2SeqModelPatcher):
+class BigBirdPegasusModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
 
@@ -877,15 +860,16 @@ def patched_speecht5_prenet_forward(
 
 class SpeechT5ModelPatcher(ModelPatcher):
     def __enter__(self):
-        self.patch_ops()
+        super().__enter__()
+
+        self.original_speecht5_prenet_forward = self._model.speecht5.decoder.prenet.forward
         self._model.speecht5.decoder.prenet.forward = types.MethodType(
             patched_speecht5_prenet_forward, self._model.speecht5.decoder.prenet
         )
-        setattr(self._model, self.orig_forward_name, self.patched_forward)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.restore_ops()
-        setattr(self._model, self.orig_forward_name, self.orig_forward)
+        super().__exit__(exc_type, exc_value, traceback)
+
         self._model.speecht5.decoder.prenet.forward = types.MethodType(
             self.original_speecht5_prenet_forward, self._model.speecht5.decoder.prenet
         )
@@ -897,9 +881,6 @@ class SpeechT5ModelPatcher(ModelPatcher):
         model_kwargs: dict[str, Any],
     ):
         super().__init__(config, model, model_kwargs)
-
-        self.original_speecht5_prenet_forward = model.speecht5.decoder.prenet.forward
-
         model.vocoder = model_kwargs["vocoder_model"].eval()
 
         def patched_forward(
@@ -911,63 +892,48 @@ class SpeechT5ModelPatcher(ModelPatcher):
             spectrogram=None,
             encoder_attention_mask=None,
         ):
-            use_cache = self.real_config.use_past and self.real_config.variant == "with-past"
+            if past_key_values is not None:
+                past_key_values = preprocess_past_key_values(past_key_values)
+
             if self.real_config._behavior == "encoder":
                 encoder_attention_mask = torch.ones_like(input_ids)
-
-                encoder_out = model.speecht5.encoder(
-                    input_values=input_ids,
-                    attention_mask=encoder_attention_mask,
-                    return_dict=True,
-                )
+                encoder_out = model.speecht5.encoder(input_values=input_ids, attention_mask=encoder_attention_mask)
                 # downsample encoder attention mask
                 if isinstance(model.speecht5.encoder, SpeechT5EncoderWithSpeechPrenet):
                     encoder_attention_mask = model.speecht5.encoder.prenet._get_feature_vector_attention_mask(
                         encoder_out[0].shape[1], encoder_attention_mask
                     )
-
-                result = {
+                outputs = {
                     "encoder_outputs": encoder_out.last_hidden_state,
                     "encoder_attention_mask": encoder_attention_mask,
                 }
-
             elif self.real_config._behavior == "decoder":
-                # TODO: and self.real_config.use_past_in_inputs
+                use_cache = self.real_config.use_past
                 encoder_hidden_states = encoder_outputs[0]
-
                 decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
-
                 # Run the decoder layers on the last element of the prenet output.
                 decoder_out = model.speecht5.decoder.wrapped_decoder(
                     hidden_states=decoder_hidden_states[:, -1:],
-                    attention_mask=None,
                     encoder_hidden_states=encoder_hidden_states,
                     encoder_attention_mask=encoder_attention_mask,
                     past_key_values=past_key_values,
-                    use_cache=use_cache,
                     output_attentions=False,
-                    return_dict=True,
+                    use_cache=use_cache,
                 )
-
                 last_decoder_output = decoder_out.last_hidden_state[0, -1]
                 past_key_values = decoder_out.past_key_values
-
                 # Predict the new mel spectrum for this step in the sequence.
                 spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
                 spectrum = spectrum.view(model.config.reduction_factor, model.config.num_mel_bins)
-
                 # NOTE: extending the spectrogram should is to be handled outside of the ONNX.
                 # spectrogram.append(spectrum)
-
                 # Extend the output sequence with the new mel spectrum.
                 output_sequence = torch.cat(
                     (output_sequence, spectrum[-1].view(1, 1, model.config.num_mel_bins)), dim=1
                 )
-
                 # Predict the probability that this is the stop token.
                 prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
-
-                result = {
+                outputs = {
                     "output_sequence_out": output_sequence,
                     "spectrum": spectrum,
                     "prob": prob,
@@ -979,28 +945,17 @@ class SpeechT5ModelPatcher(ModelPatcher):
                 spectrogram = spectrogram.unsqueeze(0)
                 spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
                 spectrogram = spectrogram.squeeze(0)
-
                 waveform = model.vocoder(spectrogram)
-
-                result = {"waveform": waveform}
+                outputs = {"waveform": waveform}
             else:
                 raise ValueError("Should not happen")
 
-            # Filter out cross attention past key values output from the decoder using KV cache, as they are constants.
-            filtered_outputs = {}
-            for name, value in result.items():
-                if name != "past_key_values":
-                    filtered_outputs[name] = value
-                else:
-                    if self.real_config._behavior == "decoder" and (
-                        self.real_config.is_merged or not self.real_config.use_past_in_inputs
-                    ):
-                        filtered_outputs[name] = value
-                    elif self.real_config._behavior == "decoder" and self.real_config.use_past_in_inputs:
-                        # The filtering happens here. The decoder with use_past_in_inputs=True corresponds to the autoregressive one.
-                        filtered_outputs[name] = tuple([v[:2] for v in value])
+            if outputs.get("past_key_values") is not None:
+                outputs["past_key_values"] = postprocess_past_key_values(
+                    outputs["past_key_values"], output_names=list(config.outputs.keys())
+                )
 
-            return filtered_outputs
+            return outputs
 
         self.patched_forward = patched_forward
 
@@ -1126,7 +1081,7 @@ def patched_build_delay_pattern_mask(self, input_ids: torch.Tensor, pad_token_id
     return {"input_ids_edited": input_ids_edited, "delay_pattern_mask": pattern_mask}
 
 
-class MusicgenModelPatcher(Seq2SeqModelPatcher):
+class MusicgenModelPatcher(ModelPatcher):
     def __enter__(self):
         self.patch_ops()
         if self.real_config.model_part == "build_delay_pattern_mask":
@@ -1314,7 +1269,7 @@ def _get_feat_extract_output_lengths_patched(self, input_lengths: torch.LongTens
     return output_conv3_length
 
 
-class MoonshineModelPatcher(Seq2SeqModelPatcher):
+class MoonshineModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
 
@@ -1438,3 +1393,38 @@ class CohereModelPatcher(ModelPatcher):
             from transformers.models.cohere.modeling_cohere import CohereRotaryEmbedding
 
             CohereRotaryEmbedding.forward = self.original_forward
+
+
+# Copied from https://github.com/huggingface/transformers/blob/v4.56.0/src/transformers/models/gpt_oss/modeling_gpt_oss.py#L81
+def gpt_oss_forward(self, hidden_states: torch.Tensor, router_indices=None, routing_weights=None) -> torch.Tensor:
+    batch_size = hidden_states.shape[0]
+    hidden_states = hidden_states.reshape(-1, self.hidden_size)
+    num_experts = routing_weights.shape[1]
+    hidden_states = hidden_states.repeat(num_experts, 1)
+    hidden_states = hidden_states.view(num_experts, -1, self.hidden_size)
+    gate_up = torch.bmm(hidden_states, self.gate_up_proj) + self.gate_up_proj_bias[..., None, :]
+    gate, up = gate_up[..., ::2], gate_up[..., 1::2]
+    gate = gate.clamp(min=None, max=self.limit)
+    up = up.clamp(min=-self.limit, max=self.limit)
+    glu = gate * torch.sigmoid(gate * self.alpha)
+    next_states = torch.bmm(((up + 1) * glu), self.down_proj)
+    next_states = next_states + self.down_proj_bias[..., None, :]
+    next_states = next_states.view(num_experts, batch_size, -1, self.hidden_size)
+    next_states = next_states * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
+    next_states = next_states.sum(dim=0)
+    return next_states
+
+
+class GptOssModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+
+        if is_transformers_version(">=", "4.55.0"):
+            self.original_gpt_oss_forward = GptOssExperts.forward
+            GptOssExperts.forward = gpt_oss_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+
+        if is_transformers_version(">=", "4.55.0"):
+            GptOssExperts.forward = self.original_gpt_oss_forward

@@ -18,13 +18,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
-from diffusers import DiffusionPipeline
 from transformers.utils import is_torch_available
 
 from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
-from optimum.utils.import_utils import is_transformers_version
+from optimum.utils.import_utils import is_diffusers_available, is_transformers_version
+
+
+if TYPE_CHECKING:
+    if is_diffusers_available():
+        from diffusers import DiffusionPipeline
 
 
 if TYPE_CHECKING:

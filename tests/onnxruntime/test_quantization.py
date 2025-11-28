@@ -84,7 +84,7 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bert", 30),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-roberta", 30),
         (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-distilbert", 30),
-        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-bart", 32),
+        (ORTModelForSequenceClassification, "hf-internal-testing/tiny-random-BartModel", 32),
     )
 
     SUPPORTED_DECODER_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS = (

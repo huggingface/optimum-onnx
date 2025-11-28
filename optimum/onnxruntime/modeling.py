@@ -1360,15 +1360,18 @@ class ORTModelForZeroShotImageClassification(ORTModel):
         **kwargs,
     ):
         self._warn_on_unhandled_inputs(kwargs)
-        # Determine the tensor type from any available tensor input
+
+        use_torch = isinstance(pixel_values, torch.Tensor)
+        self.raise_on_numpy_input_io_binding(use_torch)
+
+        if attention_mask is None and "attention_mask" in self.input_names:
+            attention_mask = torch.ones_like(input_ids) if use_torch else np.ones_like(input_ids)
+
         model_inputs = {
             "input_ids": input_ids,
             "pixel_values": pixel_values,
             "attention_mask": attention_mask,
         }
-
-        use_torch = isinstance(pixel_values, torch.Tensor)
-        self.raise_on_numpy_input_io_binding(use_torch)
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)

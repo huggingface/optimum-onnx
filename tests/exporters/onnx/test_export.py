@@ -46,6 +46,7 @@ from optimum.exporters.onnx import (
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
+from optimum.exporters.onnx.utils import get_sana_models_for_export
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import (
     get_decoder_models_for_export,
@@ -270,7 +271,11 @@ class OnnxExportTestCase(TestCase):
 
     def _onnx_export_diffusion_models(self, model_type: str, model_name: str, device="cpu"):
         pipeline = TasksManager.get_model_from_task(model_type, model_name, device=device)
-        models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
+
+        if model_type == "sana":
+            models_and_onnx_configs = get_sana_models_for_export(pipeline)
+        else:
+            models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
 
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(

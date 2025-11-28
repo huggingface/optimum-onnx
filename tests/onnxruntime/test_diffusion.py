@@ -42,7 +42,7 @@ from optimum.onnxruntime import (
 )
 from optimum.onnxruntime.modeling_diffusion import ORTTextEncoder, ORTUnet, ORTVae, ORTVaeDecoder, ORTVaeEncoder
 from optimum.onnxruntime.utils import get_device_for_provider
-from optimum.utils import is_tensorrt_available, is_transformers_version
+from optimum.utils import is_diffusers_version, is_tensorrt_available, is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_diffusers, require_hf_token
 
 
@@ -73,9 +73,23 @@ def generate_prompts(batch_size=1):
 
 def generate_images(height=128, width=128, batch_size=1, channel=3, input_type="pil"):
     if input_type == "pil":
-        images = [
-            Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8)) for _ in range(batch_size)
-        ]
+        if channel == 1:
+            images = [
+                Image.fromarray((np.random.rand(height, width) * 255).astype(np.uint8), mode="L")
+                for _ in range(batch_size)
+            ]
+        elif channel == 3:
+            images = [
+                Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8), mode="RGB")
+                for _ in range(batch_size)
+            ]
+        elif channel == 4:
+            images = [
+                Image.fromarray((np.random.rand(height, width, channel) * 255).astype(np.uint8), mode="RGBA")
+                for _ in range(batch_size)
+            ]
+        else:
+            raise ValueError(f"Unsupported number of channels for PIL image: {channel}")
     elif input_type == "np":
         images = [np.random.rand(height, width, channel) for _ in range(batch_size)]
     elif input_type == "pt":
@@ -228,25 +242,12 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
-        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "flux", "sana"]
-
-    NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "stable-diffusion",
-        "stable-diffusion-xl",
-        "latent-consistency",
-    ]
-
-    if is_transformers_version(">=", "4.45"):
-        NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES += ["stable-diffusion-3", "sana"]
-
-    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "stable-diffusion",
-        "stable-diffusion-xl",
-        "latent-consistency",
-    ]
-    if is_transformers_version(">=", "4.45"):
-        CALLBACK_SUPPORTED_ARCHITECTURES += ["flux", "sana"]
+    if is_diffusers_version(">=", "0.29.0") and is_transformers_version(">=", "4.42.0"):
+        SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
+    if is_diffusers_version(">=", "0.30.0") and is_transformers_version(">=", "4.42.0"):
+        SUPPORTED_ARCHITECTURES += ["flux"]
+    if is_diffusers_version(">=", "0.32.0") and is_transformers_version(">=", "4.42.0"):
+        SUPPORTED_ARCHITECTURES += ["sana"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
@@ -374,7 +375,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             # clears the io binding outputs
             diffusion_model._io_binding.clear_binding_outputs()
 
-    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -464,7 +465,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         self.assertFalse(np.array_equal(ort_outputs_1.images[0], ort_outputs_3.images[0]))
         np.testing.assert_allclose(ort_outputs_1.images[0], ort_outputs_2.images[0], atol=self.ATOL, rtol=self.RTOL)
 
-    @parameterized.expand(NEGATIVE_PROMPT_SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_negative_prompt(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -523,14 +524,8 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         "stable-diffusion-xl",
         "latent-consistency",
     ]
-    if is_transformers_version(">=", "4.45"):
+    if is_diffusers_version(">=", "0.29.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
-
-    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "stable-diffusion",
-        "stable-diffusion-xl",
-        "latent-consistency",
-    ]
 
     AUTOMODEL_CLASS = AutoPipelineForImage2Image
     ORTMODEL_CLASS = ORTPipelineForImage2Image
@@ -603,7 +598,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
                         self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
-    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -778,13 +773,8 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         "stable-diffusion",
         "stable-diffusion-xl",
     ]
-    if is_transformers_version(">=", "4.45"):
+    if is_diffusers_version(">=", "0.30.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
-
-    CALLBACK_SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "stable-diffusion",
-        "stable-diffusion-xl",
-    ]
 
     AUTOMODEL_CLASS = AutoPipelineForInpainting
     ORTMODEL_CLASS = ORTPipelineForInpainting
@@ -863,7 +853,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
                         outputs = pipeline(**inputs, num_images_per_prompt=num_images_per_prompt).images
                         self.assertEqual(outputs.shape, (batch_size * num_images_per_prompt, height, width, 3))
 
-    @parameterized.expand(CALLBACK_SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(SUPPORTED_ARCHITECTURES)
     @require_diffusers
     def test_callback(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
