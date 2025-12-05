@@ -1037,6 +1037,11 @@ class GlpnOnnxConfig(ViTOnnxConfig):
     pass
 
 
+@register_tasks_manager_onnx("depth_anything", *["feature-extraction", "depth-estimation"])
+class DepthAnythingOnnxConfig(DptOnnxConfig):
+    pass
+
+
 @register_tasks_manager_onnx("poolformer", *["feature-extraction", "image-classification"])
 class PoolFormerOnnxConfig(ViTOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
