@@ -30,6 +30,7 @@ from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
+    AutoPipelineForText2Video,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     StableDiffusionImg2ImgPipeline,
@@ -38,11 +39,15 @@ from diffusers.pipelines import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
+    WanPipeline,
+    HunyuanVideoPipeline,
+    CogVideoXPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
     AUTO_INPAINT_PIPELINES_MAPPING,
     AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+    AUTO_TEXT2VIDEO_PIPELINES_MAPPING,
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import SchedulerMixin
@@ -1060,6 +1065,25 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
 
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
+    task = "text-to-video"
+    main_input_name = "text"
+    auto_model_class = WanPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTHunyuanVideoPipeline(ORTDiffusionPipeline, HunyuanVideoPipeline):
+    task = "text-to-video"
+    main_input_name = "text"
+    auto_model_class = HunyuanVideoPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTCogVideoXPipeline(ORTDiffusionPipeline, CogVideoXPipeline):
+    task = "text-to-video"
+    main_input_name = "text"
+    auto_model_class = CogVideoXPipeline
+
+
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("latent-consistency", ORTLatentConsistencyModelPipeline),
@@ -1083,10 +1107,19 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
+ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
+    [
+        ("wan", ORTWanPipeline),
+        ("hunyuan", ORTHunyuanVideoPipeline),
+        ("cogvideox", ORTCogVideoXPipeline),
+    ]
+)
+
 SUPPORTED_ORT_PIPELINES_MAPPINGS = [
     ORT_TEXT2IMAGE_PIPELINES_MAPPING,
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
     ORT_INPAINT_PIPELINES_MAPPING,
+    ORT_TEXT2VIDEO_PIPELINES_MAPPING,
 ]
 
 
@@ -1190,6 +1223,7 @@ SUPPORTED_ORT_PIPELINES = [
     *ORT_TEXT2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_IMAGE2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_INPAINT_PIPELINES_MAPPING.values(),
+    *ORT_TEXT2VIDEO_PIPELINES_MAPPING.values(),
 ]
 
 
@@ -1311,6 +1345,12 @@ class ORTPipelineForInpainting(ORTPipelineForTask):
     config_name = "model_index.json"
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
+
+class ORTPipelineForText2Video(ORTPipelineForTask):
+
+    config_name = "model_index.json"
+    auto_model_class = AutoPipelineForText2Video
+    ort_pipelines_mapping = ORT_TEXT2VIDEO_PIPELINES_MAPPING
 
 
 GENERIC_ORT_PIPELINES = [
