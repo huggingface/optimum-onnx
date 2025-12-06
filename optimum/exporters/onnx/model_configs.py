@@ -32,6 +32,7 @@ from optimum.exporters.onnx.config import (
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
     VisionOnnxConfig,
+    VideoOnnxConfig,
 )
 from optimum.exporters.onnx.input_generators import (
     DummyMoonshineAudioInputGenerator,
@@ -510,8 +511,7 @@ class GemmaOnnxConfig(TextDecoderOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.38.0")
-
-
+    
 @register_tasks_manager_onnx("gemma2", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class Gemma2OnnxConfig(GemmaOnnxConfig):
     # Gemma 2 was added in transformers v4.42 using HybridCache
@@ -704,7 +704,6 @@ class MT5OnnxConfig(T5OnnxConfig):
 )
 class LongT5OnnxConfig(T5OnnxConfig):
     pass
-
 
 @register_tasks_manager_onnx(
     "m2m_100",
@@ -1521,6 +1520,17 @@ class T5EncoderOnnxConfig(TextEncoderOnnxConfig):
             "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
         }
 
+@register_tasks_manager_onnx("umt5-encoder", *["feature-extraction"], library_name="diffusers")
+class UMT5EncoderOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+
+    @property
+    def inputs(self):
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
 
 @register_tasks_manager_onnx("sd3-transformer-2d", *["semantic-segmentation"], library_name="diffusers")
 class SD3TransformerOnnxConfig(VisionOnnxConfig):
@@ -2852,3 +2862,18 @@ class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
                 3: f"latent_width * {up_sampling_factor}",
             }
         }
+
+
+@register_tasks_manager_onnx("wan-transformer-3d", *["semantic-segmentation"], library_name="diffusers")
+class WanTransformer3DOnnxConfig(VideoOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedConfig.with_args(
+        hidden_size="text_dim",
+        allow_new=True,
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummySanaTransforemerTextInputGenerator, )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        
+    
+

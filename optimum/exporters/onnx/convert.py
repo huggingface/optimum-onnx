@@ -981,6 +981,9 @@ def onnx_export_from_model(
                 f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
             )
 
+    print(custom_architecture, " custom_architecture ")
+    print(library_name, " library_name ")
+
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
