@@ -501,6 +501,8 @@ def patched_dynamic_layer_update(
         self.values = torch.cat([self.values, value_states], dim=-2)
     return self.keys, self.values
 
+def safe_upsample_nearest(self, x: torch.Tensor, scale_factor: int):
+    return torch.nn.functional.interpolate(x, scale_factor=scale_factor, mode="nearest")
 
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
@@ -519,6 +521,13 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
         traceable_scaled_dot_product_attention,
         torch.nn.functional.scaled_dot_product_attention,
     ),
+    PatchingSpec(
+        torch.nn.functional,
+        "upsample_nearest",
+        safe_upsample_nearest,
+        torch.nn.functional.upsample_nearest,
+    ),
+    
 ]
 
 

@@ -410,3 +410,7 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1]._decoder_onnx_config.is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+class VideoOnnxConfig(OnnxConfig):
+    """Handles video architectures."""
+    pass

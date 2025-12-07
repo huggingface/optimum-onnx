@@ -30,6 +30,7 @@ from diffusers.pipelines import (
     AutoPipelineForImage2Image,
     AutoPipelineForInpainting,
     AutoPipelineForText2Image,
+    AutoPipelineForText2Video,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     StableDiffusionImg2ImgPipeline,
@@ -38,11 +39,17 @@ from diffusers.pipelines import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
+    WanPipeline,
+    WanAnimatePipeline,
+    WanImageToVideoPipeline,
+    WanVACEPipeline,
+    WanVideoToVideoPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
     AUTO_INPAINT_PIPELINES_MAPPING,
     AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+    AUTO_TEXT2VIDEO_PIPELINES_MAPPING,
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import SchedulerMixin
@@ -1060,6 +1067,56 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
 
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-video generation using transformer Model and corresponding to [WanPipeline]
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan.py#L95).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanAnimatePipeline(ORTDiffusionPipeline, WanAnimatePipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-animation generation using transformer Model and corresponding to [WanAnimatePipeline]
+(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_animate.py#L150).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanAnimatePipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanImageToVideoPipeline(ORTDiffusionPipeline, WanImageToVideoPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided image-to-video generation using transformer Model and corresponding to [WanImageToVideoPipeline]
+(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_i2v.py#L127).
+    """
+
+    task = "image-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanImageToVideoPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanVACEPipeline(ORTDiffusionPipeline, WanVACEPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided video-editing using transformer Model and corresponding to [WanVACEPipeline]
+(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_vace.py#L141).
+    """
+
+    task = "video-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanVACEPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanVideoToVideoPipeline(ORTDiffusionPipeline, WanVideoToVideoPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided video-to-video using transformer Model and corresponding to [WanVideoToVideoPipeline](https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_video2video.py#L174).
+    """
+    
+    task = "video-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanVideoToVideoPipeline
+
+
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
         ("latent-consistency", ORTLatentConsistencyModelPipeline),
@@ -1083,10 +1140,21 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
+ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
+    [
+        ("wan",  ORTWanPipeline),
+        ("wan-animate", ORTWanAnimatePipeline),
+        ("wan-image-to-video", ORTWanImageToVideoPipeline),
+        ("wan-vace", ORTWanVACEPipeline),
+        ("wan-video-to-video", ORTWanVideoToVideoPipeline),
+    ]
+)
+
 SUPPORTED_ORT_PIPELINES_MAPPINGS = [
     ORT_TEXT2IMAGE_PIPELINES_MAPPING,
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
     ORT_INPAINT_PIPELINES_MAPPING,
+    ORT_TEXT2VIDEO_PIPELINES_MAPPING,
 ]
 
 
@@ -1190,6 +1258,7 @@ SUPPORTED_ORT_PIPELINES = [
     *ORT_TEXT2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_IMAGE2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_INPAINT_PIPELINES_MAPPING.values(),
+    *ORT_TEXT2VIDEO_PIPELINES_MAPPING.values(),
 ]
 
 
@@ -1312,12 +1381,34 @@ class ORTPipelineForInpainting(ORTPipelineForTask):
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
 
+class ORTPipelineForText2Video(ORTPipelineForTask):
+    """[`ORTPipelineForText2Video`] is a generic pipeline class that instantiates an text2video pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForText2Video.from_pretrained`] or [`~ORTPipelineForText2Video.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
+    auto_model_class = AutoPipelineForText2Video
+    ort_pipelines_mapping = ORT_TEXT2VIDEO_PIPELINES_MAPPING
+    
 
 GENERIC_ORT_PIPELINES = [
     ORTDiffusionPipeline,
     ORTPipelineForText2Image,
     ORTPipelineForImage2Image,
     ORTPipelineForInpainting,
+    ORTPipelineForText2Video,
 ]
 
 # Documentation updates
