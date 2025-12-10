@@ -1388,6 +1388,39 @@ class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
 class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
     pass
 
+@register_tasks_manager_onnx("unet-3d-condition", *["semantic-segmentation"], library_name="diffusers")
+class UNet3DOnnxConfig(VideoOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        in_channels="in_channels",
+        hidden_size="text_encoder_projection_dim",
+        vocab_size="vocab_size",
+        allow_new=True,
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyVideoInputGenerator,
+        DummyTimestepInputGenerator,
+        DummyTransformerTextInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {0: "batch_size", 2: "num_frames", 3: "height", 4:"width"},
+            "timestep": {},  # a scalar with no dimension
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"}, 
+        }
+    
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "out_sample": {0: "batch_size", 2: "num_frames", 3: "height", 4:"width"},
+        }
+
+    @property
+    def torch_to_onnx_output_map(self) -> dict[str, str]:
+        return {
+            "sample": "out_sample",
+        }
 
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
 class UNetOnnxConfig(VisionOnnxConfig):

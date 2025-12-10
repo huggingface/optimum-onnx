@@ -44,6 +44,7 @@ from diffusers.pipelines import (
     WanImageToVideoPipeline,
     WanVACEPipeline,
     WanVideoToVideoPipeline,
+    TextToVideoSDPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
@@ -67,6 +68,7 @@ from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
 from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
+from optimum.onnxruntime.constants import ENCODER_DECODER_HANDLES_SCALING_FACTOR
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -370,6 +372,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
+            model_save_path = Path("/dev/shm")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -792,9 +795,8 @@ class ORTTextEncoder(ORTModelMixin):
 class ORTVaeEncoder(ORTModelMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor"):
+        if not hasattr(self.config, "scaling_factor") and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR:
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE encoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
@@ -848,7 +850,7 @@ class ORTVaeDecoder(ORTModelMixin):
         super().__init__(*args, **kwargs)
 
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor"):
+        if not hasattr(self.config, "scaling_factor") and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR:
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
@@ -893,7 +895,7 @@ class ORTVae(ORTParentMixin):
     def __init__(self, encoder: ORTVaeEncoder | None = None, decoder: ORTVaeDecoder | None = None):
         self.encoder = encoder
         self.decoder = decoder
-
+        self.temperal_downsample = getattr(self.encoder.config, "temperal_downsample", None)
         self.initialize_ort_attributes(parts=list(filter(None, {self.encoder, self.decoder})))
 
     def decode(self, *args, **kwargs):
@@ -1116,6 +1118,14 @@ class ORTWanVideoToVideoPipeline(ORTDiffusionPipeline, WanVideoToVideoPipeline):
     main_input_name = "prompt"
     auto_model_class = WanVideoToVideoPipeline
 
+class ORTTextToVideoSDPipeline(ORTDiffusionPipeline, TextToVideoSDPipeline):
+    """ONNX Runtime-powered Pipeline for text-to-video using Unet Model and corresponding to [TextToVideoSDPipeline](https://github.com/huggingface/diffusers/blob/8b4722de57a9a2646466b8bb7095c4fd465193fa/src/diffusers/pipelines/text_to_video_synthesis/pipeline_text_to_video_synth.py#L70C7-L70C28)
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = TextToVideoSDPipeline
+    
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
@@ -1147,6 +1157,7 @@ ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
         ("wan-image-to-video", ORTWanImageToVideoPipeline),
         ("wan-vace", ORTWanVACEPipeline),
         ("wan-video-to-video", ORTWanVideoToVideoPipeline),
+        ("text-to-video-sd", ORTTextToVideoSDPipeline),
     ]
 )
 
