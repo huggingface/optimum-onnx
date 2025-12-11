@@ -76,33 +76,28 @@ def __ior_(g, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
 
 torch.onnx.register_custom_op_symbolic("aten::__ior__", __ior_, 14)
 
-from torch.onnx import symbolic_helper as sym_help
 
 @symbolic_helper.parse_args("v", "v", "v")
 def upsample_nearest_exact_symbolic(g, input, output_size, scale_h=None) -> torch._C.Value:
-   # Compute scales from scale_h
-    scales = g.op(
-        "Concat",
-        g.op("Constant", value_t=torch.tensor([1.0, 1.0], dtype=torch.float32)),
-        scale_h,
-        axis_i=0
-    )
+    # Compute scales from scale_h
+    scales = g.op("Concat", g.op("Constant", value_t=torch.tensor([1.0, 1.0], dtype=torch.float32)), scale_h, axis_i=0)
     empty_roi = g.op("Constant", value_t=torch.tensor([], dtype=torch.float32))
 
     return g.op(
         "Resize",
         input,
-        empty_roi,     # roi (unused for nearest)
+        empty_roi,  # roi (unused for nearest)
         scales,
         mode_s="nearest",
         coordinate_transformation_mode_s="half_pixel",
-        nearest_mode_s="round_prefer_floor"
+        nearest_mode_s="round_prefer_floor",
     )
+
 
 torch.onnx.register_custom_op_symbolic(
     "aten::_upsample_nearest_exact2d",  # PyTorch op name
-    upsample_nearest_exact_symbolic,   # Your symbolic function
-    18                                 # Target ONNX opset
+    upsample_nearest_exact_symbolic,  # Your symbolic function
+    18,  # Target ONNX opset
 )
 
 if is_torch_version("<", "2.9"):
@@ -531,9 +526,11 @@ def patched_dynamic_layer_update(
         self.values = torch.cat([self.values, value_states], dim=-2)
     return self.keys, self.values
 
+
 def safe_upsample_nearest(self, x: torch.Tensor, scale_factor: int):
     print("come here")
     return torch.nn.functional.interpolate(x, scale_factor=scale_factor, mode="nearest")
+
 
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
@@ -558,7 +555,6 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
         safe_upsample_nearest,
         torch.nn.functional.upsample_nearest,
     ),
-    
 ]
 
 

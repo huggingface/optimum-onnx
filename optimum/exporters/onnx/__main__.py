@@ -435,7 +435,7 @@ def main():
 
     main_export(
         model_name_or_path=args.model,
-        output=Path('/dev/shm'),
+        output=Path("/dev/shm"),
         task=args.task,
         opset=args.opset,
         device=args.device,

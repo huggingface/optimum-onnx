@@ -411,6 +411,6 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
 
         return models_and_onnx_configs, onnx_files_subpaths
 
+
 class VideoOnnxConfig(OnnxConfig):
     """Handles video architectures."""
-    pass

@@ -39,18 +39,17 @@ from diffusers.pipelines import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
-    WanPipeline,
+    TextToVideoSDPipeline,
     WanAnimatePipeline,
     WanImageToVideoPipeline,
+    WanPipeline,
     WanVACEPipeline,
     WanVideoToVideoPipeline,
-    TextToVideoSDPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
     AUTO_INPAINT_PIPELINES_MAPPING,
     AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-    AUTO_TEXT2VIDEO_PIPELINES_MAPPING,
 )
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import SchedulerMixin
@@ -67,8 +66,8 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
-from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
 from optimum.onnxruntime.constants import ENCODER_DECODER_HANDLES_SCALING_FACTOR
+from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -796,7 +795,10 @@ class ORTVaeEncoder(ORTModelMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor") and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR:
+        if (
+            not hasattr(self.config, "scaling_factor")
+            and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR
+        ):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE encoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
@@ -850,7 +852,10 @@ class ORTVaeDecoder(ORTModelMixin):
         super().__init__(*args, **kwargs)
 
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor") and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR:
+        if (
+            not hasattr(self.config, "scaling_factor")
+            and self.config._class_name not in ENCODER_DECODER_HANDLES_SCALING_FACTOR
+        ):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
@@ -1080,52 +1085,37 @@ class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
     auto_model_class = WanPipeline
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
-class ORTWanAnimatePipeline(ORTDiffusionPipeline, WanAnimatePipeline):
-    """ONNX Runtime-powered Pipeline for text-guided text-to-animation generation using transformer Model and corresponding to [WanAnimatePipeline]
-(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_animate.py#L150).
-    """
-
-    task = "text-to-video"
-    main_input_name = "prompt"
-    auto_model_class = WanAnimatePipeline
-
-@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTWanImageToVideoPipeline(ORTDiffusionPipeline, WanImageToVideoPipeline):
     """ONNX Runtime-powered Pipeline for text-guided image-to-video generation using transformer Model and corresponding to [WanImageToVideoPipeline]
-(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_i2v.py#L127).
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_i2v.py#L127).
     """
 
     task = "image-to-video"
     main_input_name = "prompt"
     auto_model_class = WanImageToVideoPipeline
 
+
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
 class ORTWanVACEPipeline(ORTDiffusionPipeline, WanVACEPipeline):
     """ONNX Runtime-powered Pipeline for text-guided video-editing using transformer Model and corresponding to [WanVACEPipeline]
-(https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_vace.py#L141).
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_vace.py#L141).
     """
 
     task = "video-to-video"
     main_input_name = "prompt"
     auto_model_class = WanVACEPipeline
 
-@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
-class ORTWanVideoToVideoPipeline(ORTDiffusionPipeline, WanVideoToVideoPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided video-to-video using transformer Model and corresponding to [WanVideoToVideoPipeline](https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_video2video.py#L174).
-    """
-    
-    task = "video-to-video"
-    main_input_name = "prompt"
-    auto_model_class = WanVideoToVideoPipeline
-
 class ORTTextToVideoSDPipeline(ORTDiffusionPipeline, TextToVideoSDPipeline):
-    """ONNX Runtime-powered Pipeline for text-to-video using Unet Model and corresponding to [TextToVideoSDPipeline](https://github.com/huggingface/diffusers/blob/8b4722de57a9a2646466b8bb7095c4fd465193fa/src/diffusers/pipelines/text_to_video_synthesis/pipeline_text_to_video_synth.py#L70C7-L70C28)
+    """ONNX Runtime-powered Pipeline for text-to-video using Unet Model.
+
+    Corresponds to
+    [TextToVideoSDPipeline](https://github.com/huggingface/diffusers/blob/8b4722de57a9a2646466b8bb7095c4fd465193fa/src/diffusers/pipelines/text_to_video_synthesis/pipeline_text_to_video_synth.py#L70C7-L70C28).
     """
 
     task = "text-to-video"
     main_input_name = "prompt"
     auto_model_class = TextToVideoSDPipeline
-    
+
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
@@ -1152,7 +1142,7 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
 
 ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
     [
-        ("wan",  ORTWanPipeline),
+        ("wan", ORTWanPipeline),
         ("wan-animate", ORTWanAnimatePipeline),
         ("wan-image-to-video", ORTWanImageToVideoPipeline),
         ("wan-vace", ORTWanVACEPipeline),
@@ -1392,6 +1382,7 @@ class ORTPipelineForInpainting(ORTPipelineForTask):
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
 
+
 class ORTPipelineForText2Video(ORTPipelineForTask):
     """[`ORTPipelineForText2Video`] is a generic pipeline class that instantiates an text2video pipeline class. The
     specific underlying pipeline class is automatically selected from either the
@@ -1412,7 +1403,7 @@ class ORTPipelineForText2Video(ORTPipelineForTask):
     config_name = "model_index.json"
     auto_model_class = AutoPipelineForText2Video
     ort_pipelines_mapping = ORT_TEXT2VIDEO_PIPELINES_MAPPING
-    
+
 
 GENERIC_ORT_PIPELINES = [
     ORTDiffusionPipeline,
