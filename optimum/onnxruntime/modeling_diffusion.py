@@ -1143,10 +1143,7 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
 ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
     [
         ("wan", ORTWanPipeline),
-        ("wan-animate", ORTWanAnimatePipeline),
-        ("wan-image-to-video", ORTWanImageToVideoPipeline),
         ("wan-vace", ORTWanVACEPipeline),
-        ("wan-video-to-video", ORTWanVideoToVideoPipeline),
         ("text-to-video-sd", ORTTextToVideoSDPipeline),
     ]
 )
