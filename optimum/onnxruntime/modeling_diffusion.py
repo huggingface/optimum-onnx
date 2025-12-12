@@ -40,11 +40,7 @@ from diffusers.pipelines import (
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
     TextToVideoSDPipeline,
-    WanAnimatePipeline,
-    WanImageToVideoPipeline,
     WanPipeline,
-    WanVACEPipeline,
-    WanVideoToVideoPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
@@ -371,7 +367,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         if export:
             model_save_tmpdir = TemporaryDirectory()
             model_save_path = Path(model_save_tmpdir.name)
-            model_save_path = Path("/dev/shm")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -1084,27 +1079,8 @@ class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
     main_input_name = "prompt"
     auto_model_class = WanPipeline
 
-@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
-class ORTWanImageToVideoPipeline(ORTDiffusionPipeline, WanImageToVideoPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided image-to-video generation using transformer Model and corresponding to [WanImageToVideoPipeline]
-    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_i2v.py#L127).
-    """
-
-    task = "image-to-video"
-    main_input_name = "prompt"
-    auto_model_class = WanImageToVideoPipeline
-
 
 @add_end_docstrings(ORT_PIPELINE_DOCSTRING)
-class ORTWanVACEPipeline(ORTDiffusionPipeline, WanVACEPipeline):
-    """ONNX Runtime-powered Pipeline for text-guided video-editing using transformer Model and corresponding to [WanVACEPipeline]
-    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan_vace.py#L141).
-    """
-
-    task = "video-to-video"
-    main_input_name = "prompt"
-    auto_model_class = WanVACEPipeline
-
 class ORTTextToVideoSDPipeline(ORTDiffusionPipeline, TextToVideoSDPipeline):
     """ONNX Runtime-powered Pipeline for text-to-video using Unet Model.
 
@@ -1143,10 +1119,6 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
 ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
     [
         ("wan", ORTWanPipeline),
-        ("wan-animate", ORTWanAnimatePipeline),
-        ("wan-image-to-video", ORTWanImageToVideoPipeline),
-        ("wan-vace", ORTWanVACEPipeline),
-        ("wan-video-to-video", ORTWanVideoToVideoPipeline),
         ("text-to-video-sd", ORTTextToVideoSDPipeline),
     ]
 )

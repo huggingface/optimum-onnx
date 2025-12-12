@@ -500,7 +500,6 @@ def noop_bfloat16_casting(self):
 
 
 original_movedim = torch.Tensor.movedim
-original_upsample_nearest = torch.nn.functional.upsample_nearest
 
 
 def onnx_compatible_movedim(self: torch.Tensor, dim1, dim2) -> torch.Tensor:
@@ -527,11 +526,6 @@ def patched_dynamic_layer_update(
     return self.keys, self.values
 
 
-def safe_upsample_nearest(self, x: torch.Tensor, scale_factor: int):
-    print("come here")
-    return torch.nn.functional.interpolate(x, scale_factor=scale_factor, mode="nearest")
-
-
 UNSUPPORTED_OPS_PATCHING_SPEC = [
     PatchingSpec(torch, "tril", onnx_compatible_tril, torch.tril),
     PatchingSpec(torch, "triu", onnx_compatible_triu, torch.triu),
@@ -548,12 +542,6 @@ UNSUPPORTED_OPS_PATCHING_SPEC = [
         "scaled_dot_product_attention",
         traceable_scaled_dot_product_attention,
         torch.nn.functional.scaled_dot_product_attention,
-    ),
-    PatchingSpec(
-        torch.nn.functional,
-        "upsample_nearest",
-        safe_upsample_nearest,
-        torch.nn.functional.upsample_nearest,
     ),
 ]
 
