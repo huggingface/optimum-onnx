@@ -31,6 +31,7 @@ from optimum.exporters.onnx.config import (
     TextDecoderWithPositionIdsOnnxConfig,
     TextEncoderOnnxConfig,
     TextSeq2SeqOnnxConfig,
+    VideoOnnxConfig,
     VisionOnnxConfig,
 )
 from optimum.exporters.onnx.input_generators import (
@@ -83,9 +84,11 @@ from optimum.utils import (
     DummyTransformerTextInputGenerator,
     DummyTransformerTimestepInputGenerator,
     DummyTransformerVisionInputGenerator,
+    DummyVideoInputGenerator,
     DummyVisionEmbeddingsGenerator,
     DummyVisionEncoderDecoderPastKeyValuesGenerator,
     DummyVisionInputGenerator,
+    DummyWanTimestepInputGenerator,
     DummyXPathSeqInputGenerator,
     FalconDummyPastKeyValuesGenerator,
     GemmaDummyPastKeyValuesGenerator,
@@ -1383,6 +1386,40 @@ class SiglipTextOnnxConfig(CLIPTextOnnxConfig):
 @register_tasks_manager_onnx("siglip_vision_model", *["feature-extraction"])
 class SiglipVisionModelOnnxConfig(CLIPVisionModelOnnxConfig):
     pass
+
+
+@register_tasks_manager_onnx("unet-3d-condition", *["semantic-segmentation"], library_name="diffusers")
+class UNet3DOnnxConfig(VideoOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        in_channels="in_channels",
+        hidden_size="text_encoder_projection_dim",
+        vocab_size="vocab_size",
+        allow_new=True,
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        *VideoOnnxConfig.DUMMY_INPUT_GENERATOR_CLASSES,
+        DummyTransformerTextInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+            "timestep": {},  # a scalar with no dimension
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "out_sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+        }
+
+    @property
+    def torch_to_onnx_output_map(self) -> dict[str, str]:
+        return {
+            "sample": "out_sample",
+        }
 
 
 @register_tasks_manager_onnx("unet-2d-condition", *["semantic-segmentation"], library_name="diffusers")
@@ -2850,5 +2887,132 @@ class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
                 0: "batch_size",
                 2: f"latent_height * {up_sampling_factor}",
                 3: f"latent_width * {up_sampling_factor}",
+            }
+        }
+
+
+@register_tasks_manager_onnx("umt5-encoder", *["feature-extraction"], library_name="diffusers")
+class UMT5EncoderOnnxConfig(TextEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+
+    @property
+    def inputs(self):
+        return {
+            "input_ids": {0: "batch_size", 1: "sequence_length"},
+            "attention_mask": {0: "batch_size", 1: "sequence_length"},
+        }
+
+    @property
+    def outputs(self):
+        return {"last_hidden_state": {0: "batch_size", 1: "sequence_length"}}
+
+
+@register_tasks_manager_onnx("wan-transformer-3d", *["semantic-segmentation"], library_name="diffusers")
+class WanTransformer3DOnnxConfig(VideoOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        in_channels="in_channels",
+        out_channels="out_channels",
+        hidden_size="text_dim",
+        z_dim="z_dim",
+        expand_timesteps="expand_timesteps",
+        scale_factor_temporal="vae_scale_factor_temporal",
+        scale_factor_spatial="vae_scale_factor_spatial",
+        vocab_size="vocab_size",
+        allow_new=True,
+    )
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTransformerTextInputGenerator,
+        DummyWanTimestepInputGenerator,
+        DummyVideoInputGenerator,
+    )
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        if self._normalized_config.expand_timesteps is True:
+            return {
+                "latent_sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+                "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+                "timestep": {0: "batch_size", 1: "seq_len"},
+            }
+        return {
+            "latent_sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+            "encoder_hidden_states": {0: "batch_size", 1: "sequence_length"},
+            "timestep": {0: "batch_size"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+        }
+
+    def rename_ambiguous_inputs(self, inputs):
+        #  The input name in the model signature is `x, hence the export input name is updated.
+        model_inputs = inputs
+        model_inputs["hidden_states"] = inputs["latent_sample"]
+        model_inputs.pop("latent_sample")
+
+        return model_inputs
+
+
+@register_tasks_manager_onnx("vae-encoder-video", *["semantic-segmentation"], library_name="diffusers")
+class VaeEncoderVideoOnnxConfig(VaeEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        in_channels="in_channels",
+        z_dim="z_dim",
+        scale_factor_temporal="scale_factor_temporal",
+        scale_factor_spatial="scale_factor_spatial",
+        allow_new=True,
+    )
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVideoInputGenerator,)
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {0: "batch_size", 2: "num_frames", 3: "height", 4: "width"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "latent_parameters": {
+                0: "batch_size",
+                2: f"1 + ( num_frames - 1 ) // {self._normalized_config.scale_factor_temporal}",
+                3: f"height / {self._normalized_config.scale_factor_spatial}",
+                4: f"width / {self._normalized_config.scale_factor_spatial}",
+            }
+        }
+
+
+@register_tasks_manager_onnx("vae-decoder-video", *["semantic-segmentation"], library_name="diffusers")
+class VaeDecoderVideoOnnxConfig(VaeEncoderOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        in_channels="in_channels",
+        out_channels="out_channels",
+        z_dim="z_dim",
+        scale_factor_temporal="scale_factor_temporal",
+        scale_factor_spatial="scale_factor_spatial",
+        allow_new=True,
+    )
+    MIN_TRANSFORMERS_VERSION = version.parse("4.46.0")
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVideoInputGenerator,)
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "latent_sample": {0: "batch_size", 2: "latent_num_frames", 3: "latent_height", 4: "latent_width"},
+        }
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        return {
+            "sample": {
+                0: "batch_size",
+                2: f"1 + ( latent_num_frames - 1 ) * {self._normalized_config.scale_factor_temporal}",
+                3: f"latent_height * {self._normalized_config.scale_factor_spatial}",
+                4: f"latent_width * {self._normalized_config.scale_factor_spatial}",
             }
         }
