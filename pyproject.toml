@@ -28,11 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = [
-    "optimum @ git+https://github.com/huggingface/optimum",
-    "transformers>=4.36,<4.58.0",
-    "onnx",
-]
+dependencies = ["optimum~=2.1.0", "transformers>=4.36,<4.58.0", "onnx"]
 
 [project.urls]
 Homepage = "https://github.com/huggingface/optimum-onnx"
