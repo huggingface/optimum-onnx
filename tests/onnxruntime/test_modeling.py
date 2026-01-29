@@ -470,7 +470,7 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     SUPPORTED_ARCHITECTURES = select_architecture_transformer_version(
-        [  # noqa: RUF012
+        [
             "albert",
             "bart",
             "bert",

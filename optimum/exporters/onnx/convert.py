@@ -27,6 +27,8 @@ from typing import Any, Callable
 
 import numpy as np
 from transformers.generation import GenerationMixin
+
+
 try:
     from transformers.modeling_utils import get_parameter_dtype
 except ImportError:
@@ -565,11 +567,15 @@ def export_pytorch(
                 dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
             if is_torch_version(">=", "2.9"):
-                dynamo_kwargs = {"dynamo": dynamo}
+                dynamo_kwargs = {"dynamo": dynamo, "external_data": dynamo}
+                if dynamo:
+                    dynamo_kwargs["dynamic_shapes"] = dynamix_axes
+                else:
+                    dynamo_kwargs["dynamic_axes"] = dynamix_axes
             else:
                 if dynamo:
                     raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
-                dynamo_kwargs = {}
+                dynamo_kwargs = {"dynamic_axes": dynamix_axes}
 
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
@@ -579,7 +585,6 @@ def export_pytorch(
                 f=output.as_posix(),
                 input_names=input_names,
                 output_names=output_names,
-                dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
                 **dynamo_kwargs,
@@ -614,10 +619,10 @@ def export_pytorch(
             )
 
             # delete previous external data
-            for tensor in tensors_paths:
+            for tensor in set(tensors_paths):
                 os.remove(output.parent / tensor)
 
-            for tensor in constant_paths:
+            for tensor in set(constant_paths):
                 if os.path.isfile(output.parent / tensor):
                     os.remove(output.parent / tensor)
 

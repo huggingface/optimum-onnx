@@ -373,6 +373,8 @@ def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Te
     return torch.zeros_like(position_ids)
 
 
+_prepare_padding_mask_slice = "_slice" in inspect.signature(prepare_padding_mask).parameters
+
 # Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
     batch_size: int,
@@ -390,7 +392,10 @@ def sdpa_mask_without_vmap(
 
     q_length = cache_position.shape[0]
     # Potentially pad the 2D mask, and slice it correctly
-    padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+    if _prepare_padding_mask_slice:
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+    else:
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset)
 
     # Under specific conditions, we can avoid materializing the mask, instead relying on the `is_causal` argument
     if allow_is_causal_skip and _ignore_causal_mask_sdpa(padding_mask, q_length, kv_length, kv_offset, local_size):
