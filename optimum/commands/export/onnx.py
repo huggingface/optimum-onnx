@@ -288,5 +288,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,
             slim=self.args.slim,
+            dynamo=self.args.dynamo,
             **input_shapes,
         )
