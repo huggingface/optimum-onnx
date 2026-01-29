@@ -171,7 +171,7 @@ def main_export(
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         slim (bool, defaults to `False`):
             PyTorch-specific argument. If `True`, use onnxslim to optimize the ONNX model.
-        dynamo:
+        dynamo (bool, defaults to `False`):
             Use dynamo exporter (True) or torch script exporter (False).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.

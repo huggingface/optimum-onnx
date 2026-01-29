@@ -501,7 +501,7 @@ def export_pytorch(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
-        dynamo:
+        dynamo (bool, defaults to `False`):
             Use dynamo exporter (True) or torch script exporter (False).
 
     Returns:
@@ -670,7 +670,7 @@ def export_models(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
-        dynamo:
+        dynamo (bool, defaults to `False`):
             Use dynamo export (True) or torch script exporter (False).
 
     Returns:
@@ -758,7 +758,7 @@ def export(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
-        dynamo:
+        dynamo (bool, defaults to `False`):
             Use dynamo export (True) or torch script exporter (False)
 
     Returns:
@@ -901,7 +901,7 @@ def onnx_export_from_model(
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         slim (bool, defaults to `False`):
             Use onnxslim to optimize the ONNX model.
-        dynamo:
+        dynamo (bool, defaults to `False`):
             Use dynamo exporter (True) or torch script exporter (False).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
@@ -949,7 +949,7 @@ def onnx_export_from_model(
 
         logger.info(f"Automatic task detection to: {task}.")
 
-    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and  get_parameter_dtype else model.dtype
+    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and get_parameter_dtype else model.dtype
 
     if "bfloat16" in str(dtype):
         float_dtype = "bf16"
