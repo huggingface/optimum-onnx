@@ -474,6 +474,37 @@ class OnnxCustomExport(TestCase):
             assert "decoder_attentions.0" in output_names
             assert "cross_attentions.0" in output_names
 
+    def test_custom_export_official_model_dynamo(self):
+        model_id = "openai/whisper-tiny.en"
+        config = AutoConfig.from_pretrained(model_id)
+        custom_onnx_config = CustomWhisperOnnxConfig(config=config, task="automatic-speech-recognition")
+
+        encoder_config = custom_onnx_config.with_behavior("encoder")
+        decoder_config = custom_onnx_config.with_behavior("decoder", use_past=False)
+        decoder_with_past_config = custom_onnx_config.with_behavior("decoder", use_past=True)
+
+        custom_onnx_configs = {
+            "encoder_model": encoder_config,
+            "decoder_model": decoder_config,
+            "decoder_with_past_model": decoder_with_past_config,
+        }
+
+        with TemporaryDirectory() as tmpdirname:
+            main_export(
+                model_id,
+                output=tmpdirname,
+                no_post_process=True,
+                model_kwargs={"output_attentions": True},
+                custom_onnx_configs=custom_onnx_configs,
+                dynamo=True,
+            )
+
+            model = onnx.load(os.path.join(tmpdirname, "decoder_model.onnx"))
+
+            output_names = [outp.name for outp in model.graph.output]
+            assert "decoder_attentions.0" in output_names
+            assert "cross_attentions.0" in output_names
+
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     @mock.patch.dict("sys.modules", triton_pre_mlir=mock.Mock())
     def test_custom_export_trust_remote(self, fn_get_submodels):

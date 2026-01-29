@@ -27,7 +27,11 @@ from typing import Any, Callable
 
 import numpy as np
 from transformers.generation import GenerationMixin
-from transformers.modeling_utils import get_parameter_dtype
+try:
+    from transformers.modeling_utils import get_parameter_dtype
+except ImportError:
+    # transformers>=5.0
+    get_parameter_dtype = None
 from transformers.utils import is_torch_available
 
 import onnx
@@ -470,6 +474,7 @@ def export_pytorch(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a PyTorch model to an ONNX Intermediate Representation.
 
@@ -496,6 +501,8 @@ def export_pytorch(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo:
+            Use dynamo exporter (True) or torch script exporter (False).
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -558,9 +565,10 @@ def export_pytorch(
                 dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
 
             if is_torch_version(">=", "2.9"):
-                # Starting from 2.9 dynamo's default value is True
-                dynamo_kwargs = {"dynamo": False}
+                dynamo_kwargs = {"dynamo": dynamo}
             else:
+                if dynamo:
+                    raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
                 dynamo_kwargs = {}
 
             # Export can work with named args but the dict containing named args has to be the last element of the args
@@ -628,6 +636,7 @@ def export_models(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[list[str]], list[list[str]]]:
     """Exports a Pytorch encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
@@ -661,6 +670,8 @@ def export_models(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo:
+            Use dynamo export (True) or torch script exporter (False).
 
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
@@ -696,6 +707,7 @@ def export_models(
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
                 model_kwargs=model_kwargs,
+                dynamo=dynamo,
             )
         )
 
@@ -715,6 +727,7 @@ def export(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a Pytorch model to an ONNX Intermediate Representation.
 
@@ -745,6 +758,8 @@ def export(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo:
+            Use dynamo export (True) or torch script exporter (False)
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -794,6 +809,7 @@ def export(
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
             model_kwargs=model_kwargs,
+            dynamo=dynamo,
         )
 
     else:
@@ -826,6 +842,7 @@ def onnx_export_from_model(
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    dynamo: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -884,6 +901,8 @@ def onnx_export_from_model(
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         slim (bool, defaults to `False`):
             Use onnxslim to optimize the ONNX model.
+        dynamo:
+            Use dynamo exporter (True) or torch script exporter (False).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -930,7 +949,7 @@ def onnx_export_from_model(
 
         logger.info(f"Automatic task detection to: {task}.")
 
-    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) else model.dtype
+    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and  get_parameter_dtype else model.dtype
 
     if "bfloat16" in str(dtype):
         float_dtype = "bf16"
@@ -1009,7 +1028,7 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
-        if is_transformers_version(">=", "4.44.99"):
+        if is_transformers_version(">=", "4.44.99") and is_transformers_version("<", "4.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
             if (
                 isinstance(model, GenerationMixin)
@@ -1088,6 +1107,7 @@ def onnx_export_from_model(
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
         model_kwargs=model_kwargs,
+        dynamo=dynamo,
     )
 
     if optimize is not None:
