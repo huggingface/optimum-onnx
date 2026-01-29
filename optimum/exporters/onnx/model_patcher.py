@@ -373,7 +373,10 @@ def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Te
     return torch.zeros_like(position_ids)
 
 
-_prepare_padding_mask_slice = "_slice" in inspect.signature(prepare_padding_mask).parameters
+if is_transformers_version(">=", "4.53"):
+    _prepare_padding_mask_slice = "_slice" in inspect.signature(prepare_padding_mask).parameters
+else:
+    _prepare_padding_mask_slice = False
 
 # Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
