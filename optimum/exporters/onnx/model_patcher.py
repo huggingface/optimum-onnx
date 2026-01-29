@@ -390,7 +390,11 @@ def sdpa_mask_without_vmap(
 
     q_length = cache_position.shape[0]
     # Potentially pad the 2D mask, and slice it correctly
-    padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+
+    if is_transformers_version("<", "5"):
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+    else:
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset)
 
     # Under specific conditions, we can avoid materializing the mask, instead relying on the `is_causal` argument
     if allow_is_causal_skip and _ignore_causal_mask_sdpa(padding_mask, q_length, kv_length, kv_offset, local_size):
