@@ -163,6 +163,11 @@ def parse_args_onnx(parser):
         action="store_true",
         help="Enables onnxslim optimization.",
     )
+    optional_group.add_argument(
+        "--dynamo",
+        action="store_true",
+        help="Use dynamo exporter instead of torch script exporter.",
+    )
 
     input_group = parser.add_argument_group(
         "Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input)."
@@ -283,5 +288,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,
             slim=self.args.slim,
+            dynamo=self.args.dynamo,
             **input_shapes,
         )

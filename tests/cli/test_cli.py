@@ -45,6 +45,15 @@ class TestCLI(unittest.TestCase):
             for command in commands:
                 subprocess.run(command, shell=True, check=True)
 
+    def test_dynamo_export_commands(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            commands = [
+                f"optimum-cli export onnx --model hf-internal-testing/tiny-random-vit --task image-classification {tempdir}/vit --dynamo",
+            ]
+
+            for command in commands:
+                subprocess.run(command, shell=True, check=True)
+
     def test_optimize_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             ort_config = ORTConfig(optimization=AutoOptimizationConfig.O1())

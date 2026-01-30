@@ -666,7 +666,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         if hasattr(generation_config, "cache_implementation"):
             generation_config.cache_implementation = None
 
-        if is_transformers_version(">=", "4.45.0"):
+        if is_transformers_version(">=", "4.45.0") and is_transformers_version("<", "4.99"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
                 logger.warning(

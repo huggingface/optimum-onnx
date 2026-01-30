@@ -86,6 +86,7 @@ def main_export(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    dynamo: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a model ID on Hugging Face Hub or a local model repository**.
@@ -170,6 +171,8 @@ def main_export(
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         slim (bool, defaults to `False`):
             PyTorch-specific argument. If `True`, use onnxslim to optimize the ONNX model.
+        dynamo (bool, defaults to `False`):
+            Use dynamo exporter (True) or torch script exporter (False).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -416,6 +419,7 @@ def main_export(
         use_subprocess=use_subprocess,
         do_constant_folding=do_constant_folding,
         slim=slim,
+        dynamo=dynamo,
         **kwargs_shapes,
     )
 
@@ -450,6 +454,7 @@ def main():
         library_name=args.library_name,
         do_constant_folding=not args.no_constant_folding,
         slim=args.slim,
+        dynamo=args.dynamo,
         **input_shapes,
     )
 
