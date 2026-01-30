@@ -562,20 +562,26 @@ def export_pytorch(
             output_names = list(config.outputs.keys())
 
             if no_dynamic_axes:
-                dynamix_axes = None
+                dynamic_axes = None
             else:
-                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
+                dynamic_axes = dict(chain(inputs.items(), config.outputs.items()))
 
             if is_torch_version(">=", "2.9"):
                 dynamo_kwargs = {"dynamo": dynamo, "external_data": dynamo}
                 if dynamo:
-                    dynamo_kwargs["dynamic_shapes"] = dynamix_axes
+                    if len(dynamic_axes) == len(dummy_inputs):
+                        dynamo_kwargs["dynamic_shapes"] = dynamic_axes
+                    else:
+                        raise NotImplementedError(
+                            f"The dummy inputs have {len(dummy_inputs)} arguments "
+                            f"when dynamic shapes are {dynamic_axes}"
+                        )
                 else:
-                    dynamo_kwargs["dynamic_axes"] = dynamix_axes
+                    dynamo_kwargs["dynamic_axes"] = dynamic_axes
             else:
                 if dynamo:
                     raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
-                dynamo_kwargs = {"dynamic_axes": dynamix_axes}
+                dynamo_kwargs = {"dynamic_axes": dynamic_axes}
 
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
