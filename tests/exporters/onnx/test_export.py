@@ -445,7 +445,7 @@ def fn_get_submodels_custom(model):
 
 class OnnxCustomExport(TestCase):
     @parameterized.expand([False, True])
-    def test_custom_export_official_model(self, dynamo: bool):
+    def test_custom_export_official_model_whisper(self, dynamo: bool):
         model_id = "openai/whisper-tiny.en"
         config = AutoConfig.from_pretrained(model_id)
         custom_onnx_config = CustomWhisperOnnxConfig(config=config, task="automatic-speech-recognition")
@@ -475,6 +475,25 @@ class OnnxCustomExport(TestCase):
             output_names = [outp.name for outp in model.graph.output]
             assert "decoder_attentions.0" in output_names
             assert "cross_attentions.0" in output_names
+
+    @parameterized.expand([False, True])
+    def test_custom_export_official_model_tiny_llm(self, dynamo: bool):
+        model_id = "arnir0/Tiny-LLM"
+
+        with TemporaryDirectory() as tmpdirname:
+            main_export(
+                model_id,
+                output=tmpdirname,
+                no_post_process=True,
+                model_kwargs={"output_attentions": True},
+                dynamo=dynamo,
+            )
+
+            model = onnx.load(os.path.join(tmpdirname, "model.onnx"))
+
+            output_names = [outp.name for outp in model.graph.output]
+            assert "logits" in output_names
+            assert "present.0.key" in output_names
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     @mock.patch.dict("sys.modules", triton_pre_mlir=mock.Mock())

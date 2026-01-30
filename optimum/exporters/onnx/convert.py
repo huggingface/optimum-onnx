@@ -466,6 +466,58 @@ class ValidationProcess(mp.Process):
         return self._exception
 
 
+def _rearrange_dynamic_shapes(flat_shapes, suffixes):
+    positions = {"key": 0, "value": 1}
+    new_shapes = {}
+    for pos, suffix in enumerate(suffixes):
+        spl = suffix.split(".")
+        if len(spl) != 2:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        try:
+            index = int(spl[0])
+        except ValueError:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        if spl[1] not in positions:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        if index not in new_shapes:
+            new_shapes[index] = {}
+        new_shapes[index][positions[spl[1]]] = flat_shapes[pos]
+    return [tuple(shape for _, shape in sorted(shapes.items())) for _, shapes in sorted(new_shapes.items())]
+
+
+def convert_dynamic_axes_into_dynamic_shapes(
+    dummy_inputs: dict[str, Any],
+    dynamic_axes: dict[str, dict[int, str]],
+) -> dict[str, Any]:
+    if not isinstance(dummy_inputs, dict):
+        raise TypeError(f"Unexpected type {type(dummy_inputs)} for dummy_inputs.")
+    if not isinstance(dynamic_axes, dict):
+        raise TypeError(f"Unexpected type {type(dynamic_axes)} for dynamic_axes.")
+    known_replacements = {"input_ids": "decoder_input_ids"}
+    new_shapes = {}
+    suffixes = {}
+    for k, v in dynamic_axes.items():
+        if k in dummy_inputs:
+            new_shapes[k] = v
+            continue
+        if k in known_replacements and known_replacements[k] in dummy_inputs:
+            new_shapes[known_replacements[k]] = v
+            continue
+        if "." not in k:
+            continue
+        prefix, suffix = k.split(".", maxsplit=1)
+        if prefix not in dummy_inputs:
+            continue
+        if prefix not in new_shapes:
+            new_shapes[prefix] = []
+            suffixes[prefix] = []
+        new_shapes[prefix].append(v)
+        suffixes[prefix].append(suffix)
+    for k, v in suffixes.items():
+        new_shapes[k] = _rearrange_dynamic_shapes(new_shapes[k], v)
+    return new_shapes
+
+
 def export_pytorch(
     model: PreTrainedModel | ModelMixin,
     config: OnnxConfig,
@@ -572,10 +624,18 @@ def export_pytorch(
                     if len(dynamic_axes) == len(dummy_inputs):
                         dynamo_kwargs["dynamic_shapes"] = dynamic_axes
                     else:
-                        raise NotImplementedError(
-                            f"The dummy inputs have {len(dummy_inputs)} arguments "
-                            f"when dynamic shapes are {dynamic_axes}"
+                        dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
+                            dummy_inputs,
+                            dynamic_axes,
                         )
+                        if len(dynamic_shapes) == len(dummy_inputs):
+                            dynamo_kwargs["dynamic_shapes"] = dynamic_shapes
+                        else:
+                            raise NotImplementedError(
+                                f"The dummy inputs have {list(dummy_inputs)} arguments "
+                                f"when dynamic axes are {dynamic_axes} and inferred "
+                                f"dynamic shapes are {dynamic_shapes}."
+                            )
                 else:
                     dynamo_kwargs["dynamic_axes"] = dynamic_axes
             else:
