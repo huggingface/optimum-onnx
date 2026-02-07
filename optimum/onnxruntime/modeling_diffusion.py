@@ -38,6 +38,7 @@ from diffusers.pipelines import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
+    WanPipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
@@ -1059,6 +1060,16 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     main_input_name = "image"
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-video generation using transformer Model and corresponding to [WanPipeline]
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan.py#L95).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanPipeline
+
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
@@ -1083,10 +1094,17 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
+ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
+    [
+        ("wan", ORTWanPipeline),
+    ]
+)
+
 SUPPORTED_ORT_PIPELINES_MAPPINGS = [
     ORT_TEXT2IMAGE_PIPELINES_MAPPING,
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
     ORT_INPAINT_PIPELINES_MAPPING,
+    ORT_TEXT2VIDEO_PIPELINES_MAPPING,
 ]
 
 
@@ -1190,6 +1208,7 @@ SUPPORTED_ORT_PIPELINES = [
     *ORT_TEXT2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_IMAGE2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_INPAINT_PIPELINES_MAPPING.values(),
+    *ORT_TEXT2VIDEO_PIPELINES_MAPPING.values(),
 ]
 
 
@@ -1311,6 +1330,28 @@ class ORTPipelineForInpainting(ORTPipelineForTask):
     config_name = "model_index.json"
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
+    
+
+class ORTPipelineForText2Video(ORTPipelineForTask):
+    """[`ORTPipelineForText2Video`] is a generic pipeline class that instantiates an text2video pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForText2Video.from_pretrained`] or [`~ORTPipelineForText2Video.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
+    auto_model_class = DiffusionPipeline
+    ort_pipelines_mapping = ORT_TEXT2VIDEO_PIPELINES_MAPPING
 
 
 GENERIC_ORT_PIPELINES = [
@@ -1318,6 +1359,7 @@ GENERIC_ORT_PIPELINES = [
     ORTPipelineForText2Image,
     ORTPipelineForImage2Image,
     ORTPipelineForInpainting,
+    ORTPipelineForText2Video,
 ]
 
 # Documentation updates
