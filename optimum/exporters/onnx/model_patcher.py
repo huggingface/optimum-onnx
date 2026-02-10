@@ -26,7 +26,6 @@ from torch.onnx import symbolic_helper
 from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.speecht5.modeling_speecht5 import SpeechT5EncoderWithSpeechPrenet
 
-from optimum.exporters.onnx.utils import ONNXDynamicCache, ONNXEncoderDecoderCache
 from optimum.utils import is_diffusers_version, is_torch_version, is_transformers_version, logging
 
 
@@ -56,6 +55,14 @@ if is_transformers_version(">=", "4.55"):
     from transformers.models.gpt_oss.modeling_gpt_oss import GptOssExperts
 if is_transformers_version(">=", "4.56"):
     from transformers.cache_utils import DynamicLayer
+
+if is_transformers_version("<", "5"):
+    from transformers import DynamicCache as ONNXDynamicCache
+    from transformers import EncoderDecoderCache as ONNXEncoderDecoderCache
+else:
+    from optimum.exporters.onnx.utils import LegacyDynamicCache as ONNXDynamicCache
+    from optimum.exporters.onnx.utils import LegacyEncoderDecoderCache as ONNXEncoderDecoderCache
+
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux

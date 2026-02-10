@@ -282,7 +282,7 @@ def _get_submodels_and_onnx_configs(
     )
 
 
-class ONNXDynamicCache(DynamicCache):
+class LegacyDynamicCache(DynamicCache):
     # copied from https://github.com/huggingface/transformers/blob/v4.57.6/src/transformers/cache_utils.py#L881
     def __getitem__(self, layer_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Support for backwards-compatible `past_key_values` indexing, e.g. `past_key_values[0][0].shape[2]` to get the
@@ -329,7 +329,7 @@ class ONNXDynamicCache(DynamicCache):
         return cache
 
 
-class ONNXEncoderDecoderCache(EncoderDecoderCache):
+class LegacyEncoderDecoderCache(EncoderDecoderCache):
     # copied from https://github.com/huggingface/transformers/blob/v4.57.6/src/transformers/cache_utils.py#L1244
     def __getitem__(self, layer_idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Support for backwards-compatible `past_key_values` indexing, e.g. `past_key_values[0][0].shape[2]` to get the
