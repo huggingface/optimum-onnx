@@ -15,7 +15,14 @@ import warnings
 from collections import defaultdict
 from functools import wraps
 
-from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder, logger
+from transformers.utils.generic import _CAN_RECORD_REGISTRY, logger
+
+
+try:
+    # transformers>=5.2
+    from transformers.utils.output_capturing import OutputRecorder
+except ImportError:
+    from transformers.utils.generic import OutputRecorder
 
 
 # This is a fixed version of transformers.utils.generic.check_model_inputs

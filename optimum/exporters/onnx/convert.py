@@ -488,12 +488,15 @@ def _rearrange_dynamic_shapes(flat_shapes, suffixes):
 def convert_dynamic_axes_into_dynamic_shapes(
     dummy_inputs: dict[str, Any],
     dynamic_axes: dict[str, dict[int, str]],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(dummy_inputs, dict):
         raise TypeError(f"Unexpected type {type(dummy_inputs)} for dummy_inputs.")
     if not isinstance(dynamic_axes, dict):
         raise TypeError(f"Unexpected type {type(dynamic_axes)} for dynamic_axes.")
-    known_replacements = {"input_ids": "decoder_input_ids"}
+    known_replacements = {
+        "input_ids": "decoder_input_ids",
+        "encoder_hidden_states": "encoder_outputs",
+    }
     new_shapes = {}
     suffixes = {}
     for k, v in dynamic_axes.items():
@@ -515,7 +518,27 @@ def convert_dynamic_axes_into_dynamic_shapes(
         suffixes[prefix].append(suffix)
     for k, v in suffixes.items():
         new_shapes[k] = _rearrange_dynamic_shapes(new_shapes[k], v)
-    return new_shapes
+
+    # Let's fix the order.
+    if list(dummy_inputs) == ["encoder_outputs", "decoder_input_ids"]:
+        # hard fix but the rest of the code seems sensitive to this.
+        dummy_inputs = {k: dummy_inputs[k] for k in ["decoder_input_ids", "encoder_outputs"]}
+
+    # Let's reorder and fix the final shapes.
+    final_shapes = {}
+    for k, v in dummy_inputs.items():
+        if k in new_shapes:
+            if isinstance(v, tuple):
+                if not v or v[0] is None or sum(_ is not None for _ in v) != 1:
+                    raise ValueError(
+                        f"Unable to convert {dynamic_axes=} "
+                        f"for dummy_inputs={list(dummy_inputs)}"
+                    )
+                final_shapes[k] = (new_shapes[k], *[None for _ in range(len(v)-1)])
+            else:
+                final_shapes[k] = new_shapes[k]
+
+    return dummy_inputs, final_shapes
 
 
 def export_pytorch(
@@ -624,11 +647,11 @@ def export_pytorch(
                     if len(dynamic_axes) == len(dummy_inputs):
                         dynamo_kwargs["dynamic_shapes"] = dynamic_axes
                     else:
-                        dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
+                        dummy_inputs, dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
                             dummy_inputs,
                             dynamic_axes,
                         )
-                        if len(dynamic_shapes) == len(dummy_inputs):
+                        if len(dynamic_shapes) == len(dummy_inputs) and list(dynamic_shapes) == list(dummy_inputs):
                             dynamo_kwargs["dynamic_shapes"] = dynamic_shapes
                         else:
                             raise NotImplementedError(
