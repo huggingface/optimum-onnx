@@ -664,7 +664,7 @@ def export_pytorch(
                 dynamo_kwargs = {"dynamic_axes": dynamic_axes}
 
             if dynamo and os.environ.get("EXPORTDEBUG", "") == "1":
-                from .debug_tool import debug_torch_export_export
+                from ._debug_tool import debug_torch_export_export
 
                 debug_torch_export_export(model, dummy_inputs, dynamo_kwargs["dynamic_shapes"])
 

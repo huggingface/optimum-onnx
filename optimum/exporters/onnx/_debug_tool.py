@@ -14,8 +14,7 @@
 
 
 def debug_torch_export_export(model, dummy_inputs, dynamic_shapes):
-    """
-    This helps to pinpoint the location of line failing the shape validation.
+    """This helps to pinpoint the location of line failing the shape validation.
     This is a temporary solution until something better is implemented.
     The function checks that :func:`torch.export.export` works
     with the given arguments.
