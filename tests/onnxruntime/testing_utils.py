@@ -232,7 +232,7 @@ class TemporaryHubRepo:
         delete_repo(repo_id=self.repo_url.repo_id, token=self.token, missing_ok=True)
 
 
-def select_architecture_transformer_version(arch_list: list[str | tuple[str,str]]) -> list[str]:
+def select_architecture_transformer_version(arch_list: list[str | tuple[str, str]]) -> list[str]:
     new_list = []
     for arch in arch_list:
         if isinstance(arch, str):

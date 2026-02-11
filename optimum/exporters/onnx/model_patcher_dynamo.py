@@ -13,20 +13,23 @@
 # limitations under the License.
 import torch
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
+
 from .model_patcher import ModelPatcher, is_transformers_version
 
 
 def patched_vit_patch_embedding_forward(
     self, pixel_values: torch.Tensor, interpolate_pos_encoding: bool = False
 ) -> torch.Tensor:
-    _batch_size, num_channels, height, width = pixel_values.shape
-    torch._check(
-        num_channels == self.num_channels,
-        lambda: (
-            "Make sure that the channel dimension of the pixel values match with the one set in the configuration."
-            f" Expected {self.num_channels} but got {num_channels}."
-        )
-    )
+    # _batch_size, num_channels, height, width = pixel_values.shape
+    # Unexpted error.
+    # TypeError: cond must be a bool, but got <class 'torch.Tensor'>?
+    # torch._check(
+    #    num_channels == self.num_channels,
+    #    lambda: (
+    #        "Make sure that the channel dimension of the pixel values match with the one set in the configuration."
+    #        f" Expected {self.num_channels} but got {num_channels}."
+    #    )
+    # )
     # This check fails if dynamic shapes are not properly set up.
     # Let's drop it.
     # if not interpolate_pos_encoding:

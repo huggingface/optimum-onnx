@@ -530,11 +530,8 @@ def convert_dynamic_axes_into_dynamic_shapes(
         if k in new_shapes:
             if isinstance(v, tuple):
                 if not v or v[0] is None or sum(_ is not None for _ in v) != 1:
-                    raise ValueError(
-                        f"Unable to convert {dynamic_axes=} "
-                        f"for dummy_inputs={list(dummy_inputs)}"
-                    )
-                final_shapes[k] = (new_shapes[k], *[None for _ in range(len(v)-1)])
+                    raise ValueError(f"Unable to convert {dynamic_axes=} for dummy_inputs={list(dummy_inputs)}")
+                final_shapes[k] = (new_shapes[k], *[None for _ in range(len(v) - 1)])
             else:
                 final_shapes[k] = new_shapes[k]
 
@@ -671,6 +668,7 @@ def export_pytorch(
                 from onnx_diagnostic.helpers import string_type
                 from onnx_diagnostic.torch_export_patches import torch_export_patches
                 from onnx_diagnostic.torch_export_patches.patch_inputs import use_dyn_not_str
+
                 print(f"dynamic_shapes={dynamo_kwargs['dynamic_shapes']}")
                 print(f"dummy_inputs={string_type(dummy_inputs, with_shape=True)}")
                 with torch_export_patches(patch_torch=True, patch_transformers=True, stop_if_static=2):

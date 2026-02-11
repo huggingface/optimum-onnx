@@ -56,7 +56,6 @@ from optimum.exporters.onnx.model_patcher import (
     VitPoseModelPatcher,
 )
 from optimum.exporters.onnx.model_patcher_dynamo import ViTForImageClassificationPatcher
-
 from optimum.exporters.tasks import TasksManager
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -2855,5 +2854,3 @@ class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
                 3: f"latent_width * {up_sampling_factor}",
             }
         }
-
-

@@ -400,6 +400,7 @@ if is_transformers_version(">=", "4.53"):
 else:
     _prepare_padding_mask_slice = False
 
+
 # Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
     batch_size: int,
