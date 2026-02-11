@@ -40,7 +40,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip uv
+          pip install --upgrade pip
+          pip install uv
           uv pip install .[tests,onnxruntime]
 
       - name: Test with pytest
