@@ -315,7 +315,7 @@ class LegacyDynamicCache(DynamicCache):
 
     # copied from https://github.com/huggingface/transformers/blob/v4.57.6/src/transformers/cache_utils.py#L1015
     @classmethod
-    def from_legacy_cache(cls, past_key_values: tuple[tuple[torch.Tensor, torch.Tensor]]) -> ONNXDynamicCache:
+    def from_legacy_cache(cls, past_key_values: tuple[tuple[torch.Tensor, torch.Tensor]]) -> LegacyDynamicCache:
         """Converts a cache in the legacy cache format into an equivalent `Cache`. Used for
         backward compatibility.
         """
@@ -360,7 +360,7 @@ class LegacyEncoderDecoderCache(EncoderDecoderCache):
 
     # copied from https://github.com/huggingface/transformers/blob/v4.57.6/src/transformers/cache_utils.py#L1266
     def to_legacy_cache(self) -> tuple[tuple[torch.Tensor]]:
-        """Converts the `ONNXEncoderDecoderCache` instance into its equivalent in the legacy cache format."""
+        """Converts the `LegacyEncoderDecoderCache` instance into its equivalent in the legacy cache format."""
         legacy_cache = ()
         if len(self.cross_attention_cache) > 0:
             for self_attn, cross_attn in zip(
@@ -375,9 +375,9 @@ class LegacyEncoderDecoderCache(EncoderDecoderCache):
     @classmethod
     def from_legacy_cache(
         cls, past_key_values: Optional[Iterable[tuple[torch.FloatTensor, ...]]]
-    ) -> ONNXEncoderDecoderCache:
-        """Converts a cache in the legacy cache format into an equivalent `ONNXEncoderDecoderCache`."""
-        cache = cls(ONNXDynamicCache(), ONNXDynamicCache())
+    ) -> LegacyEncoderDecoderCache:
+        """Converts a cache in the legacy cache format into an equivalent `LegacyEncoderDecoderCache`."""
+        cache = cls(LegacyDynamicCache(), LegacyDynamicCache())
         if past_key_values is None:
             logger.warning_once("past_key_values should not be None in from_legacy_cache()")
         else:
