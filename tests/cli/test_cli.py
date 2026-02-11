@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -45,6 +46,7 @@ class TestCLI(unittest.TestCase):
             for command in commands:
                 subprocess.run(command, shell=True, check=True)
 
+    @unittest.skipIf(sys.platform == "win32", reason="torch.export.export unstable on windows")
     def test_dynamo_export_commands(self):
         with tempfile.TemporaryDirectory() as tempdir:
             commands = [

@@ -665,6 +665,7 @@ def export_pytorch(
 
             if dynamo and os.environ.get("EXPORTDEBUG", "") == "1":
                 from .debug_tool import debug_torch_export_export
+
                 debug_torch_export_export(model, dummy_inputs, dynamo_kwargs["dynamic_shapes"])
 
             # Export can work with named args
