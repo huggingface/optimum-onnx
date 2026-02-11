@@ -666,9 +666,23 @@ def export_pytorch(
                     raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
                 dynamo_kwargs = {"dynamic_axes": dynamic_axes}
 
-            # Export can work with named args but the dict containing named args has to be the last element of the args
-            # tuple.
-            dynamo_kwargs["dynamic_shapes"] = {'pixel_values': {0: 'batch_size', 2: 'height', 3: 'width'}}
+            if os.environ.get("EXPORTDEBUG", "") == "1":
+                # This helps to pinpoint the location of line failing the shape validation.
+                from onnx_diagnostic.helpers import string_type
+                from onnx_diagnostic.torch_export_patches import torch_export_patches
+                from onnx_diagnostic.torch_export_patches.patch_inputs import use_dyn_not_str
+                print(f"dynamic_shapes={dynamo_kwargs["dynamic_shapes"]}")
+                print(f"dummy_inputs={string_type(dummy_inputs, with_shape=True)}")
+                with torch_export_patches(patch_torch=True, patch_transformers=True, stop_if_static=2):
+                    torch.export.export(
+                        model,
+                        (),
+                        kwargs=dummy_inputs,
+                        dynamic_shapes=use_dyn_not_str(dynamo_kwargs["dynamic_shapes"]),
+                    )
+
+            # Export can work with named args
+            # but the dict containing named args has to be the last element of the args tuple.
             onnx_export(
                 model,
                 (dummy_inputs,),

@@ -55,6 +55,8 @@ from optimum.exporters.onnx.model_patcher import (
     SpeechT5ModelPatcher,
     VitPoseModelPatcher,
 )
+from optimum.exporters.onnx.model_patcher_dynamo import ViTForImageClassificationPatcher
+
 from optimum.exporters.tasks import TasksManager
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
@@ -878,10 +880,11 @@ class MarianOnnxConfig(BartOnnxConfig):
 @register_tasks_manager_onnx("vit", *["feature-extraction", "image-classification", "masked-im"])
 class ViTOnnxConfig(VisionOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedVisionConfig
+    _MODEL_PATCHER = ViTForImageClassificationPatcher
 
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
-        return {"pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}}
+        return {"pixel_values": {0: "batch_size", 2: "height", 3: "width"}}
 
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
@@ -2852,3 +2855,5 @@ class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
                 3: f"latent_width * {up_sampling_factor}",
             }
         }
+
+
