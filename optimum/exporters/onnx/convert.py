@@ -671,7 +671,7 @@ def export_pytorch(
                 from onnx_diagnostic.helpers import string_type
                 from onnx_diagnostic.torch_export_patches import torch_export_patches
                 from onnx_diagnostic.torch_export_patches.patch_inputs import use_dyn_not_str
-                print(f"dynamic_shapes={dynamo_kwargs["dynamic_shapes"]}")
+                print(f"dynamic_shapes={dynamo_kwargs['dynamic_shapes']}")
                 print(f"dummy_inputs={string_type(dummy_inputs, with_shape=True)}")
                 with torch_export_patches(patch_torch=True, patch_transformers=True, stop_if_static=2):
                     torch.export.export(
