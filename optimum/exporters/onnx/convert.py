@@ -668,6 +668,7 @@ def export_pytorch(
 
             # Export can work with named args but the dict containing named args has to be the last element of the args
             # tuple.
+            dynamo_kwargs["dynamic_shapes"] = {'pixel_values': {0: 'batch_size', 2: 'height', 3: 'width'}}
             onnx_export(
                 model,
                 (dummy_inputs,),
