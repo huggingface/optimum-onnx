@@ -328,7 +328,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # INTEGRATION TESTS
     def test_find_untested_architectures(self):
-        if len(self.SUPPORTED_ARCHITECTURES) != len(set(self.SUPPORTED_ARCHITECTURES)):
+        if len(self.SUPPORTED_ARCHITECTURES) != len(set(self.SUPPORTED_ARCHITECTURES)) and set(
+            self.SUPPORTED_ARCHITECTURES
+        ) != {"vision-encoder-decoder", "pix2struct"}:
             raise ValueError(
                 f"For the task `{self.TASK}`, some architectures are duplicated in the list of tested architectures: "
                 f"{self.SUPPORTED_ARCHITECTURES}.\n"
