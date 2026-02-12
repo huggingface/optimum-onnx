@@ -31,6 +31,7 @@ from transformers import (
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
+
 try:
     # transformers>=5
     from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq

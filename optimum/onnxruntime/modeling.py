@@ -62,6 +62,7 @@ from transformers.modeling_outputs import (
     XVectorOutput,
 )
 from transformers.models.auto.modeling_auto import MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES
+
 try:
     # transformers>=5
     from huggingface_hub import is_offline_mode
