@@ -614,7 +614,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
-    def test_compare_logits_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):        
+    def test_compare_logits_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
             "test_name": test_name,

@@ -1265,7 +1265,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     @parameterized.expand(
         grid_parameters(
             {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False], "use_merged": [False, True]}
-        )
+        ),
+        skip_on_empty=True,
     )
     def test_compare_logits_to_transformers(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         self._test_compare_logits_to_transformers(
@@ -1274,7 +1275,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]}),
+        skip_on_empty=True,
     )
     def test_compare_generation_to_transformers(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
@@ -1285,7 +1287,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # Beam search generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]}),
+        skip_on_empty=True,
     )
     def test_compare_beam_search_to_transformers(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
@@ -1295,17 +1298,23 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         )
 
     # NUMERICAL CONSISTENCY WITH DECODER MERGING
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}), skip_on_empty=True
+    )
     def test_compare_logits_merged_and_not_merged(self, test_name: str, model_arch: str, use_cache: bool):
         self._test_compare_logits_merged_and_not_merged(model_arch=model_arch, use_cache=use_cache)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}), skip_on_empty=True
+    )
     def test_compare_generation_merged_and_not_merged(self, test_name: str, model_arch: str, use_cache: bool):
         self._test_compare_generation_merged_and_not_merged(model_arch=model_arch, use_cache=use_cache)
 
     # NUMERICAL CONSISTENCY WITH AND WITHOUT PAST KEY VALUES
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_merged": [False, True]}), skip_on_empty=True
+    )
     def test_compare_generation_with_and_without_past_key_values(
         self, test_name: str, model_arch: str, use_merged: bool
     ):
@@ -1315,7 +1324,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
     @parameterized.expand(
         grid_parameters(
             {"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False], "use_merged": [False, True]}
-        )
+        ),
+        skip_on_empty=True,
     )
     def test_compare_logits_with_and_without_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
@@ -1326,7 +1336,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
-        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True], "use_merged": [False, True]}),
+        skip_on_empty=True,
     )
     def test_compare_generation_with_and_without_io_binding(
         self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool
@@ -1336,7 +1347,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         )
 
     # PIPELINE TESTS
-    @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
+    @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}), skip_on_empty=True)
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
         if is_transformers_version("<", "4.38.0"):
             pytest.skip(
@@ -1367,7 +1378,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             self.assertEqual(outputs, local_outputs)
 
     @parameterized.expand(
-        grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]}),
+        skip_on_empty=True,
     )
     def test_ort_pipeline_with_model_id(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if is_transformers_version("<", "4.38.0"):
@@ -1402,7 +1414,8 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(
-        grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]})
+        grid_parameters({"model_arch": ["vision-encoder-decoder"], "use_cache": [True], "use_merged": [False, True]}),
+        skip_on_empty=True,
     )
     def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
         if is_transformers_version("<", "4.38.0"):
