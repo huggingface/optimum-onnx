@@ -32,6 +32,7 @@ from transformers import (
     WhisperForConditionalGeneration,
 )
 
+
 try:
     # transformers>=5
     from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq

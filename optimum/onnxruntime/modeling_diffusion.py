@@ -431,7 +431,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
             if kwargs.get(model) is not None:
                 # this allows passing a model directly to from_pretrained
                 models[model] = kwargs.pop(model)
-            elif kwargs.get(f"{model}_session", None) is not None:
+            elif kwargs.get(f"{model}_session") is not None:
                 # this allows passing a session directly to from_pretrained
                 sessions[f"{model}_session"] = kwargs.pop(f"{model}_session")
             elif path.is_file():

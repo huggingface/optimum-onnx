@@ -20,9 +20,9 @@ from transformers.utils.generic import logger
 
 try:
     # transformers>=5.2
-    from transformers.utils.output_capturing import OutputRecorder, _CAN_RECORD_REGISTRY
+    from transformers.utils.output_capturing import _CAN_RECORD_REGISTRY, OutputRecorder
 except ImportError:
-    from transformers.utils.generic import OutputRecorder, _CAN_RECORD_REGISTRY
+    from transformers.utils.generic import _CAN_RECORD_REGISTRY, OutputRecorder
 
 
 # This is a fixed version of transformers.utils.generic.check_model_inputs
