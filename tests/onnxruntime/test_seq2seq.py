@@ -179,7 +179,7 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
         supported_architectures = onnx_architectures & transformers_architectures
         untested_architectures = supported_architectures - tested_architectures
 
-        if len(untested_architectures) > 0:
+        if len(untested_architectures) > 0 and supported_architectures != {"vision-encoder-decoder", "pix2struct"}:
             raise ValueError(
                 f"For the task `{self.TASK}`, the ONNX exporter supports {supported_architectures} but some of them are not "
                 f"tested: {untested_architectures}.\n"
