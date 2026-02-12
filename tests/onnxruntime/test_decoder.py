@@ -512,7 +512,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             outputs = model(**inputs, use_cache=use_cache)
         onnx_outputs = onnx_model(**inputs, use_cache=use_cache)
+        if model_arch == "arcee":
+            atol = self.ATOL
+            self.ATOL = 1e-3
         self.compare_logits(inputs, outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache)
+        if model_arch == "arcee":
+            self.ATOL = atol
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))

@@ -26,12 +26,16 @@ from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
-    AutoModelForVision2Seq,
     GenerationConfig,
     GenerationMixin,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
+try:
+    # transformers>=5
+    from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
+except ImportError:
+    from transformers import AutoModelForVision2Seq
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES

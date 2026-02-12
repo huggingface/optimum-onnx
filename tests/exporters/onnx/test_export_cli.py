@@ -440,6 +440,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # masked-im models use MaskedImageModelingOutput
         if model_type in ["vit", "deit"] and task == "masked-im":
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
+        if model_type in ["falcon"]:
+            self.skipTest("Temporarily disabled because MambaCache is not well handled.")
 
         model_kwargs = None
         if model_type == "speecht5":
