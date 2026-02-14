@@ -579,6 +579,16 @@ class MistralOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
     DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
 
+@register_tasks_manager_onnx("exaone4", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+class Exaone4OnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(num_key_value_heads="num_key_value_heads", allow_new=True)
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, MistralDummyPastKeyValuesGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+
+
+@register_tasks_manager_onnx("exaone_moe", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
+class ExaoneMoeOnnxConfig(Exaone4OnnxConfig):
+    pass
 
 @register_tasks_manager_onnx("mpt", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification", "token-classification"])
 class MPTOnnxConfig(TextDecoderOnnxConfig):
