@@ -279,3 +279,139 @@ def _get_submodels_and_onnx_configs(
         model_kwargs,
         exporter="onnx",
     )
+
+def make_positional_hook(dummy_inputs, module_name):
+    import inspect
+    def hook(module, args):
+        sig = inspect.signature(module.forward)
+        # Bind positional args to real parameter names
+        bound = sig.bind_partial(*args)
+
+        named_shapes = {}
+        for name, value in bound.arguments.items():
+            if torch.is_tensor(value):
+                named_shapes[name] = tuple(value.shape)
+
+        dummy_inputs[module_name] = named_shapes
+        return None  # do not modify inputs
+    return hook
+
+def get_output_name_and_shape(output, name):
+    from dataclasses import fields, is_dataclass
+
+    named_shapes = {}
+    if torch.is_tensor(output):
+        named_shapes[name] = tuple(output.shape)
+    elif is_dataclass(output):
+        for f in fields(output):
+            val = getattr(output, f.name)
+            if torch.is_tensor(val):
+                named_shapes[f.name] = tuple(val.shape)
+    elif isinstance(output, (tuple, list)):
+        for i, x in enumerate(output):
+            if torch.is_tensor(x):
+                named_shapes[f"{name}_{i}"] = tuple(x.shape)
+    elif isinstance(output, dict):
+        for k, v in output.items():
+            if torch.is_tensor(v):
+                named_shapes[k] = tuple(v.shape)
+    return named_shapes
+    
+
+def make_dataclass_output_hook(dummy_outputs, module_name):
+    def hook(module, args, output):
+        dummy_outputs[module_name] = get_output_name_and_shape(output, "sample")
+        return None  # don't modify output
+    return hook
+
+def _get_submodels_and_tensors_(
+    model: PreTrainedModel | DiffusionPipeline,
+    inf_kwargs: dict[str, Any] | None = None):
+    # key: module_name, value: {input_name: tensor_shape}
+    dummy_inputs = {}
+    dummy_outputs = {}
+
+    import torch.nn as nn
+    for name, module in model.components.items():
+        if isinstance(module, nn.Module):
+            dummy_inputs[name] = {}
+            dummy_outputs[name] = {}
+
+    if "text_encoder" in dummy_inputs.keys():
+        model.text_encoder.register_forward_pre_hook(
+            make_positional_hook(dummy_inputs, "text_encoder")
+        )
+        model.text_encoder.register_forward_hook(
+            make_dataclass_output_hook(dummy_outputs, "text_encoder")
+        )
+
+    if "transformer" in dummy_inputs.keys():
+        original_forward = model.transformer.forward
+        def wrapped_forward(*args, **kwargs):
+            for key, value in kwargs.items():
+                if torch.is_tensor(value):
+                    dummy_inputs["transformer"][key] = tuple(value.shape)
+            return original_forward(*args, **kwargs)
+        
+        model.transformer.forward = wrapped_forward
+        model.transformer.register_forward_hook(
+            make_dataclass_output_hook(dummy_outputs, "transformer")
+        )
+
+    if "vae" in dummy_inputs.keys():
+        import inspect
+        import types
+
+        dummy_inputs["vae_encoder"] = {}
+        dummy_inputs["vae_decoder"] = {}
+        # hook encoder
+        wrap_encode = model.vae.encode
+        orig_encode = None
+        for cell in wrap_encode.__closure__:
+            if inspect.isfunction(cell.cell_contents):
+                orig_decode = cell.cell_contents
+                break
+        if orig_encode is None:
+            sig = None
+        else:
+            sig = inspect.signature(orig_encode)
+        def hooked_encode(self, *args, **kwargs):
+            if sig is not None:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                for name, value in bound.arguments.items():
+                    if torch.is_tensor(value):
+                        dummy_inputs["vae_encoder"][name] = tuple(value.shape)
+            output = wrap_encode(*args, **kwargs)
+            dummy_output["vae_encoder"] = get_output_name_and_shape(output, "latent_dist")
+            return output
+        model.vae.encode = types.MethodType(hooked_encode, model.vae)
+
+        wrap_decode = model.vae.decode
+        orig_decode = None
+        for cell in wrap_decode.__closure__:
+            if inspect.isfunction(cell.cell_contents):
+                orig_decode = cell.cell_contents
+                break
+        if orig_decode is None:
+            sig = None
+        else:
+            sig = inspect.signature(orig_decode)
+        def hooked_decode(self, *args, **kwargs):
+            if sig is not None:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                for name, value in bound.arguments.items():
+                    if torch.is_tensor(value):
+                        dummy_inputs["vae_decoder"][name] = tuple(value.shape)
+            output = wrap_decode(*args, **kwargs)
+            dummy_outputs["vae_decoder"] = get_output_name_and_shape(output, "sample")
+            return output
+        model.vae.decode = types.MethodType(hooked_decode, model.vae)
+
+    output = model(**inf_kwargs).frames[0]  # yes, we can inference
+
+    print("dummy_inputs: ", dummy_inputs)
+    print("dummy_outputs: ", dummy_outputs)
+    return dummy_inputs
+    
+    
+

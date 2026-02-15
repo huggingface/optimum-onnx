@@ -67,6 +67,7 @@ def main_export(
     framework: str | None = "pt",
     atol: float | None = None,
     pad_token_id: int | None = None,
+    inf_kwargs: dict[str,Any] | None = None,
     # hub options
     subfolder: str = "",
     revision: str = "main",
@@ -212,6 +213,9 @@ def main_export(
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
+    print(inf_kwargs)
+    print(f"library name {library_name}")
+
     if framework is None:
         framework = TasksManager.determine_framework(
             model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
@@ -237,6 +241,8 @@ def main_export(
                 "The library name was inferred as `diffusers`, which is not installed. "
                 "Please install it with `pip install diffusers`."
             )
+
+    print(f"After infer library_name: {library_name}")
 
     torch_dtype = None
     if framework == "pt":
@@ -399,6 +405,8 @@ def main_export(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
 
+    print(type(model)) # good 
+
     onnx_export_from_model(
         model=model,
         output=output,
@@ -420,6 +428,7 @@ def main_export(
         do_constant_folding=do_constant_folding,
         slim=slim,
         dynamo=dynamo,
+        inf_kwargs=inf_kwargs,
         **kwargs_shapes,
     )
 
