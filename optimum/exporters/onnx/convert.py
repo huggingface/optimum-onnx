@@ -38,6 +38,7 @@ from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
 from optimum.exporters.onnx.utils import (
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
+    _get_submodels_and_tensors_,
     recursive_to_device,
 )
 from optimum.exporters.tasks import TasksManager
@@ -826,6 +827,7 @@ def onnx_export_from_model(
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    inf_kwargs: dict[str,Any] | None = None,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -980,6 +982,9 @@ def onnx_export_from_model(
             raise ValueError(
                 f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
             )
+
+    # inference model
+    models_and_dummy_inputs_ = _get_submodels_and_tensors_(model=model, inf_kwargs=inf_kwargs)
 
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
