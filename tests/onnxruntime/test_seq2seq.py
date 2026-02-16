@@ -29,12 +29,16 @@ from transformers import (
     AutoImageProcessor,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
-    AutoModelForVision2Seq,
     AutoTokenizer,
     GenerationConfig,
     PretrainedConfig,
     set_seed,
 )
+try:
+    # transformers>=5
+    from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
+except ImportError:
+    from transformers import AutoModelForVision2Seq
 from transformers.cache_utils import Cache
 from transformers.models.auto.configuration_auto import CONFIG_MAPPING_NAMES
 
@@ -788,6 +792,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
+        if use_cache and is_transformers_version(">=", "4.57"):
+            # TODO: update the test for transformers>=4.57.
+            self.skipTest("<task>-with-past is no longer supported for transformers>=4.57.")
         texts = self.get_inputs("t5", for_pipeline=True)
 
         # Text2Text generation
@@ -1184,7 +1191,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         # "vision-encoder-decoder-trocr",
     ]
 
-    TASK = "image-to-text"  # this task does not seem to be valid anymore.
+    TASK = "image-to-text" if is_transformers_version("<", "5.0") else "image-text-to-text"
     ORTMODEL_CLASS = ORTModelForVision2Seq
     AUTOMODEL_CLASS = AutoModelForVision2Seq
 

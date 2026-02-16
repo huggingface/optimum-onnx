@@ -136,13 +136,19 @@ def ort_infer_framework_load_model(
 
 @contextlib.contextmanager
 def patch_pipelines_to_load_ort_model():
-    original_infer_framework_load_model = transformers.pipelines.infer_framework_load_model
+    if hasattr(transformers.pipelines, "infer_framework_load_model"):
+        original_infer_framework_load_model = transformers.pipelines.infer_framework_load_model
 
-    transformers.pipelines.infer_framework_load_model = ort_infer_framework_load_model
-    try:
-        yield
-    finally:
-        transformers.pipelines.infer_framework_load_model = original_infer_framework_load_model
+        transformers.pipelines.infer_framework_load_model = ort_infer_framework_load_model
+        try:
+            yield
+        finally:
+            transformers.pipelines.infer_framework_load_model = original_infer_framework_load_model
+    else:
+        try:
+            yield
+        finally:
+            pass
 
 
 # The docstring is simply a copy of transformers.pipelines.pipeline's doc with minor modifications
