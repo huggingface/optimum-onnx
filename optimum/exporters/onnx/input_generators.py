@@ -17,6 +17,7 @@ from optimum.utils import (
     DummyAudioInputGenerator,
     DummyPastKeyValuesGenerator,
     DummyTransformerTextInputGenerator,
+    DummyInputGenerator,
     NormalizedTextConfig,
     is_transformers_version,
 )
@@ -108,3 +109,29 @@ class DummySanaTransforemerTextInputGenerator(DummyTransformerTextInputGenerator
             return super().generate(
                 input_name=input_name, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
             )
+
+class DummyTupleInputGenerator(DummyInputGenerator):
+
+    def __init__(self, task: str, config_dim: dict[str, int], **kwargs):
+        super().__init__()
+        self.config_dim = config_dim
+        self.padding_side = "right"
+
+    def generate(self, input_name: str, 
+                       tensor_shape: tuple[int, ...], 
+                       framework: str = "pt", 
+                       int_dtype: str = "int64", 
+                       float_dtype: str = "fp32"):
+        if "input_id" in input_name:
+            min_value = 0
+            max_value = self.config_dim.get("vocab_size", 1000)
+            return self.random_int_tensor(list(tensor_shape), max_value, min_value=min_value, framework=framework, dtype=int_dtype)
+        elif "mask" in input_name:
+            return self.random_mask_tensor(list(tensor_shape), padding_side=self.padding_side, framework=framework, dtype=int_dtype)
+        return self.random_float_tensor(list(tensor_shape), framework=framework, dtype=float_dtype)
+            
+
+            
+        
+        
+    
