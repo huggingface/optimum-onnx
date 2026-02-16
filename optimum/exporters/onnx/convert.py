@@ -639,17 +639,17 @@ def export_pytorch(
                 dynamic_axes = dict(chain(inputs.items(), config.outputs.items()))
 
             if is_torch_version(">=", "2.9"):
-                dynamo_kwargs = {"dynamo": dynamo, "external_data": dynamo}
+                export_kwargs = {"dynamo": dynamo, "external_data": dynamo}
                 if dynamo:
                     if len(dynamic_axes) == len(dummy_inputs):
-                        dynamo_kwargs["dynamic_shapes"] = dynamic_axes
+                        export_kwargs["dynamic_shapes"] = dynamic_axes
                     else:
                         dummy_inputs, dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
                             dummy_inputs,
                             dynamic_axes,
                         )
                         if len(dynamic_shapes) == len(dummy_inputs) and list(dynamic_shapes) == list(dummy_inputs):
-                            dynamo_kwargs["dynamic_shapes"] = dynamic_shapes
+                            export_kwargs["dynamic_shapes"] = dynamic_shapes
                         else:
                             raise NotImplementedError(
                                 f"The dummy inputs have {list(dummy_inputs)} arguments "
@@ -657,16 +657,16 @@ def export_pytorch(
                                 f"dynamic shapes are {dynamic_shapes}."
                             )
                 else:
-                    dynamo_kwargs["dynamic_axes"] = dynamic_axes
+                    export_kwargs["dynamic_axes"] = dynamic_axes
             else:
                 if dynamo:
                     raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
-                dynamo_kwargs = {"dynamic_axes": dynamic_axes}
+                export_kwargs = {"dynamic_axes": dynamic_axes}
 
             if dynamo and os.environ.get("EXPORTDEBUG", "") == "1":
                 from ._debug_tool import debug_torch_export_export
 
-                debug_torch_export_export(model, dummy_inputs, dynamo_kwargs["dynamic_shapes"])
+                debug_torch_export_export(model, dummy_inputs, export_kwargs["dynamic_shapes"])
 
             # Export can work with named args
             # but the dict containing named args has to be the last element of the args tuple.
@@ -678,7 +678,7 @@ def export_pytorch(
                 output_names=output_names,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
-                **dynamo_kwargs,
+                **export_kwargs,
             )
 
         # check if external data was exported
