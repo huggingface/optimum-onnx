@@ -34,6 +34,7 @@ from transformers import (
     PretrainedConfig,
     set_seed,
 )
+
 try:
     # transformers>=5
     from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
@@ -792,9 +793,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"use_cache": [True], "use_merged": [False, True]}))
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
-        if use_cache and is_transformers_version(">=", "4.57"):
+        if is_transformers_version(">=", "4.56") and use_cache:
             # TODO: update the test for transformers>=4.57.
-            self.skipTest("<task>-with-past is no longer supported for transformers>=4.57.")
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.57. self.TASK={self.TASK!r}.")
         texts = self.get_inputs("t5", for_pipeline=True)
 
         # Text2Text generation
@@ -1183,7 +1184,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
 
 class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
-    # The task does not seem to be valid anymore, it should be fixed in another PR.
+    # TODO: The task does not seem to be valid anymore, it should be fixed in another PR.
     SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
         # "pix2struct",
         # "vision-encoder-decoder",
@@ -1360,6 +1361,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             pytest.skip(
                 "Skipping because vision-encoder-decoder did not work properly with pipelines in transformers < 4.38.0"
             )
+        if is_transformers_version(">=", "4.56") and use_cache:
+            # TODO: update the test for transformers>=4.57.
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.57. self.TASK={self.TASK!r}.")
 
         images = self.get_inputs("vision-encoder-decoder", for_pipeline=True)
 
