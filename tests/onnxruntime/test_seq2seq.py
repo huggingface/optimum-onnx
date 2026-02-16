@@ -35,6 +35,7 @@ from transformers import (
     set_seed,
 )
 
+
 try:
     # transformers>=5
     from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
@@ -795,7 +796,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool, use_merged: bool):
         if is_transformers_version(">=", "4.56") and use_cache:
             # TODO: update the test for transformers>=4.57.
-            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.57. self.TASK={self.TASK!r}.")
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.56. self.TASK={self.TASK!r}.")
         texts = self.get_inputs("t5", for_pipeline=True)
 
         # Text2Text generation
@@ -849,6 +850,9 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
     # Generation is slow without pkv, and we do compare with/without pkv in a different test
     @parameterized.expand(grid_parameters({"model_arch": ["t5"], "use_cache": [True], "use_merged": [False, True]}))
     def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if is_transformers_version(">=", "4.56") and use_cache:
+            # TODO: update the test for transformers>=4.57.
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.56. self.TASK={self.TASK!r}.")
         setup_args = {
             "test_name": test_name,
             "use_cache": use_cache,
@@ -1118,6 +1122,9 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         grid_parameters({"model_arch": ["whisper"], "use_cache": [True], "use_merged": [False, True]})
     )
     def test_ort_pipeline_with_onnx_model(self, test_name: str, model_arch: str, use_cache: bool, use_merged: bool):
+        if is_transformers_version(">=", "4.56") and use_cache:
+            # TODO: update the test for transformers>=4.57.
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.56. self.TASK={self.TASK!r}.")
         setup_args = {
             "test_name": test_name,
             "use_cache": use_cache,
@@ -1363,7 +1370,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             )
         if is_transformers_version(">=", "4.56") and use_cache:
             # TODO: update the test for transformers>=4.57.
-            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.57. self.TASK={self.TASK!r}.")
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.56. self.TASK={self.TASK!r}.")
 
         images = self.get_inputs("vision-encoder-decoder", for_pipeline=True)
 
@@ -1433,6 +1440,9 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
             pytest.skip(
                 "Skipping because vision-encoder-decoder did not work properly with pipelines in transformers < 4.38.0"
             )
+        if is_transformers_version(">=", "4.56") and use_cache:
+            # TODO: update the test for transformers>=4.57.
+            self.skipTest(f"<task>-with-past is no longer supported for transformers>=4.56. self.TASK={self.TASK!r}.")
 
         setup_args = {
             "test_name": test_name,
