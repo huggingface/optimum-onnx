@@ -529,6 +529,8 @@ def export_pytorch(
         if input_shapes is None:
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
+        input_shapes = {}
+
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
 
@@ -984,7 +986,7 @@ def onnx_export_from_model(
             )
 
     # inference model
-    models_and_dummy_inputs_ = _get_submodels_and_tensors_(model=model, inf_kwargs=inf_kwargs)
+    models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(model=model, inf_kwargs=inf_kwargs)
 
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
@@ -998,6 +1000,8 @@ def onnx_export_from_model(
         _variant=_variant,
         library_name=library_name,
         model_kwargs=model_kwargs,
+        models_and_inputs=models_and_inputs,
+        models_and_outputs=models_and_outputs,
     )
 
     if library_name != "diffusers":

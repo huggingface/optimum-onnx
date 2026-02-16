@@ -24,6 +24,7 @@ from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils.import_utils import is_diffusers_available, is_transformers_version
+from optimum.exporters.onnx.model_configs import DummyOnnxConfig
 
 
 if TYPE_CHECKING:
@@ -233,6 +234,51 @@ def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "in
 
     return models_for_export
 
+def get_dynamic_models_for_export(
+    pipeline: DiffusionPipeline,
+    models_and_inputs: dict | None = None,
+    models_and_outputs: dict | None = None,
+    int_dtype: str = "int64", 
+    float_dtype: str = "fp32"
+):
+    import copy
+    config_dim = {"in_channels": 16, "d_model": 4096}
+
+    models_for_export = {}
+    text_encoder = pipeline.text_encoder
+    text_encoder_config = DummyOnnxConfig(config=text_encoder.config, 
+                                          task="text-encoding", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["text_encoder"],
+                                          model_outputs=models_and_outputs["text_encoder"],
+                                          config_dim=config_dim)
+    models_for_export["text_encoder"] = (text_encoder, text_encoder_config) 
+
+    transformer = pipeline.transformer
+    transformer_config = DummyOnnxConfig(config=transformer.config, 
+                                          task="backbone", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["transformer"],
+                                          model_outputs=models_and_outputs["transformer"],
+                                          config_dim=config_dim)
+    models_for_export["transformer"] = (transformer, transformer_config)
+
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
+                                          task="latent_decode", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["vae_decoder"],
+                                          model_outputs=models_and_outputs["vae_decoder"],
+                                          config_dim=config_dim)
+    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
+    return models_for_export
 
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
@@ -247,6 +293,8 @@ def _get_submodels_and_onnx_configs(
     fn_get_submodels: Callable | None = None,
     preprocessors: list[Any] | None = None,
     model_kwargs: dict | None = None,
+    models_and_inputs: dict | None = None,
+    models_and_outputs: dict | None = None,
 ):
     if library_name == "transformers" and model.config.model_type == "metaclip_2":
         export_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -263,6 +311,10 @@ def _get_submodels_and_onnx_configs(
 
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
+
+    ## 
+    if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None:
+        return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, int_dtype, float_dtype)
 
     return _get_submodels_and_export_configs(
         model,
@@ -409,9 +461,13 @@ def _get_submodels_and_tensors_(
 
     output = model(**inf_kwargs).frames[0]  # yes, we can inference
 
-    print("dummy_inputs: ", dummy_inputs)
-    print("dummy_outputs: ", dummy_outputs)
-    return dummy_inputs
+    filtered_inputs = {k: v for k, v in dummy_inputs.items() if v}
+    filtered_outputs = {k: v for k, v in dummy_outputs.items() if v}
+
+    print("dummy_inputs: ", filtered_inputs)
+    print("dummy_outputs: ", filtered_outputs)
+    
+    return filtered_inputs, filtered_outputs
     
     
 
