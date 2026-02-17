@@ -580,6 +580,8 @@ def export_pytorch(
                 **dynamo_kwargs,
             )
 
+            print("dynamic_axes: ", dynamix_axes)
+
         # check if external data was exported
         onnx_model = onnx.load(str(output), load_external_data=False)
         model_uses_external_data = check_model_uses_external_data(onnx_model)
@@ -753,6 +755,7 @@ def export(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
+    print("export function: ")
     if not is_torch_available():
         raise ImportError("Cannot convert because PyTorch is not installed. Please install PyTorch first.")
 
@@ -805,7 +808,9 @@ def export(
         )
 
     if not disable_dynamic_axes_fix:
+        input_shapes = {}
         config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
+    print("after export: ")
     return export_output
 
 
@@ -963,6 +968,7 @@ def onnx_export_from_model(
         )
 
     output = Path(output)
+    print("output: ", output)
     if not output.exists():
         output.mkdir(parents=True)
 
@@ -1099,6 +1105,8 @@ def onnx_export_from_model(
         model_kwargs=model_kwargs,
     )
 
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! export model !!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
     if optimize is not None:
         from optimum.onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
@@ -1144,6 +1152,8 @@ def onnx_export_from_model(
     if device == "cpu":
         # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
         use_subprocess = False
+
+    print("do_validation: !!!!!!!!!!!!!!!!!!!", do_validation)
 
     if do_validation is True:
         try:

@@ -2869,7 +2869,7 @@ class DummyOnnxConfig(OnnxConfig):
         task: str = "text-encoding",
         preprocessors: list[Any] | None = None,
         int_dtype: str = "int64",
-        float_dtype: str = "fp32",
+        float_dtype: str = "fp16",
         model_inputs: dict[str, Any] | None = None,
         model_outputs: dict[str, Any] | None = None,
         config_dim: dict[str, int] | None = None,
@@ -2879,8 +2879,9 @@ class DummyOnnxConfig(OnnxConfig):
         self.model_inputs = model_inputs
         self.model_outputs = model_outputs
         self.dummy_tuple_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](task=task, config_dim=config_dim)
+        self.config_dim = config_dim
 
-    def infer_dynamic_dims(self, tensor_shape: tuple[int, ...], config_dim: dict[str, int]) -> dict[int, str]:
+    def infer_dynamic_dims(self, tensor_shape: tuple[int, ...], config_dim: dict[str, int], name: str="input") -> dict[int, str]:
         dynamic = {}
         for idx, dim in enumerate(tensor_shape):
             # Batch is always dynamic
@@ -2892,11 +2893,12 @@ class DummyOnnxConfig(OnnxConfig):
             for key, value in config_dim.items():
                 if value == dim:
                     find_match = True
+                    break
 
             if find_match is True:
                 continue
 
-            dynamic[idx] = f"dim_{idx}"
+            dynamic[idx] = f"{name}_dim_{idx}"
         return dynamic
 
     @property
@@ -2908,32 +2910,32 @@ class DummyOnnxConfig(OnnxConfig):
             return model_inputs_dynamic_axes
         if self.task == "backbone":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, config_dim)
+                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
             return model_inputs_dynamic_axes
         if self.task == "latent_decode":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, config_dim)
+                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "input")
             return model_inputs_dynamic_axes
         return model_inputs_dynamic_axes
             
     @property
     def outputs(self) -> dict[str, dict[int, str]]:
+        model_outputs_dynamic_axes = {}
         if self.task == "text-encoding":
-            model_outputs_dynamic_axes = {}
             for key, value in self.model_outputs.items():
                 model_outputs_dynamic_axes[key] = {0: "batch_size", 1: "sequence_length"}
             return model_outputs_dynamic_axes
         if self.task == "backbone":
             for key, value in self.model_outputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, config_dim)
-            return model_inputs_dynamic_axes
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
+            return model_outputs_dynamic_axes
         if self.task == "latent_decode":
             for key, value in self.model_outputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, config_dim)
-            return model_inputs_dynamic_axes
-        return model_inputs_dynamic_axes
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "output")
+            return model_outputs_dynamic_axes
+        return model_outputs_dynamic_axes
 
-    def generate_dummy_inputs(self, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp32"):
+    def generate_dummy_inputs(self, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp16"):
         dummy_inputs = {}
         for key, value in self.model_inputs.items():
             dummy_inputs[key] = self.dummy_tuple_input_generator.generate(key, value, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
