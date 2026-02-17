@@ -242,6 +242,9 @@ def get_dynamic_models_for_export(
     float_dtype: str = "fp32"
 ):
     import copy
+    import types
+    from functools import partial
+
     config_dim = {"in_channels": 16, "d_model": 4096}
 
     models_for_export = {}
@@ -268,7 +271,10 @@ def get_dynamic_models_for_export(
     models_for_export["transformer"] = (transformer, transformer_config)
 
     vae_decoder = copy.deepcopy(pipeline.vae)
-    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    # proper forward wrapper
+    def vae_forward(self, latent_sample):
+        return vae_decoder.decode(self, z=latent_sample, return_dict=False)
+    vae_decoder.forward = types.MethodType(vae_forward, vae_decoder)
     vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
                                           task="latent_decode", 
                                           preprocessors=None, 
@@ -379,46 +385,47 @@ def make_dataclass_output_hook(dummy_outputs, module_name):
 def _get_submodels_and_tensors_(
     model: PreTrainedModel | DiffusionPipeline,
     inf_kwargs: dict[str, Any] | None = None):
+    import torch.nn as nn
+    import inspect
+    import types
+    
     # key: module_name, value: {input_name: tensor_shape}
     dummy_inputs = {}
     dummy_outputs = {}
 
-    import torch.nn as nn
+    hooks = []
+    transformer_original_forward = None
+    orig_decode = None
+    orig_encode = None
+
     for name, module in model.components.items():
         if isinstance(module, nn.Module):
             dummy_inputs[name] = {}
             dummy_outputs[name] = {}
 
     if "text_encoder" in dummy_inputs.keys():
-        model.text_encoder.register_forward_pre_hook(
-            make_positional_hook(dummy_inputs, "text_encoder")
-        )
-        model.text_encoder.register_forward_hook(
-            make_dataclass_output_hook(dummy_outputs, "text_encoder")
-        )
+        hooks.append(
+            model.text_encoder.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder")))
+        hooks.append(
+            model.text_encoder.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder")))
 
     if "transformer" in dummy_inputs.keys():
-        original_forward = model.transformer.forward
+        transformer_original_forward = model.transformer.forward
         def wrapped_forward(*args, **kwargs):
             for key, value in kwargs.items():
                 if torch.is_tensor(value):
                     dummy_inputs["transformer"][key] = tuple(value.shape)
-            return original_forward(*args, **kwargs)
+            return transformer_original_forward(*args, **kwargs)
         
         model.transformer.forward = wrapped_forward
-        model.transformer.register_forward_hook(
-            make_dataclass_output_hook(dummy_outputs, "transformer")
-        )
+        hooks.append(
+            model.transformer.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "transformer")))
 
     if "vae" in dummy_inputs.keys():
-        import inspect
-        import types
-
         dummy_inputs["vae_encoder"] = {}
         dummy_inputs["vae_decoder"] = {}
         # hook encoder
         wrap_encode = model.vae.encode
-        orig_encode = None
         for cell in wrap_encode.__closure__:
             if inspect.isfunction(cell.cell_contents):
                 orig_decode = cell.cell_contents
@@ -439,7 +446,6 @@ def _get_submodels_and_tensors_(
         model.vae.encode = types.MethodType(hooked_encode, model.vae)
 
         wrap_decode = model.vae.decode
-        orig_decode = None
         for cell in wrap_decode.__closure__:
             if inspect.isfunction(cell.cell_contents):
                 orig_decode = cell.cell_contents
@@ -453,7 +459,7 @@ def _get_submodels_and_tensors_(
                 bound = sig.bind_partial(self, *args, **kwargs)
                 for name, value in bound.arguments.items():
                     if torch.is_tensor(value):
-                        dummy_inputs["vae_decoder"][name] = tuple(value.shape)
+                        dummy_inputs["vae_decoder"]["latent_sample"] = tuple(value.shape)
             output = wrap_decode(*args, **kwargs)
             dummy_outputs["vae_decoder"] = get_output_name_and_shape(output, "sample")
             return output
@@ -466,6 +472,16 @@ def _get_submodels_and_tensors_(
 
     print("dummy_inputs: ", filtered_inputs)
     print("dummy_outputs: ", filtered_outputs)
+
+    # remove all the model hooks 
+    for h in hooks:
+        h.remove()
+    if transformer_original_forward is not None:
+        model.transformer.forward = transformer_original_forward
+    if orig_decode is not None:
+        model.vae.decode = orig_decode
+    if orig_encode is not None:
+        model.vae.encode = orig_encode
     
     return filtered_inputs, filtered_outputs
     

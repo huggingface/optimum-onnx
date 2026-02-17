@@ -362,8 +362,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         # export the model if no ONNX files are found or if asked explicitly
         if export:
-            model_save_tmpdir = TemporaryDirectory()
-            model_save_path = Path(model_save_tmpdir.name)
+            model_save_tmpdir = Path("/dev/shm")
+            model_save_path = Path("/dev/shm")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -387,9 +387,9 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
             inf_kwargs = {
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
-                "height": 480,
-                "width":832,
-                "num_frames": 81,
+                "height": 240,
+                "width":416,
+                "num_frames": 21,
                 "guidance_scale": 5.0
             }
 
@@ -854,8 +854,10 @@ class ORTVaeDecoder(ORTModelMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        print("vae decoder: ", self.config)
+
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor"):
+        if not hasattr(self.config, "scaling_factor") and hasattr(self.config, "block_out_channels"):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."

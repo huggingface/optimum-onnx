@@ -20,5 +20,5 @@ print("Loaded successfully on:", pipe.device)
 prompt = "A cat walks on the grass, realistic"
 negative_prompt = "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
 
-output = pipe(prompt=prompt, negative_prompt=negative_prompt, height=256, width=256, num_frames=50).frames[0]
+output = pipe(prompt=prompt, negative_prompt=negative_prompt, height=240, width=416, num_frames=21).frames[0]
 export_to_video(output, "output.mp4", fps=15)
