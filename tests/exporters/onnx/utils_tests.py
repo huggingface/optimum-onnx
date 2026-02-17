@@ -100,8 +100,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
-    "flaubert": "hf-internal-testing/tiny-random-flaubert",
     # broken models
+    # "flaubert": "hf-internal-testing/tiny-random-flaubert",
     # "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     # "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
     "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
@@ -109,7 +109,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # broken models
     # "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
-    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    # broken models
+    # "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",

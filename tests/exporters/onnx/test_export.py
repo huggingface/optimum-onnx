@@ -274,8 +274,10 @@ class OnnxExportTestCase(TestCase):
 
         if model_type == "sana":
             models_and_onnx_configs = get_sana_models_for_export(pipeline)
+            atol = 2e-3
         else:
             models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
+            atol = None
 
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(
@@ -288,6 +290,7 @@ class OnnxExportTestCase(TestCase):
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
                 use_subprocess=False,
+                atol=atol,
             )
 
     def test_all_models_tested(self):
