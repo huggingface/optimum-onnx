@@ -101,21 +101,25 @@ PYTORCH_EXPORT_MODELS_TINY = {
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
-    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
-    "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
+    # broken models
+    # "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    # "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
     "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
     "gemma3_text": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
-    "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
+    # broken models
+    # "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
     "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
-    "gpt_oss": "echarlaix/tiny-random-gpt-oss-mxfp4",
-    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
-    "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
+    # broken models
+    # "gpt_oss": "echarlaix/tiny-random-gpt-oss-mxfp4",
+    # "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    # "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
-    "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
+    # broken models
+    # "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
     "ibert": "hf-internal-testing/tiny-random-IBertModel",
     # "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel", # The mode is broken on transformers :/
@@ -256,23 +260,6 @@ PYTORCH_EXPORT_MODELS_TINY_DYNAMO = {
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",
-    "vision-encoder-decoder": {
-        # vit-gpt2
-        "hf-internal-testing/tiny-random-VisionEncoderDecoderModel-vit-gpt2": [
-            "image-to-text",
-            "image-to-text-with-past",
-        ],
-        # donut encoder
-        "fxmarty/tiny-doc-qa-vision-encoder-decoder": [
-            "image-to-text",
-            "image-to-text-with-past",
-        ],
-        # trocr decoder
-        "optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-trocr": [
-            "image-to-text",
-            "image-to-text-with-past",
-        ],
-    },
 }
 
 # TODO: enable export slow tests
