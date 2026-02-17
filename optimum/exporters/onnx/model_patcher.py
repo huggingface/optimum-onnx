@@ -36,6 +36,7 @@ if is_transformers_version(">=", "4.54"):
 if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
     from transformers.models.clip.modeling_clip import CLIPAttention, CLIPSdpaAttention
 if is_transformers_version(">=", "4.48"):
+    from transformers.cache_utils import DynamicCache, EncoderDecoderCache
     from transformers.models.moonshine.modeling_moonshine import MoonshinePreTrainedModel
 if is_transformers_version(">=", "4.53"):
     from transformers.masking_utils import (
@@ -55,14 +56,6 @@ if is_transformers_version(">=", "4.55"):
     from transformers.models.gpt_oss.modeling_gpt_oss import GptOssExperts
 if is_transformers_version(">=", "4.56"):
     from transformers.cache_utils import DynamicLayer
-
-if is_transformers_version("<", "5"):
-    from transformers import DynamicCache as ONNXDynamicCache
-    from transformers import EncoderDecoderCache as ONNXEncoderDecoderCache
-else:
-    from optimum.exporters.onnx.utils import LegacyDynamicCache as ONNXDynamicCache
-    from optimum.exporters.onnx.utils import LegacyEncoderDecoderCache as ONNXEncoderDecoderCache
-
 
 if is_diffusers_version(">=", "0.35.0"):
     import diffusers.models.transformers.transformer_flux
@@ -212,9 +205,18 @@ def preprocess_past_key_values(past_key_values):
         and isinstance(past_key_values[0], (list, tuple))
     ):
         if len(past_key_values[0]) == 2:
-            past_key_values = ONNXDynamicCache.from_legacy_cache(past_key_values)
+            if hasattr(DynamicCache, "from_legacy_cache"):
+                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+            else:
+                past_key_values = DynamicCache(past_key_values)
         elif len(past_key_values[0]) == 4:
-            past_key_values = ONNXEncoderDecoderCache.from_legacy_cache(past_key_values)
+            if hasattr(EncoderDecoderCache, "from_legacy_cache"):
+                past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
+            else:
+                past_key_values = EncoderDecoderCache(
+                    DynamicCache([layer[:2] for layer in past_key_values]),
+                    DynamicCache([layer[2:] for layer in past_key_values]),
+                )
         else:
             raise ValueError(
                 f"past_key_values should have either 2 or 4 elements, but it has {len(past_key_values[0])} elements."
@@ -224,10 +226,19 @@ def preprocess_past_key_values(past_key_values):
 
 
 def postprocess_past_key_values(past_key_values, output_names: list[str]):
-    if is_transformers_version(">=", "4.48") and isinstance(
-        past_key_values, (ONNXEncoderDecoderCache, ONNXDynamicCache)
-    ):
-        past_key_values = past_key_values.to_legacy_cache()
+    if is_transformers_version(">=", "4.48") and isinstance(past_key_values, (EncoderDecoderCache, DynamicCache)):
+        if hasattr(past_key_values, "to_legacy_cache"):
+            past_key_values = past_key_values.to_legacy_cache()
+        elif isinstance(past_key_values, DynamicCache):
+            past_key_values = [(lay.keys, lay.values) for lay in past_key_values.layers]
+        elif isinstance(past_key_values, EncoderDecoderCache):
+            past_key_values = [
+                (self_lay.keys, self_lay.values, cross_lay.keys, cross_lay.values)
+                for self_lay, cross_lay in zip(
+                    past_key_values.self_attention_cache.layers,
+                    past_key_values.cross_attention_cache.layers,
+                )
+            ]
 
     if (
         isinstance(past_key_values, (list, tuple))
