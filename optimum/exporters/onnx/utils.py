@@ -24,6 +24,7 @@ from optimum.exporters.base import ExporterConfig
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import _get_submodels_and_export_configs
 from optimum.utils.import_utils import is_diffusers_available, is_transformers_version
+from optimum.exporters.onnx.model_configs import DummyOnnxConfig
 
 
 if TYPE_CHECKING:
@@ -233,6 +234,57 @@ def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "in
 
     return models_for_export
 
+def get_dynamic_models_for_export(
+    pipeline: DiffusionPipeline,
+    models_and_inputs: dict | None = None,
+    models_and_outputs: dict | None = None,
+    int_dtype: str = "int64", 
+    float_dtype: str = "fp32"
+):
+    import copy
+    import types
+    from functools import partial
+
+    config_dim = {"in_channels": 16, "d_model": 4096}
+
+    models_for_export = {}
+    text_encoder = pipeline.text_encoder
+    text_encoder_config = DummyOnnxConfig(config=text_encoder.config, 
+                                          task="text-encoding", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["text_encoder"],
+                                          model_outputs=models_and_outputs["text_encoder"],
+                                          config_dim=config_dim)
+    models_for_export["text_encoder"] = (text_encoder, text_encoder_config) 
+
+    transformer = pipeline.transformer
+    transformer_config = DummyOnnxConfig(config=transformer.config, 
+                                          task="backbone", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["transformer"],
+                                          model_outputs=models_and_outputs["transformer"],
+                                          config_dim=config_dim)
+    models_for_export["transformer"] = (transformer, transformer_config)
+
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    # proper forward wrapper
+    def vae_forward(self, latent_sample):
+        return vae_decoder.decode(self, z=latent_sample, return_dict=False)
+    vae_decoder.forward = types.MethodType(vae_forward, vae_decoder)
+    vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
+                                          task="latent_decode", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["vae_decoder"],
+                                          model_outputs=models_and_outputs["vae_decoder"],
+                                          config_dim=config_dim)
+    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
+    return models_for_export
 
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
@@ -247,6 +299,8 @@ def _get_submodels_and_onnx_configs(
     fn_get_submodels: Callable | None = None,
     preprocessors: list[Any] | None = None,
     model_kwargs: dict | None = None,
+    models_and_inputs: dict | None = None,
+    models_and_outputs: dict | None = None,
 ):
     if library_name == "transformers" and model.config.model_type == "metaclip_2":
         export_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -264,6 +318,10 @@ def _get_submodels_and_onnx_configs(
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
 
+    ## 
+    if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None:
+        return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, int_dtype, float_dtype)
+
     return _get_submodels_and_export_configs(
         model,
         task,
@@ -279,3 +337,153 @@ def _get_submodels_and_onnx_configs(
         model_kwargs,
         exporter="onnx",
     )
+
+def make_positional_hook(dummy_inputs, module_name):
+    import inspect
+    def hook(module, args):
+        sig = inspect.signature(module.forward)
+        # Bind positional args to real parameter names
+        bound = sig.bind_partial(*args)
+
+        named_shapes = {}
+        for name, value in bound.arguments.items():
+            if torch.is_tensor(value):
+                named_shapes[name] = tuple(value.shape)
+
+        dummy_inputs[module_name] = named_shapes
+        return None  # do not modify inputs
+    return hook
+
+def get_output_name_and_shape(output, name):
+    from dataclasses import fields, is_dataclass
+
+    named_shapes = {}
+    if torch.is_tensor(output):
+        named_shapes[name] = tuple(output.shape)
+    elif is_dataclass(output):
+        for f in fields(output):
+            val = getattr(output, f.name)
+            if torch.is_tensor(val):
+                named_shapes[f.name] = tuple(val.shape)
+    elif isinstance(output, (tuple, list)):
+        for i, x in enumerate(output):
+            if torch.is_tensor(x):
+                named_shapes[f"{name}_{i}"] = tuple(x.shape)
+    elif isinstance(output, dict):
+        for k, v in output.items():
+            if torch.is_tensor(v):
+                named_shapes[k] = tuple(v.shape)
+    return named_shapes
+    
+
+def make_dataclass_output_hook(dummy_outputs, module_name):
+    def hook(module, args, output):
+        dummy_outputs[module_name] = get_output_name_and_shape(output, "sample")
+        return None  # don't modify output
+    return hook
+
+def _get_submodels_and_tensors_(
+    model: PreTrainedModel | DiffusionPipeline,
+    inf_kwargs: dict[str, Any] | None = None):
+    import torch.nn as nn
+    import inspect
+    import types
+    
+    # key: module_name, value: {input_name: tensor_shape}
+    dummy_inputs = {}
+    dummy_outputs = {}
+
+    hooks = []
+    transformer_original_forward = None
+    orig_decode = None
+    orig_encode = None
+
+    for name, module in model.components.items():
+        if isinstance(module, nn.Module):
+            dummy_inputs[name] = {}
+            dummy_outputs[name] = {}
+
+    if "text_encoder" in dummy_inputs.keys():
+        hooks.append(
+            model.text_encoder.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder")))
+        hooks.append(
+            model.text_encoder.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder")))
+
+    if "transformer" in dummy_inputs.keys():
+        transformer_original_forward = model.transformer.forward
+        def wrapped_forward(*args, **kwargs):
+            for key, value in kwargs.items():
+                if torch.is_tensor(value):
+                    dummy_inputs["transformer"][key] = tuple(value.shape)
+            return transformer_original_forward(*args, **kwargs)
+        
+        model.transformer.forward = wrapped_forward
+        hooks.append(
+            model.transformer.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "transformer")))
+
+    if "vae" in dummy_inputs.keys():
+        dummy_inputs["vae_encoder"] = {}
+        dummy_inputs["vae_decoder"] = {}
+        # hook encoder
+        wrap_encode = model.vae.encode
+        for cell in wrap_encode.__closure__:
+            if inspect.isfunction(cell.cell_contents):
+                orig_decode = cell.cell_contents
+                break
+        if orig_encode is None:
+            sig = None
+        else:
+            sig = inspect.signature(orig_encode)
+        def hooked_encode(self, *args, **kwargs):
+            if sig is not None:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                for name, value in bound.arguments.items():
+                    if torch.is_tensor(value):
+                        dummy_inputs["vae_encoder"][name] = tuple(value.shape)
+            output = wrap_encode(*args, **kwargs)
+            dummy_output["vae_encoder"] = get_output_name_and_shape(output, "latent_dist")
+            return output
+        model.vae.encode = types.MethodType(hooked_encode, model.vae)
+
+        wrap_decode = model.vae.decode
+        for cell in wrap_decode.__closure__:
+            if inspect.isfunction(cell.cell_contents):
+                orig_decode = cell.cell_contents
+                break
+        if orig_decode is None:
+            sig = None
+        else:
+            sig = inspect.signature(orig_decode)
+        def hooked_decode(self, *args, **kwargs):
+            if sig is not None:
+                bound = sig.bind_partial(self, *args, **kwargs)
+                for name, value in bound.arguments.items():
+                    if torch.is_tensor(value):
+                        dummy_inputs["vae_decoder"]["latent_sample"] = tuple(value.shape)
+            output = wrap_decode(*args, **kwargs)
+            dummy_outputs["vae_decoder"] = get_output_name_and_shape(output, "sample")
+            return output
+        model.vae.decode = types.MethodType(hooked_decode, model.vae)
+
+    output = model(**inf_kwargs).frames[0]  # yes, we can inference
+
+    filtered_inputs = {k: v for k, v in dummy_inputs.items() if v}
+    filtered_outputs = {k: v for k, v in dummy_outputs.items() if v}
+
+    print("dummy_inputs: ", filtered_inputs)
+    print("dummy_outputs: ", filtered_outputs)
+
+    # remove all the model hooks 
+    for h in hooks:
+        h.remove()
+    if transformer_original_forward is not None:
+        model.transformer.forward = transformer_original_forward
+    if orig_decode is not None:
+        model.vae.decode = orig_decode
+    if orig_encode is not None:
+        model.vae.encode = orig_encode
+    
+    return filtered_inputs, filtered_outputs
+    
+    
+

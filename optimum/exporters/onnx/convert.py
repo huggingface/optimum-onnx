@@ -38,6 +38,7 @@ from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
 from optimum.exporters.onnx.utils import (
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
+    _get_submodels_and_tensors_,
     recursive_to_device,
 )
 from optimum.exporters.tasks import TasksManager
@@ -528,6 +529,8 @@ def export_pytorch(
         if input_shapes is None:
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
+        input_shapes = {}
+
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
 
@@ -576,6 +579,8 @@ def export_pytorch(
                 opset_version=opset,
                 **dynamo_kwargs,
             )
+
+            print("dynamic_axes: ", dynamix_axes)
 
         # check if external data was exported
         onnx_model = onnx.load(str(output), load_external_data=False)
@@ -750,6 +755,7 @@ def export(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
+    print("export function: ")
     if not is_torch_available():
         raise ImportError("Cannot convert because PyTorch is not installed. Please install PyTorch first.")
 
@@ -802,7 +808,9 @@ def export(
         )
 
     if not disable_dynamic_axes_fix:
+        input_shapes = {}
         config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
+    print("after export: ")
     return export_output
 
 
@@ -826,6 +834,7 @@ def onnx_export_from_model(
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    inf_kwargs: dict[str,Any] | None = None,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -959,6 +968,7 @@ def onnx_export_from_model(
         )
 
     output = Path(output)
+    print("output: ", output)
     if not output.exists():
         output.mkdir(parents=True)
 
@@ -981,6 +991,9 @@ def onnx_export_from_model(
                 f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
             )
 
+    # inference model
+    models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(model=model, inf_kwargs=inf_kwargs)
+
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
@@ -993,6 +1006,8 @@ def onnx_export_from_model(
         _variant=_variant,
         library_name=library_name,
         model_kwargs=model_kwargs,
+        models_and_inputs=models_and_inputs,
+        models_and_outputs=models_and_outputs,
     )
 
     if library_name != "diffusers":
@@ -1090,6 +1105,8 @@ def onnx_export_from_model(
         model_kwargs=model_kwargs,
     )
 
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! export model !!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
     if optimize is not None:
         from optimum.onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
@@ -1135,6 +1152,8 @@ def onnx_export_from_model(
     if device == "cpu":
         # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
         use_subprocess = False
+
+    print("do_validation: !!!!!!!!!!!!!!!!!!!", do_validation)
 
     if do_validation is True:
         try:
