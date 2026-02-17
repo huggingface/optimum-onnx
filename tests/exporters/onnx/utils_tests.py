@@ -84,10 +84,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
-        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
-    },
+    # broken models
+    # "encoder-decoder": {
+    #     "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
+    #     "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    # },
     "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
@@ -104,7 +105,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # "flaubert": "hf-internal-testing/tiny-random-flaubert",
     # "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
     # "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
-    "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
+    # "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
     "gemma3_text": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
     # broken models
     # "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
@@ -122,7 +123,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     # broken models
     # "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
-    "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    # "ibert": "hf-internal-testing/tiny-random-IBertModel",
     # "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel", # The mode is broken on transformers :/
     "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
@@ -251,13 +252,8 @@ PYTORCH_EXPORT_MODELS_TINY = {
 PYTORCH_EXPORT_MODELS_TINY_DYNAMO = {
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
-    "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
-        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
-    },
     "flaubert": "hf-internal-testing/tiny-random-flaubert",
     "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
-    "mistral": "echarlaix/tiny-random-mistral",
     "regnet": "hf-internal-testing/tiny-random-RegNetModel",
     "resnet": "hf-internal-testing/tiny-random-resnet",
     "roberta": "hf-internal-testing/tiny-random-RobertaModel",

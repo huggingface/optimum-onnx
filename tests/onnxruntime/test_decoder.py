@@ -488,6 +488,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         onnx_outputs = onnx_model(**inputs)
         self.compare_logits(inputs, outputs, onnx_outputs, onnx_model=onnx_model)
 
+    @unittest.skipIf(is_transformers_version("<", "4.45"), reason="broken for old versions of transformers")
     def test_load_model_infer_onnx_model(self):
         # export from hub
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)
