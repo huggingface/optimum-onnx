@@ -27,6 +27,7 @@ from utils_tests import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_EXPORT_MODELS_TINY_DYNAMO,
     PYTORCH_EXPORT_MODELS_TINY_SLIM,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
@@ -425,7 +426,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             trust_remote_code=trust_remote_code,
         )
 
-    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY, library_name="transformers"))
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY_DYNAMO, library_name="transformers"))
     @require_torch
     @require_vision
     def test_exporters_cli_pytorch_dynamo_cpu(
@@ -452,62 +453,6 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
 
         trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
-
-        if model_type in {
-            "bart",
-            "beit",
-            "bert",
-            "big_bird",
-            "bigbird",
-            "blenderbot_small",
-            "chinese_clip",
-            "chinese-clip",
-            "decision_transformer",
-            "decision-transformer",
-            "deepseek_v3",
-            "deepseek-v3",
-            "detr",
-            "detr_v2",
-            "detr-v2",
-            "distilbert",
-            "donut_swin",
-            "donut-swin",
-            "encoder_decoder",
-            "encoder-decoder",
-            "esm",
-            "falcon",
-            "gemma2",
-            "gemma3",
-            "glm",
-            "gpt2",
-            "gpt_bigcode",
-            "gpt-bigcode",
-            "gpt_neo",
-            "gpt_oss",
-            "longformer",
-            "longt5",
-            "m2m",
-            "mobilebert",
-            "mobilenet",
-            "opt",
-            "owlv2",
-            "owlvit",
-            "perceiver",
-            "phi3",
-            "qwen3",
-            "qwen3_moe",
-            "sam",
-            "siglip",
-            "siglip_vision",
-            "siglip-vision",
-            "smollm3",
-            "vit_msn",
-            "vit-msn",
-            "wav2vec2_conformer",
-            "wav2vec2-conformer",
-            "whipser",
-        }:
-            self.skipTest(f"patches are missing for model type {model_type!r}")
 
         self._onnx_export(
             model_name,
