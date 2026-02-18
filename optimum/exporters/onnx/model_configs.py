@@ -576,6 +576,16 @@ class Qwen2VLOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         return dummy_inputs
 
 
+@register_tasks_manager_onnx("qwen2_5_vl", *COMMON_TEXT_GENERATION_TASKS)
+class Qwen2_5_VLOnnxConfig(Qwen2VLOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
+
+
+@register_tasks_manager_onnx("qwen3_vl", *COMMON_TEXT_GENERATION_TASKS)
+class Qwen3VLOnnxConfig(Qwen2VLOnnxConfig):
+    MIN_TRANSFORMERS_VERSION = version.parse("4.57.0")
+
+
 @register_tasks_manager_onnx("gemma", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
 class GemmaOnnxConfig(TextDecoderOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
