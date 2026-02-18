@@ -110,6 +110,7 @@ MODEL_NAMES = {
     "olmo": "katuni4ka/tiny-random-olmo-hf",
     "olmo2": "hf-internal-testing/tiny-random-Olmo2ForCausalLM",
     "opt": "hf-internal-testing/tiny-random-OPTModel",
+    "paligemma": "hf-internal-testing/tiny-random-PaliGemmaForConditionalGeneration",
     "pegasus": "hf-internal-testing/tiny-random-PegasusModel",
     "perceiver_text": "hf-internal-testing/tiny-random-language_perceiver",
     "perceiver_vision": "hf-internal-testing/tiny-random-vision_perceiver_conv",

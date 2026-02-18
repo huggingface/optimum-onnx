@@ -45,6 +45,7 @@ from optimum.exporters.onnx.model_configs import (
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
     OPTOnnxConfig,
+    PaliGemmaOnnxConfig,
     Phi3OnnxConfig,
     PhiOnnxConfig,
     Qwen2OnnxConfig,
@@ -156,10 +157,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("qwen2_5_vl")
     if is_transformers_version(">=", str(Qwen3VLOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.append("qwen3_vl")
+    if is_transformers_version(">=", str(PaliGemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("paligemma")
 
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
-    VLM_ARCHITECTURES = {"qwen2_vl", "qwen2_5_vl", "qwen3_vl"}  # noqa: RUF012
+    VLM_ARCHITECTURES = {"paligemma", "qwen2_vl", "qwen2_5_vl", "qwen3_vl"}  # noqa: RUF012
+
+    # PaliGemma has tied weights (lm_head / embed_tokens) with small ONNX export discrepancies
+    ATOL_OVERRIDES = {"paligemma": 5e-4}  # noqa: RUF012
 
     # base generation kwargs
     GEN_KWARGS = {  # noqa: RUF012
@@ -314,11 +320,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs1.logits, torch.Tensor)
         self.assertIsInstance(outputs2.logits, torch.Tensor)
 
+        atol = self.ATOL_OVERRIDES.get(onnx_model.config.model_type, self.ATOL)
+        rtol = self.RTOL
+
         if "attention_mask" in inputs:
             self.mask_logits(outputs1.logits, inputs["attention_mask"])
             self.mask_logits(outputs2.logits, inputs["attention_mask"])
 
-        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=atol, rtol=rtol)
 
         if use_cache:
             self.assertTrue("past_key_values" in outputs1)
@@ -343,7 +352,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                 self.mask_past_key_values(onnx_model, outputs2.past_key_values, inputs["attention_mask"])
 
             torch.testing.assert_close(
-                outputs1.past_key_values, outputs2.past_key_values, atol=self.ATOL, rtol=self.RTOL
+                outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol
             )
 
     # INTEGRATION TESTS

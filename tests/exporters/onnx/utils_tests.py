@@ -163,6 +163,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     },
     "phi": "echarlaix/tiny-random-PhiForCausalLM",
     "phi3": "Xenova/tiny-random-Phi3ForCausalLM",
+    "paligemma": "hf-internal-testing/tiny-random-PaliGemmaForConditionalGeneration",
     "pix2struct": "fxmarty/pix2struct-tiny-random",
     "rembert": "hf-internal-testing/tiny-random-RemBertModel",
     "poolformer": "hf-internal-testing/tiny-random-PoolFormerModel",

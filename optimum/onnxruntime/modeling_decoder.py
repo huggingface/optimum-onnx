@@ -187,7 +187,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if self.config.model_type in {"gemma", "gemma3_text", "gpt_oss", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
-        elif self.config.model_type in {"gemma3", "qwen3_vl"}:
+        elif self.config.model_type in {"gemma3", "paligemma", "qwen3_vl"}:
             self.embed_size_per_head = self.config.text_config.head_dim
         elif self.config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
             text_config = self.config.text_config
@@ -222,7 +222,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
-        elif self.config.model_type in {"gemma3", "qwen2_vl", "qwen2_5_vl", "qwen3_vl"}:
+        elif self.config.model_type in {"gemma3", "paligemma", "qwen2_vl", "qwen2_5_vl", "qwen3_vl"}:
             self.num_key_value_heads = self.config.text_config.num_key_value_heads
         elif self.config.model_type == "falcon":
             if self.config.new_decoder_architecture or not self.config.multi_query:

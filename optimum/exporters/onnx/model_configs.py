@@ -602,9 +602,11 @@ class Qwen3VLOnnxConfig(Qwen2VLOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.57.0")
 
 
-# Qwen VL models are ForConditionalGeneration, not ForCausalLM.
+# VL models are ForConditionalGeneration, not ForCausalLM.
 # Register custom classes so TasksManager resolves the correct model class.
 for _vl_model_type, _vl_class_name in [
+    ("gemma3", "Gemma3ForConditionalGeneration"),
+    ("paligemma", "PaliGemmaForConditionalGeneration"),
     ("qwen2_vl", "Qwen2VLForConditionalGeneration"),
     ("qwen2_5_vl", "Qwen2_5_VLForConditionalGeneration"),
     ("qwen3_vl", "Qwen3VLForConditionalGeneration"),
@@ -639,15 +641,104 @@ class Gemma3TextOnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
-# we still don't support gemma3 for multimodal feature-extraction(-with-past) and image-text-to-text(-with-past) tasks
-@register_tasks_manager_onnx("gemma3", *COMMON_TEXT_GENERATION_TASKS, "text-classification")
+@register_tasks_manager_onnx("gemma3", *COMMON_VL_TEXT_GENERATION_TASKS, "text-classification")
 class Gemma3OnnxConfig(GemmaOnnxConfig):
     # Gemma 3 was added in transformers v4.50 using HybridCache
     # DynamicCache support was added since v4.53
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        hidden_size="text_config.hidden_size",
+        num_layers="text_config.num_hidden_layers",
+        num_attention_heads="text_config.num_attention_heads",
+        num_key_value_heads="text_config.num_key_value_heads",
+        head_dim="text_config.head_dim",
+        vocab_size="text_config.vocab_size",
+        image_size="vision_config.image_size",
+        num_channels="vision_config.num_channels",
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator, DummyVisionInputGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
-    def __init__(self, config: PretrainedConfig, **kwargs):
-        super().__init__(config.text_config, **kwargs)
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        common_inputs = super().inputs
+        if self.task == "image-text-to-text" and not self.use_past_in_inputs:
+            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+        return common_inputs
+
+    @property
+    def values_override(self) -> dict[str, Any] | None:
+        text_config = getattr(self._config, "text_config", self._config)
+        if hasattr(text_config, "use_cache"):
+            return {"use_cache": self.use_past}
+        return None
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        if self.task == "image-text-to-text" and not self.use_past_in_inputs:
+            mm_tokens = getattr(self._config, "mm_tokens_per_image", 256)
+            if "sequence_length" in kwargs:
+                kwargs["sequence_length"] += mm_tokens
+            else:
+                kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"] + mm_tokens
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        if self.task == "image-text-to-text" and "pixel_values" in dummy_inputs and "input_ids" in dummy_inputs:
+            mm_tokens = getattr(self._config, "mm_tokens_per_image", 256)
+            image_token_index = getattr(self._config, "image_token_index", 262144)
+            dummy_inputs["input_ids"][:, :mm_tokens] = image_token_index
+
+        return dummy_inputs
+
+
+@register_tasks_manager_onnx("paligemma", *COMMON_VL_TEXT_GENERATION_TASKS)
+class PaliGemmaOnnxConfig(GemmaOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig.with_args(
+        allow_new=True,
+        hidden_size="text_config.hidden_size",
+        num_layers="text_config.num_hidden_layers",
+        num_attention_heads="text_config.num_attention_heads",
+        num_key_value_heads="text_config.num_key_value_heads",
+        head_dim="text_config.head_dim",
+        vocab_size="text_config.vocab_size",
+        image_size="vision_config.image_size",
+        num_channels="vision_config.num_channels",
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyTextInputGenerator, GemmaDummyPastKeyValuesGenerator, DummyVisionInputGenerator)
+    DUMMY_PKV_GENERATOR_CLASS = GemmaDummyPastKeyValuesGenerator
+    MIN_TRANSFORMERS_VERSION = version.parse("4.40.0")
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        common_inputs = super().inputs
+        if self.task == "image-text-to-text" and not self.use_past_in_inputs:
+            common_inputs["pixel_values"] = {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"}
+        return common_inputs
+
+    @property
+    def values_override(self) -> dict[str, Any] | None:
+        text_config = getattr(self._config, "text_config", self._config)
+        if hasattr(text_config, "use_cache"):
+            return {"use_cache": self.use_past}
+        return None
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        if self.task == "image-text-to-text" and not self.use_past_in_inputs:
+            num_image_tokens = getattr(self._config, "num_image_tokens", 256)
+            if "sequence_length" in kwargs:
+                kwargs["sequence_length"] += num_image_tokens
+            else:
+                kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"] + num_image_tokens
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        if self.task == "image-text-to-text" and "pixel_values" in dummy_inputs and "input_ids" in dummy_inputs:
+            num_image_tokens = getattr(self._config, "num_image_tokens", 256)
+            image_token_index = getattr(self._config, "image_token_index", 257152)
+            dummy_inputs["input_ids"][:, :num_image_tokens] = image_token_index
+
+        return dummy_inputs
 
 
 @register_tasks_manager_onnx("gpt_oss", *COMMON_TEXT_GENERATION_TASKS)

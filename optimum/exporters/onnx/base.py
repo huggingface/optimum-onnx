@@ -504,7 +504,7 @@ class OnnxConfigWithPast(OnnxConfig, ABC):
             and self.PAD_ATTENTION_MASK_TO_PAST
             and self.use_cache_branch is not False
             and "attention_mask" in dummy_inputs
-            and self.task == "text-generation"
+            and self.task in ("text-generation", "image-text-to-text", "feature-extraction")
         ):
             seq_len = dummy_inputs["input_ids"].shape[1]
             past_seq_len = dummy_inputs["past_key_values"][0][1].shape[-2]
