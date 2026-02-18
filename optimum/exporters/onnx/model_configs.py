@@ -583,7 +583,32 @@ class Qwen2_5_VLOnnxConfig(Qwen2VLOnnxConfig):
 
 @register_tasks_manager_onnx("qwen3_vl", *COMMON_TEXT_GENERATION_TASKS)
 class Qwen3VLOnnxConfig(Qwen2VLOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA.with_args(
+        allow_new=True,
+        vocab_size="text_config.vocab_size",
+        hidden_size="text_config.hidden_size",
+        num_layers="text_config.num_hidden_layers",
+        num_attention_heads="text_config.num_attention_heads",
+        num_key_value_heads="text_config.num_key_value_heads",
+        head_dim="text_config.head_dim",
+        eos_token_id="text_config.eos_token_id",
+    )
     MIN_TRANSFORMERS_VERSION = version.parse("4.57.0")
+
+
+# Qwen VL models are ForConditionalGeneration, not ForCausalLM.
+# Register custom classes so TasksManager resolves the correct model class.
+for _vl_model_type, _vl_class_name in [
+    ("qwen2_vl", "Qwen2VLForConditionalGeneration"),
+    ("qwen2_5_vl", "Qwen2_5_VLForConditionalGeneration"),
+    ("qwen3_vl", "Qwen3VLForConditionalGeneration"),
+]:
+    for _task in COMMON_TEXT_GENERATION_TASKS:
+        _task_normalized = _task.replace("-with-past", "")
+        TasksManager._CUSTOM_CLASSES[("pt", _vl_model_type, _task_normalized)] = (
+            "transformers",
+            _vl_class_name,
+        )
 
 
 @register_tasks_manager_onnx("gemma", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
