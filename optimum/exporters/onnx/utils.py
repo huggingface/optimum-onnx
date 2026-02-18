@@ -267,6 +267,29 @@ def _get_submodels_and_onnx_configs(
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
 
+    # The base _get_submodels_and_export_configs only recognizes task.startswith("text-generation")
+    # for decoder model splitting. VL models with image-text-to-text tasks are also decoder-based
+    # and need the same treatment: call get_decoder_models_for_export for proper KV cache handling.
+    if (
+        library_name == "transformers"
+        and task.startswith("image-text-to-text")
+        and not monolith
+        and not custom_architecture
+    ):
+        from optimum.exporters.utils import get_decoder_models_for_export
+
+        export_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=task, library_name=library_name
+        )
+        export_config = export_config_constructor(
+            model.config,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+        )
+        export_config.variant = _variant
+        return export_config, get_decoder_models_for_export(model, export_config)
+
     return _get_submodels_and_export_configs(
         model,
         task,

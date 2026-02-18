@@ -136,6 +136,12 @@ COMMON_TEXT_GENERATION_TASKS = [
     "text-generation-with-past",
 ]
 
+COMMON_VL_TEXT_GENERATION_TASKS = [
+    *COMMON_TEXT_GENERATION_TASKS,
+    "image-text-to-text",
+    "image-text-to-text-with-past",
+]
+
 COMMON_TEXT2TEXT_GENERATION_TASKS = [
     *COMMON_TEXT_GENERATION_TASKS,
     "text2text-generation",
@@ -505,7 +511,7 @@ class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     _MODEL_PATCHER = Qwen3MoeModelPatcher
 
 
-@register_tasks_manager_onnx("qwen2_vl", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx("qwen2_vl", *COMMON_VL_TEXT_GENERATION_TASKS)
 class Qwen2VLOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA.with_args(
         allow_new=True,
@@ -576,12 +582,12 @@ class Qwen2VLOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
         return dummy_inputs
 
 
-@register_tasks_manager_onnx("qwen2_5_vl", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx("qwen2_5_vl", *COMMON_VL_TEXT_GENERATION_TASKS)
 class Qwen2_5_VLOnnxConfig(Qwen2VLOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.49.0")
 
 
-@register_tasks_manager_onnx("qwen3_vl", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx("qwen3_vl", *COMMON_VL_TEXT_GENERATION_TASKS)
 class Qwen3VLOnnxConfig(Qwen2VLOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA.with_args(
         allow_new=True,
@@ -603,7 +609,7 @@ for _vl_model_type, _vl_class_name in [
     ("qwen2_5_vl", "Qwen2_5_VLForConditionalGeneration"),
     ("qwen3_vl", "Qwen3VLForConditionalGeneration"),
 ]:
-    for _task in COMMON_TEXT_GENERATION_TASKS:
+    for _task in COMMON_VL_TEXT_GENERATION_TASKS:
         _task_normalized = _task.replace("-with-past", "")
         TasksManager._CUSTOM_CLASSES[("pt", _vl_model_type, _task_normalized)] = (
             "transformers",
