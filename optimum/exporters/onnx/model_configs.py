@@ -35,6 +35,7 @@ from optimum.exporters.onnx.config import (
 )
 from optimum.exporters.onnx.input_generators import (
     DummyMoonshineAudioInputGenerator,
+    DummyQwen2VLVisionInputGenerator,
     DummySanaTransforemerTextInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
 )
@@ -502,6 +503,77 @@ class Qwen3MoeOnnxConfig(LlamaOnnxConfig):
     NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA
     MIN_TRANSFORMERS_VERSION = version.parse("4.51.0")
     _MODEL_PATCHER = Qwen3MoeModelPatcher
+
+
+@register_tasks_manager_onnx("qwen2_vl", *COMMON_TEXT_GENERATION_TASKS)
+class Qwen2VLOnnxConfig(TextDecoderWithPositionIdsOnnxConfig):
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfigWithGQA.with_args(
+        allow_new=True,
+        vocab_size="text_config.vocab_size",
+        hidden_size="text_config.hidden_size",
+        num_layers="text_config.num_hidden_layers",
+        num_attention_heads="text_config.num_attention_heads",
+        num_key_value_heads="text_config.num_key_value_heads",
+        eos_token_id="text_config.eos_token_id",
+    )
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTextInputGenerator,
+        MistralDummyPastKeyValuesGenerator,
+        DummyQwen2VLVisionInputGenerator,
+    )
+    DUMMY_PKV_GENERATOR_CLASS = MistralDummyPastKeyValuesGenerator
+    MIN_TRANSFORMERS_VERSION = version.parse("4.45.0")
+
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        common_inputs = super().inputs
+
+        # Override position_ids for 3D M-RoPE: (3, batch_size, sequence_length)
+        if "position_ids" in common_inputs:
+            common_inputs["position_ids"] = {0: "spatial_dim", 1: "batch_size", 2: "sequence_length"}
+
+        # Add vision inputs for initial encoding (not needed for cached generation)
+        if not self.use_past_in_inputs:
+            common_inputs["pixel_values"] = {0: "num_patches", 1: "patch_dim"}
+            common_inputs["image_grid_thw"] = {0: "num_images"}
+
+        return common_inputs
+
+    @property
+    def values_override(self) -> dict[str, Any] | None:
+        text_config = getattr(self._config, "text_config", self._config)
+        if hasattr(text_config, "use_cache"):
+            return {"use_cache": self.use_past}
+        return None
+
+    def generate_dummy_inputs(self, framework: str = "pt", **kwargs):
+        # Calculate number of vision tokens for sequence length adjustment
+        vision_config = getattr(self._config, "vision_config", None)
+        spatial_merge_size = getattr(vision_config, "spatial_merge_size", 2) if vision_config else 2
+        grid_t, grid_h, grid_w = 1, 2 * spatial_merge_size, 2 * spatial_merge_size
+        num_vision_tokens = (grid_t * grid_h * grid_w) // (spatial_merge_size**2)
+
+        # Increase sequence length to accommodate vision tokens in input_ids
+        if not self.use_past_in_inputs:
+            if "sequence_length" in kwargs:
+                kwargs["sequence_length"] += num_vision_tokens
+            else:
+                kwargs["sequence_length"] = DEFAULT_DUMMY_SHAPES["sequence_length"] + num_vision_tokens
+
+        dummy_inputs = super().generate_dummy_inputs(framework=framework, **kwargs)
+
+        # Transform position_ids to 3D for M-RoPE: (3, batch_size, sequence_length)
+        if "position_ids" in dummy_inputs:
+            dummy_inputs["position_ids"] = (
+                dummy_inputs["position_ids"].unsqueeze(0).expand(3, -1, -1).contiguous()
+            )
+
+        # Place image token IDs in input_ids for proper vision token positioning
+        if "pixel_values" in dummy_inputs and "input_ids" in dummy_inputs:
+            image_token_id = getattr(self._config, "image_token_id", 151655)
+            dummy_inputs["input_ids"][:, :num_vision_tokens] = image_token_id
+
+        return dummy_inputs
 
 
 @register_tasks_manager_onnx("gemma", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"])
