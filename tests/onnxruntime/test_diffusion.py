@@ -278,8 +278,8 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES += ["stable-diffusion-3"]
     if is_diffusers_version(">=", "0.30.0") and is_transformers_version(">=", "4.42.0"):
         SUPPORTED_ARCHITECTURES += ["flux"]
-    if is_diffusers_version(">=", "0.32.0") and is_transformers_version(">=", "4.42.0"):
-        SUPPORTED_ARCHITECTURES += ["sana"]
+    # if is_diffusers_version(">=", "0.32.0") and is_transformers_version(">=", "4.42.0"):
+    #     SUPPORTED_ARCHITECTURES += ["sana"]
 
     ORTMODEL_CLASS = ORTPipelineForText2Image
     AUTOMODEL_CLASS = AutoPipelineForText2Image
