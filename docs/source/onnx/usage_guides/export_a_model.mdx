@@ -70,42 +70,88 @@ The Optimum ONNX export can be used through Optimum command-line:
 ```bash
 optimum-cli export onnx --help
 
-usage: optimum-cli <command> [<args>] export onnx [-h] -m MODEL [--task TASK] [--monolith] [--device DEVICE] [--opset OPSET] [--atol ATOL]
-                                                  [--framework {pt}] [--pad_token_id PAD_TOKEN_ID] [--cache_dir CACHE_DIR] [--trust-remote-code]
-                                                  [--no-post-process] [--optimize {O1,O2,O3,O4}] [--batch_size BATCH_SIZE]
-                                                  [--sequence_length SEQUENCE_LENGTH] [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
-                                                  [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE] [--nb_max_frames NB_MAX_FRAMES]
-                                                  [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
-                                                  output
+usage: optimum-cli export onnx [-h] -m MODEL [--task TASK] [--opset OPSET] [--device DEVICE] [--dtype {fp32,fp16,bf16}] [--optimize {O1,O2,O3,O4}] [--monolith]
+                               [--no-post-process] [--variant VARIANT] [--framework {pt}] [--atol ATOL] [--cache_dir CACHE_DIR] [--trust-remote-code]
+                               [--pad_token_id PAD_TOKEN_ID] [--library-name {transformers,diffusers,timm,sentence_transformers}] [--model-kwargs MODEL_KWARGS]
+                               [--no-dynamic-axes] [--no-constant-folding] [--slim] [--dynamo] [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH]
+                               [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT] [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE]
+                               [--nb_max_frames NB_MAX_FRAMES] [--audio_sequence_length AUDIO_SEQUENCE_LENGTH] [--point_batch_size POINT_BATCH_SIZE]
+                               [--nb_points_per_image NB_POINTS_PER_IMAGE] [--visual_seq_length VISUAL_SEQ_LENGTH]
+                               output
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
 
 Required arguments:
   -m MODEL, --model MODEL
                         Model ID on huggingface.co or path on disk to load model from.
-  output                Path indicating the directory where to store generated ONNX model.
+  output                Path indicating the directory where to store the generated ONNX model.
 
 Optional arguments:
-  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred based on the model. Available tasks depend on the model, but are among: ['default', 'fill-mask', 'text-generation', 'text2text-generation', 'text-classification', 'token-classification', 'multiple-choice', 'object-detection', 'question-answering', 'image-classification', 'image-segmentation', 'masked-im', 'semantic-segmentation', 'automatic-speech-recognition', 'audio-classification', 'audio-frame-classification', 'automatic-speech-recognition', 'audio-xvector', 'image-to-text', 'zero-shot-object-detection', 'image-to-image', 'inpainting', 'text-to-image']. For decoder models, use `xxx-with-past` to export the model using past key values in the decoder.
-  --monolith            Force to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for example for encoder-decoder models where the encoder should be run only once while the decoder is looped over.
+  --task TASK           The task to export the model for. If not specified, the task will be auto-inferred from the model's metadata or files. For tasks that
+                        generate text, add the `xxx-with-past` suffix to export the model using past key values caching. Available tasks depend on the model, but
+                        are among the following list: ['audio-classification', 'audio-frame-classification', 'audio-xvector', 'automatic-speech-recognition',
+                        'depth-estimation', 'document-question-answering', 'feature-extraction', 'fill-mask', 'image-classification', 'image-segmentation', 'image-
+                        text-to-text', 'image-to-image', 'image-to-text', 'inpainting', 'keypoint-detection', 'mask-generation', 'masked-im', 'multiple-choice',
+                        'object-detection', 'question-answering', 'reinforcement-learning', 'semantic-segmentation', 'sentence-similarity', 'text-classification',
+                        'text-generation', 'text-to-audio', 'text-to-image', 'text2text-generation', 'time-series-forecasting', 'token-classification', 'visual-
+                        question-answering', 'zero-shot-image-classification', 'zero-shot-object-detection'].
+  --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset for the given model architecture will be used.
   --device DEVICE       The device to use to do the export. Defaults to "cpu".
-  --opset OPSET         If specified, ONNX opset version to export the model with. Otherwise, the default opset will be used.
+  --dtype {fp32,fp16,bf16}
+                        The floating point precision to use for the export. Supported options: fp32 (float32), fp16 (float16), bf16 (bfloat16).
+  --optimize {O1,O2,O3,O4}
+                        Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the
+                        resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options: - O1: Basic general optimizations - O2:
+                        Basic and extended general optimizations, transformers-specific fusions - O3: Same as O2 with GELU approximation - O4: Same as O3 with mixed
+                        precision (fp16, GPU-only, requires `--device cuda`)
+  --monolith            Forces to export the model as a single ONNX file. By default, the ONNX exporter may break the model in several ONNX files, for example for
+                        encoder-decoder models where the encoder should be run only once while the decoder is looped over.
+  --no-post-process     Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder and decoder-with-past
+                        models into a single ONNX model file to reduce memory usage.
+  --variant VARIANT     Select a variant of the model to export.
+  --framework {pt}      The framework to use for the export. Defaults to 'pt' for PyTorch.
   --atol ATOL           If specified, the absolute difference tolerance when validating the model. Otherwise, the default atol for the model will be used.
-  --framework {pt}      The framework to use for the ONNX export. If not provided, will attempt to use the local checkpoint's original framework or what is available in the environment.
-  --pad_token_id PAD_TOKEN_ID
-                        This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
   --cache_dir CACHE_DIR
                         Path indicating where to store cache.
-  --trust-remote-code   Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
-  --no-post-process     Allows to disable any post-processing done by default on the exported ONNX models. For example, the merging of decoder and decoder-with-past models into a single ONNX model file to reduce memory usage.
-  --optimize {O1,O2,O3,O4}
-                        Allows to run ONNX Runtime optimizations directly during the export. Some of these optimizations are specific to ONNX Runtime, and the resulting ONNX will not be usable with other runtime as OpenVINO or TensorRT. Possible options:
-                            - O1: Basic general optimizations
-                            - O2: Basic and extended general optimizations, transformers-specific fusions
-                            - O3: Same as O2 with GELU approximation
-                            - O4: Same as O3 with mixed precision (fp16, GPU-only, requires `--device cuda`)
+  --trust-remote-code   Allows to use custom code for the modeling hosted in the model repository. This option should only be set for repositories you trust and in
+                        which you have read the code, as it will execute on your local machine arbitrary code present in the model repository.
+  --pad_token_id PAD_TOKEN_ID
+                        This is needed by some models, for some tasks. If not provided, will attempt to use the tokenizer to guess it.
+  --library-name {transformers,diffusers,timm,sentence_transformers}
+                        The library on the model. If not provided, will attempt to infer the local checkpoint's library
+  --model-kwargs MODEL_KWARGS
+                        Any kwargs passed to the model forward, or used to customize the export for a given model.
+  --no-dynamic-axes     Disable dynamic axes during ONNX export
+  --no-constant-folding
+                        PyTorch-only argument. Disables PyTorch ONNX export constant folding.
+  --slim                Enables onnxslim optimization.
+  --dynamo              Selects dynamo exporter instead of torch script exporter (Option `dynamo=True` with `torch.onnx.export`),
+                        this is the recommended option for opset >= 18.
 
+Input shapes (if necessary, this allows to override the shapes of the input given to the ONNX exporter, that requires an example input).:
+  --batch_size BATCH_SIZE
+                        Text tasks only. Batch size to use in the example input given to the ONNX export.
+  --sequence_length SEQUENCE_LENGTH
+                        Text tasks only. Sequence length to use in the example input given to the ONNX export.
+  --num_choices NUM_CHOICES
+                        Text tasks only. Num choices to use in the example input given to the ONNX export.
+  --width WIDTH         Image tasks only. Width to use in the example input given to the ONNX export.
+  --height HEIGHT       Image tasks only. Height to use in the example input given to the ONNX export.
+  --num_channels NUM_CHANNELS
+                        Image tasks only. Number of channels to use in the example input given to the ONNX export.
+  --feature_size FEATURE_SIZE
+                        Audio tasks only. Feature size to use in the example input given to the ONNX export.
+  --nb_max_frames NB_MAX_FRAMES
+                        Audio tasks only. Maximum number of frames to use in the example input given to the ONNX export.
+  --audio_sequence_length AUDIO_SEQUENCE_LENGTH
+                        Audio tasks only. Audio sequence length to use in the example input given to the ONNX export.
+  --point_batch_size POINT_BATCH_SIZE
+                        For Segment Anything. It corresponds to how many segmentation masks we want the model to predict per input point.
+  --nb_points_per_image NB_POINTS_PER_IMAGE
+                        For Segment Anything. It corresponds to the number of points per segmentation masks.
+  --visual_seq_length VISUAL_SEQ_LENGTH
+                        Visual sequence length
 ```
 
 Exporting a checkpoint can be done as follows:
@@ -161,12 +207,20 @@ Runtime](https://onnxruntime.ai/) using the `optimum.onnxruntime` package as fol
 
 Printing the outputs would give that:
 
-```bash
-QuestionAnsweringModelOutput(loss=None, start_logits=tensor([[-4.7652, -1.0452, -7.0409, -4.6864, -4.0277, -6.2021, -4.9473,  2.6287,
+```python
+QuestionAnsweringModelOutput(
+    loss=None,
+    start_logits=tensor(
+       [[-4.7652, -1.0452, -7.0409, -4.6864, -4.0277, -6.2021, -4.9473,  2.6287,
           7.6111, -1.2488, -2.0551, -0.9350,  4.9758, -0.7707,  2.1493, -2.0703,
-         -4.3232, -4.9472]]), end_logits=tensor([[ 0.4382, -1.6502, -6.3654, -6.0661, -4.1482, -3.5779, -0.0774, -3.6168,
+         -4.3232, -4.9472]]),
+    end_logits=tensor(
+       [[ 0.4382, -1.6502, -6.3654, -6.0661, -4.1482, -3.5779, -0.0774, -3.6168,
          -1.8750, -2.8910,  6.2582,  0.5425, -3.7699,  3.8232, -1.5073,  6.2311,
-          3.3604, -0.0772]]), hidden_states=None, attentions=None)
+          3.3604, -0.0772]]),
+    hidden_states=None,
+    attentions=None,
+)
 ```
 
 As you can see, converting a model to ONNX does not mean leaving the Hugging Face ecosystem. You end up with a similar API as regular 🤗 Transformers models!
@@ -232,6 +286,17 @@ For each model architecture, you can find the list of supported tasks via the [`
 ```
 
 You can then pass one of these tasks to the `--task` argument in the `optimum-cli export onnx` command, as mentioned above.
+
+## Opset and dynamo exporter
+
+Two onnx exporters coexists in [torch.onnx.export](https://docs.pytorch.org/docs/stable/onnx_export.html#torch.onnx.export).
+The first version enabled with `dynamo=False` is recommended for any ONNX opset < 18.
+This exporter is based on [TorchScript](https://docs.pytorch.org/docs/stable/jit.html) which is deprecated.
+
+The new version enabled with `dynamo=True` (or `--dynamo` with `optimum-cli`) is recommended
+for any opset >= 18. It is based on [torch.export.export](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/export.html).
+The following page [ONNX Operators](https://onnx.ai/onnx/operators/index.html)
+highlights which operators are available in every opset.
 
 ## Custom export of Transformers models
 
@@ -406,4 +471,6 @@ main_export(
 )
 ```
 
-Moreover, the advanced argument `fn_get_submodels` to `main_export` allows to customize how the submodels are extracted in case the model needs to be exported in several submodels. Examples of such functions can be [consulted here](link to utils.py relevant code once merged).
+Moreover, the advanced argument `fn_get_submodels` to
+[main_export](https://huggingface.co/docs/optimum-onnx/onnx/package_reference/export#optimum.exporters.onnx.main_export)
+allows to customize how the submodels are extracted in case the model needs to be exported in several submodels.

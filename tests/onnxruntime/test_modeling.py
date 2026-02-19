@@ -27,7 +27,7 @@ from huggingface_hub import HfApi
 from huggingface_hub.constants import default_cache_path
 from parameterized import parameterized
 from PIL import Image
-from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin
+from testing_utils import MODEL_NAMES, SEED, ORTModelTestMixin, select_architecture_transformer_version
 from transformers import (
     AutoFeatureExtractor,
     AutoImageProcessor,
@@ -469,36 +469,38 @@ class ORTModelIntegrationTest(unittest.TestCase):
 
 
 class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
-    SUPPORTED_ARCHITECTURES = [  # noqa: RUF012
-        "albert",
-        "bart",
-        "bert",
-        "big_bird",
-        "bigbird_pegasus",
-        "camembert",
-        "convbert",
-        "data2vec-text",
-        "deberta",
-        "deberta-v2",
-        "distilbert",
-        "electra",
-        # "flaubert", # currently fails for some reason (squad multiprocessing),
-        # but also couldn't find any real qa checkpoints on the hub for this model
-        "gptj",
-        "ibert",
-        # TODO: these two should be supported, but require image inputs not supported in ORTModel
-        # "layoutlm"
-        # "layoutlmv3",
-        "mbart",
-        "mobilebert",
-        "nystromformer",
-        "roberta",
-        "roformer",
-        "squeezebert",
-        "xlm-qa",
-        "xlm-roberta",
-        "rembert",
-    ]
+    SUPPORTED_ARCHITECTURES = select_architecture_transformer_version(
+        [
+            "albert",
+            "bart",
+            "bert",
+            "big_bird",
+            "bigbird_pegasus",
+            "camembert",
+            "convbert",
+            "data2vec-text",
+            "deberta",
+            "deberta-v2",
+            "distilbert",
+            "electra",
+            # "flaubert", # currently fails for some reason (squad multiprocessing),
+            # but also couldn't find any real qa checkpoints on the hub for this model
+            "gptj",
+            "ibert",
+            # TODO: these two should be supported, but require image inputs not supported in ORTModel
+            # "layoutlm"
+            # "layoutlmv3",
+            "mbart",
+            "mobilebert",
+            "nystromformer",
+            "roberta",
+            "roformer",
+            "squeezebert",
+            ("xlm-qa", "4.56"),  # test it only for transformers>=4.56
+            "xlm-roberta",
+            "rembert",
+        ]
+    )
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForQuestionAnswering

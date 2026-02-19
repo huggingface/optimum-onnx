@@ -12,18 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import tempfile
 from unittest import TestCase
 
 import torch
+from parameterized import parameterized
 from transformers.models.sew_d import modeling_sew_d
 
 
 class StableDropoutTestCase(TestCase):
     """Tests export of StableDropout module."""
 
-    def test_training(self):
+    @parameterized.expand([False, True])
+    def test_training(self, dynamo: bool):
         """Tests export of StableDropout in training mode."""
-        devnull = open(os.devnull, "wb")  # noqa: SIM115
+        fd, temp_filename = tempfile.mkstemp()
+        os.close(fd)
         # drop_prob must be > 0 for the test to be meaningful
         sd = modeling_sew_d.StableDropout(0.1)
         # Avoid warnings in training mode
@@ -36,17 +40,20 @@ class StableDropoutTestCase(TestCase):
         torch.onnx.export(
             sd,
             input,
-            devnull,
+            temp_filename,
             opset_version=12,
             do_constant_folding=do_constant_folding,
             training=training,
+            dynamo=dynamo,
         )
 
-        devnull.close()
+        os.remove(temp_filename)
 
-    def test_inference(self):
+    @parameterized.expand([False, True])
+    def test_inference(self, dynamo=True):
         """Tests export of StableDropout in inference mode."""
-        devnull = open(os.devnull, "wb")  # noqa: SIM115
+        fd, temp_filename = tempfile.mkstemp()
+        os.close(fd)
         # drop_prob must be > 0 for the test to be meaningful
         sd = modeling_sew_d.StableDropout(0.1)
         # Dropout is a no-op in inference mode
@@ -57,10 +64,11 @@ class StableDropoutTestCase(TestCase):
         torch.onnx.export(
             sd,
             input,
-            devnull,
+            temp_filename,
             opset_version=12,
             do_constant_folding=True,
             training=training,
+            dynamo=dynamo,
         )
 
-        devnull.close()
+        os.remove(temp_filename)

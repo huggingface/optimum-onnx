@@ -27,7 +27,13 @@ from typing import Any, Callable
 
 import numpy as np
 from transformers.generation import GenerationMixin
-from transformers.modeling_utils import get_parameter_dtype
+
+
+try:
+    from transformers.modeling_utils import get_parameter_dtype
+except ImportError:
+    # transformers>=5.0
+    get_parameter_dtype = None
 from transformers.utils import is_torch_available
 
 import onnx
@@ -460,6 +466,78 @@ class ValidationProcess(mp.Process):
         return self._exception
 
 
+def _rearrange_dynamic_shapes(flat_shapes, suffixes):
+    positions = {"key": 0, "value": 1}
+    new_shapes = {}
+    for pos, suffix in enumerate(suffixes):
+        spl = suffix.split(".")
+        if len(spl) != 2:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        try:
+            index = int(spl[0])
+        except ValueError:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        if spl[1] not in positions:
+            raise ValueError(f"Unable to rearrange {flat_shapes} with suffixes {suffixes}")
+        if index not in new_shapes:
+            new_shapes[index] = {}
+        new_shapes[index][positions[spl[1]]] = flat_shapes[pos]
+    return [tuple(shape for _, shape in sorted(shapes.items())) for _, shapes in sorted(new_shapes.items())]
+
+
+def convert_dynamic_axes_into_dynamic_shapes(
+    dummy_inputs: dict[str, Any],
+    dynamic_axes: dict[str, dict[int, str]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not isinstance(dummy_inputs, dict):
+        raise TypeError(f"Unexpected type {type(dummy_inputs)} for dummy_inputs.")
+    if not isinstance(dynamic_axes, dict):
+        raise TypeError(f"Unexpected type {type(dynamic_axes)} for dynamic_axes.")
+    known_replacements = {
+        "input_ids": "decoder_input_ids",
+        "encoder_hidden_states": "encoder_outputs",
+    }
+    new_shapes = {}
+    suffixes = {}
+    for k, v in dynamic_axes.items():
+        if k in dummy_inputs:
+            new_shapes[k] = v
+            continue
+        if k in known_replacements and known_replacements[k] in dummy_inputs:
+            new_shapes[known_replacements[k]] = v
+            continue
+        if "." not in k:
+            continue
+        prefix, suffix = k.split(".", maxsplit=1)
+        if prefix not in dummy_inputs:
+            continue
+        if prefix not in new_shapes:
+            new_shapes[prefix] = []
+            suffixes[prefix] = []
+        new_shapes[prefix].append(v)
+        suffixes[prefix].append(suffix)
+    for k, v in suffixes.items():
+        new_shapes[k] = _rearrange_dynamic_shapes(new_shapes[k], v)
+
+    # Let's fix the order.
+    if list(dummy_inputs) == ["encoder_outputs", "decoder_input_ids"]:
+        # hard fix but the rest of the code seems sensitive to this.
+        dummy_inputs = {k: dummy_inputs[k] for k in ["decoder_input_ids", "encoder_outputs"]}
+
+    # Let's reorder and fix the final shapes.
+    final_shapes = {}
+    for k, v in dummy_inputs.items():
+        if k in new_shapes:
+            if isinstance(v, tuple):
+                if not v or v[0] is None or sum(_ is not None for _ in v) != 1:
+                    raise ValueError(f"Unable to convert {dynamic_axes=} for dummy_inputs={list(dummy_inputs)}")
+                final_shapes[k] = (new_shapes[k], *[None for _ in range(len(v) - 1)])
+            else:
+                final_shapes[k] = new_shapes[k]
+
+    return dummy_inputs, final_shapes
+
+
 def export_pytorch(
     model: PreTrainedModel | ModelMixin,
     config: OnnxConfig,
@@ -470,6 +548,7 @@ def export_pytorch(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a PyTorch model to an ONNX Intermediate Representation.
 
@@ -496,6 +575,8 @@ def export_pytorch(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo (bool, defaults to `False`):
+            Use dynamo exporter (True) or torch script exporter (False).
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -553,28 +634,51 @@ def export_pytorch(
             output_names = list(config.outputs.keys())
 
             if no_dynamic_axes:
-                dynamix_axes = None
+                dynamic_axes = None
             else:
-                dynamix_axes = dict(chain(inputs.items(), config.outputs.items()))
+                dynamic_axes = dict(chain(inputs.items(), config.outputs.items()))
 
             if is_torch_version(">=", "2.9"):
-                # Starting from 2.9 dynamo's default value is True
-                dynamo_kwargs = {"dynamo": False}
+                export_kwargs = {"dynamo": dynamo, "external_data": dynamo}
+                if dynamo:
+                    if len(dynamic_axes) == len(dummy_inputs):
+                        export_kwargs["dynamic_shapes"] = dynamic_axes
+                    else:
+                        dummy_inputs, dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
+                            dummy_inputs,
+                            dynamic_axes,
+                        )
+                        if len(dynamic_shapes) == len(dummy_inputs) and list(dynamic_shapes) == list(dummy_inputs):
+                            export_kwargs["dynamic_shapes"] = dynamic_shapes
+                        else:
+                            raise NotImplementedError(
+                                f"The dummy inputs have {list(dummy_inputs)} arguments "
+                                f"when dynamic axes are {dynamic_axes} and inferred "
+                                f"dynamic shapes are {dynamic_shapes}."
+                            )
+                else:
+                    export_kwargs["dynamic_axes"] = dynamic_axes
             else:
-                dynamo_kwargs = {}
+                if dynamo:
+                    raise RuntimeError("torch>=2.9 is needed to use dynamo exporter.")
+                export_kwargs = {"dynamic_axes": dynamic_axes}
 
-            # Export can work with named args but the dict containing named args has to be the last element of the args
-            # tuple.
+            if dynamo and os.environ.get("EXPORTDEBUG", "") == "1":
+                from ._debug_tool import debug_torch_export_export
+
+                debug_torch_export_export(model, dummy_inputs, export_kwargs["dynamic_shapes"])
+
+            # Export can work with named args
+            # but the dict containing named args has to be the last element of the args tuple.
             onnx_export(
                 model,
                 (dummy_inputs,),
                 f=output.as_posix(),
                 input_names=input_names,
                 output_names=output_names,
-                dynamic_axes=dynamix_axes,
                 do_constant_folding=do_constant_folding,
                 opset_version=opset,
-                **dynamo_kwargs,
+                **export_kwargs,
             )
 
         # check if external data was exported
@@ -606,10 +710,10 @@ def export_pytorch(
             )
 
             # delete previous external data
-            for tensor in tensors_paths:
+            for tensor in set(tensors_paths):
                 os.remove(output.parent / tensor)
 
-            for tensor in constant_paths:
+            for tensor in set(constant_paths):
                 if os.path.isfile(output.parent / tensor):
                     os.remove(output.parent / tensor)
 
@@ -628,6 +732,7 @@ def export_models(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[list[str]], list[list[str]]]:
     """Exports a Pytorch encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
@@ -661,6 +766,8 @@ def export_models(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo (bool, defaults to `False`):
+            Use dynamo export (True) or torch script exporter (False).
 
     Returns:
         `Tuple[List[List[str]], List[List[str]]]`: A tuple with an ordered list of the model's inputs, and the named
@@ -696,6 +803,7 @@ def export_models(
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
                 model_kwargs=model_kwargs,
+                dynamo=dynamo,
             )
         )
 
@@ -715,6 +823,7 @@ def export(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    dynamo: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a Pytorch model to an ONNX Intermediate Representation.
 
@@ -745,6 +854,8 @@ def export(
             the export. This argument should be used along the `custom_onnx_config` argument
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
+        dynamo (bool, defaults to `False`):
+            Use dynamo export (True) or torch script exporter (False)
 
     Returns:
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
@@ -794,6 +905,7 @@ def export(
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
             model_kwargs=model_kwargs,
+            dynamo=dynamo,
         )
 
     else:
@@ -826,6 +938,7 @@ def onnx_export_from_model(
     use_subprocess: bool = False,
     do_constant_folding: bool = True,
     slim: bool = False,
+    dynamo: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -884,6 +997,8 @@ def onnx_export_from_model(
             PyTorch-specific argument. If `True`, the PyTorch ONNX export will fold constants into adjacent nodes, if possible.
         slim (bool, defaults to `False`):
             Use onnxslim to optimize the ONNX model.
+        dynamo (bool, defaults to `False`):
+            Use dynamo exporter (True) or torch script exporter (False).
         **kwargs_shapes (`Dict`):
             Shapes to use during inference. This argument allows to override the default shapes used during the ONNX export.
 
@@ -930,7 +1045,7 @@ def onnx_export_from_model(
 
         logger.info(f"Automatic task detection to: {task}.")
 
-    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) else model.dtype
+    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and get_parameter_dtype else model.dtype
 
     if "bfloat16" in str(dtype):
         float_dtype = "bf16"
@@ -1009,7 +1124,7 @@ def onnx_export_from_model(
             if isinstance(atol, dict):
                 atol = atol[task.replace("-with-past", "")]
 
-        if is_transformers_version(">=", "4.44.99"):
+        if is_transformers_version(">=", "4.44.99") and is_transformers_version("<", "4.99"):
             misplaced_generation_parameters = model.config._get_non_default_generation_parameters()
             if (
                 isinstance(model, GenerationMixin)
@@ -1088,6 +1203,7 @@ def onnx_export_from_model(
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
         model_kwargs=model_kwargs,
+        dynamo=dynamo,
     )
 
     if optimize is not None:

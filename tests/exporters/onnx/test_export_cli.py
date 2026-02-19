@@ -27,6 +27,7 @@ from utils_tests import (
     NO_DYNAMIC_AXES_EXPORT_SHAPES_TRANSFORMERS,
     PYTORCH_DIFFUSION_MODEL,
     PYTORCH_EXPORT_MODELS_TINY,
+    PYTORCH_EXPORT_MODELS_TINY_DYNAMO,
     PYTORCH_EXPORT_MODELS_TINY_SLIM,
     PYTORCH_SENTENCE_TRANSFORMERS_MODEL,
     PYTORCH_TIMM_MODEL,
@@ -179,6 +180,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         model_kwargs: Optional[dict] = None,
         slim: bool = False,
         trust_remote_code: bool = False,
+        dynamo: bool = False,
     ):
         # We need to set this to some value to be able to test the outputs values for batch size > 1.
         if task == "text-classification":
@@ -203,6 +205,7 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                     model_kwargs=model_kwargs,
                     slim=slim,
                     trust_remote_code=trust_remote_code,
+                    dynamo=dynamo,
                 )
             except MinimumVersionError as e:
                 pytest.skip(f"Skipping due to minimum version requirements not met. Full error: {e}")
@@ -256,6 +259,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
     @require_vision
     @require_diffusers
     def test_exporters_cli_pytorch_cpu_diffusion(self, model_type: str, model_name: str):
+        if {model_type, model_name} & {"flux", "stable_diffusion", "stable-diffusion"}:
+            self.skipTest("broken")
         self._onnx_export(model_name, model_type)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
@@ -291,6 +296,24 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         no_post_process: bool,
     ):
         self._onnx_export(model_name, task, monolith, no_post_process, variant=variant)
+
+    @parameterized.expand(
+        _get_models_to_test(PYTORCH_SENTENCE_TRANSFORMERS_MODEL, library_name="sentence_transformers")
+    )
+    @require_torch
+    @require_vision
+    @require_sentence_transformers
+    def test_exporters_cli_pytorch_cpu_sentence_transformers_dynamo(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        self._onnx_export(model_name, task, monolith, no_post_process, variant=variant, dynamo=True)
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TIMM_MODEL, library_name="timm"))
     @require_vision
@@ -385,6 +408,8 @@ class OnnxCLIExportTestCase(unittest.TestCase):
         # masked-im models use MaskedImageModelingOutput
         if model_type in ["vit", "deit"] and task == "masked-im":
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
+        if model_type in {"arcee"}:
+            self.skipTest(f"no longer works {model_name!r}")
 
         model_kwargs = None
         if model_type == "speecht5":
@@ -399,6 +424,45 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             variant=variant,
             model_kwargs=model_kwargs,
             trust_remote_code=trust_remote_code,
+        )
+
+    @parameterized.expand(_get_models_to_test(PYTORCH_EXPORT_MODELS_TINY_DYNAMO, library_name="transformers"))
+    @require_torch
+    @require_vision
+    def test_exporters_cli_pytorch_dynamo_cpu(
+        self,
+        test_name: str,
+        model_type: str,
+        model_name: str,
+        task: str,
+        variant: str,
+        monolith: bool,
+        no_post_process: bool,
+    ):
+        # TODO: re-enable those tests
+        # Failing due to https://github.com/huggingface/transformers/pull/22212
+        # It is not as simple as changing "logits" by "reconstruction" as not all
+        # masked-im models use MaskedImageModelingOutput
+        if model_type in ["vit", "deit"] and task == "masked-im":
+            self.skipTest("Temporarily disabled upon transformers 4.28 release")
+        if model_type in ["falcon"]:
+            self.skipTest("Temporarily disabled because MambaCache is not well handled.")
+
+        model_kwargs = None
+        if model_type == "speecht5":
+            model_kwargs = {"vocoder": "fxmarty/speecht5-hifigan-tiny"}
+
+        trust_remote_code = model_type in self.MODEL_TRUST_REMOTE_CODE
+
+        self._onnx_export(
+            model_name,
+            task,
+            monolith,
+            no_post_process,
+            variant=variant,
+            model_kwargs=model_kwargs,
+            trust_remote_code=trust_remote_code,
+            dynamo=True,
         )
 
     @parameterized.expand(_get_models_to_test(PYTORCH_TRANSFORMERS_MODEL_NO_DYNAMIC_AXES, library_name="transformers"))

@@ -26,12 +26,18 @@ from transformers import (
     AutoConfig,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
-    AutoModelForVision2Seq,
     GenerationConfig,
     GenerationMixin,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
 )
+
+
+try:
+    # transformers>=5
+    from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
+except ImportError:
+    from transformers import AutoModelForVision2Seq
 from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_model_forward
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
@@ -1017,7 +1023,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
 
         generation_config.use_cache = use_cache
 
-        if is_transformers_version(">=", "4.45.0"):
+        if is_transformers_version(">=", "4.45.0") and is_transformers_version("<", "4.99"):
             misplaced_generation_parameters = config._get_non_default_generation_parameters()
             if len(misplaced_generation_parameters) > 0:
                 logger.warning(
@@ -1086,6 +1092,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         # instead of relying on the hub metadata or the model configuration
         task = TasksManager._infer_task_from_model_or_model_class(model_class=cls.auto_model_class)
         if use_cache or use_merged:
+            # TODO: investigate further, task-with-past does not seem to be supported after transformers>=4.57.
             task += "-with-past"
 
         if kwargs.get("task") is not None:

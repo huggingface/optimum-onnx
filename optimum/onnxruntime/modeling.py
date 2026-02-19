@@ -62,7 +62,14 @@ from transformers.modeling_outputs import (
     XVectorOutput,
 )
 from transformers.models.auto.modeling_auto import MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES
-from transformers.utils import cached_file, is_offline_mode
+
+
+try:
+    # transformers>=5
+    from huggingface_hub import is_offline_mode
+except ImportError:
+    from transformers.utils import is_offline_mode
+from transformers.utils import cached_file
 from typing_extensions import Self
 
 from onnxruntime import InferenceSession, SessionOptions

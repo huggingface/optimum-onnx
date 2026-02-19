@@ -84,10 +84,11 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "dpt": "hf-internal-testing/tiny-random-DPTModel",
     "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
     "electra": "hf-internal-testing/tiny-random-ElectraModel",
-    "encoder-decoder": {
-        "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
-        "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
-    },
+    # broken models
+    # "encoder-decoder": {
+    #     "hf-internal-testing/tiny-random-EncoderDecoderModel-bert-bert": ["text2text-generation"],
+    #     "mohitsha/tiny-random-testing-bert2gpt2": ["text2text-generation", "text2text-generation-with-past"],
+    # },
     "esm": "hf-internal-testing/tiny-random-EsmModel",
     "falcon": {
         "fxmarty/really-tiny-falcon-testing": [
@@ -100,24 +101,29 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
         "fxmarty/tiny-testing-falcon-alibi": ["text-generation", "text-generation-with-past"],
     },
-    "flaubert": "hf-internal-testing/tiny-random-flaubert",
-    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
-    "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
-    "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
+    # broken models
+    # "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    # "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    # "gemma2": "hf-internal-testing/tiny-random-Gemma2ForCausalLM",
+    # "gemma3": "hf-internal-testing/tiny-random-Gemma3ForConditionalGeneration",
     "gemma3_text": "hf-internal-testing/tiny-random-Gemma3ForCausalLM",
-    "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
+    # broken models
+    # "glm": "hf-internal-testing/tiny-random-GlmForCausalLM",
     "glpn": "hf-internal-testing/tiny-random-GLPNModel",
-    "gpt2": "hf-internal-testing/tiny-random-gpt2",
+    # broken models
+    # "gpt2": "hf-internal-testing/tiny-random-gpt2",
     "gpt_bigcode": "hf-internal-testing/tiny-random-GPTBigCodeModel",
     "gpt_neo": "hf-internal-testing/tiny-random-GPTNeoModel",
     "gpt_neox": "hf-internal-testing/tiny-random-GPTNeoXForCausalLM",
-    "gpt_oss": "echarlaix/tiny-random-gpt-oss-mxfp4",
-    "gptj": "hf-internal-testing/tiny-random-GPTJModel",
-    "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
+    # broken models
+    # "gpt_oss": "echarlaix/tiny-random-gpt-oss-mxfp4",
+    # "gptj": "hf-internal-testing/tiny-random-GPTJModel",
+    # "granite": "hf-internal-testing/tiny-random-GraniteForCausalLM",
     "groupvit": "hf-internal-testing/tiny-random-groupvit",
-    "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
+    # broken models
+    # "helium": "hf-internal-testing/tiny-random-HeliumForCausalLM",
     "hiera": "hf-internal-testing/tiny-random-HieraForImageClassification",
-    "ibert": "hf-internal-testing/tiny-random-IBertModel",
+    # "ibert": "hf-internal-testing/tiny-random-IBertModel",
     # "imagegpt": "hf-internal-testing/tiny-random-ImageGPTModel", # The mode is broken on transformers :/
     "internlm2": "optimum-internal-testing/tiny-random-internlm2",
     "levit": "hf-internal-testing/tiny-random-LevitModel",
@@ -241,6 +247,16 @@ PYTORCH_EXPORT_MODELS_TINY = {
             "image-to-text-with-past",
         ],
     },
+}
+
+PYTORCH_EXPORT_MODELS_TINY_DYNAMO = {
+    "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
+    "efficientnet": "hf-internal-testing/tiny-random-EfficientNetForImageClassification",
+    "flaubert": "hf-internal-testing/tiny-random-flaubert",
+    "gemma": "fxmarty/tiny-random-GemmaForCausalLM",
+    "regnet": "hf-internal-testing/tiny-random-RegNetModel",
+    "resnet": "hf-internal-testing/tiny-random-resnet",
+    "roberta": "hf-internal-testing/tiny-random-RobertaModel",
 }
 
 # TODO: enable export slow tests

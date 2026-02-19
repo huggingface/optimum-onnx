@@ -12,7 +12,7 @@ license = { text = "Apache-2.0" }
 authors = [
     { name = "HuggingFace Inc. Special Ops Team", email = "hardware@huggingface.co" },
 ]
-keywords = ["transformers", "quantization", "inference", "onnx", "onnxruntime"]
+keywords = ["transformers", "quantization", "inference", "onnx", "onnxruntime", "onnxscript"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "License :: OSI Approved :: Apache Software License",
@@ -32,6 +32,7 @@ dependencies = [
     "optimum @ git+https://github.com/huggingface/optimum",
     "transformers>=4.36,<4.58.0",
     "onnx",
+    "onnxscript",
 ]
 
 [project.urls]

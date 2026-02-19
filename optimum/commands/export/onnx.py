@@ -143,12 +143,12 @@ def parse_args_onnx(parser):
         type=str,
         choices=["transformers", "diffusers", "timm", "sentence_transformers"],
         default=None,
-        help=("The library on the model. If not provided, will attempt to infer the local checkpoint's library"),
+        help="The library on the model. If not provided, will attempt to infer the local checkpoint's library",
     )
     optional_group.add_argument(
         "--model-kwargs",
         type=json.loads,
-        help=("Any kwargs passed to the model forward, or used to customize the export for a given model."),
+        help="Any kwargs passed to the model forward, or used to customize the export for a given model.",
     )
     optional_group.add_argument(
         "--no-dynamic-axes", action="store_true", help="Disable dynamic axes during ONNX export"
@@ -162,6 +162,13 @@ def parse_args_onnx(parser):
         "--slim",
         action="store_true",
         help="Enables onnxslim optimization.",
+    )
+    optional_group.add_argument(
+        "--dynamo",
+        action="store_true",
+        help="Selects dynamo exporter instead of torch script exporter "
+        "(Option `dynamo=True` with `torch.onnx.export`), "
+        "this is the recommended option for opset >= 18.",
     )
 
     input_group = parser.add_argument_group(
@@ -283,5 +290,6 @@ class ONNXExportCommand(BaseOptimumCLICommand):
             model_kwargs=self.args.model_kwargs,
             do_constant_folding=not self.args.no_constant_folding,
             slim=self.args.slim,
+            dynamo=self.args.dynamo,
             **input_shapes,
         )

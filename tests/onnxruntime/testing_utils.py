@@ -23,6 +23,8 @@ import torch
 from huggingface_hub import create_repo, delete_repo
 from transformers import set_seed
 
+from optimum.utils.import_utils import is_transformers_version
+
 
 SEED = 42
 
@@ -228,3 +230,15 @@ class TemporaryHubRepo:
 
     def __exit__(self, exc, value, tb):
         delete_repo(repo_id=self.repo_url.repo_id, token=self.token, missing_ok=True)
+
+
+def select_architecture_transformer_version(arch_list: list[str | tuple[str, str]]) -> list[str]:
+    new_list = []
+    for arch in arch_list:
+        if isinstance(arch, str):
+            new_list.append(arch)
+            continue
+        if is_transformers_version(">=", arch[1]):
+            new_list.append(arch[0])
+            continue
+    return new_list

@@ -274,8 +274,10 @@ class OnnxExportTestCase(TestCase):
 
         if model_type == "sana":
             models_and_onnx_configs = get_sana_models_for_export(pipeline)
+            atol = 2e-3
         else:
             models_and_onnx_configs = get_diffusion_models_for_export(pipeline)
+            atol = None
 
         with TemporaryDirectory() as tmpdirname:
             _, onnx_outputs = export_models(
@@ -288,6 +290,7 @@ class OnnxExportTestCase(TestCase):
                 onnx_named_outputs=onnx_outputs,
                 output_dir=Path(tmpdirname),
                 use_subprocess=False,
+                atol=atol,
             )
 
     def test_all_models_tested(self):
@@ -444,7 +447,8 @@ def fn_get_submodels_custom(model):
 
 
 class OnnxCustomExport(TestCase):
-    def test_custom_export_official_model(self):
+    @parameterized.expand([False, True])
+    def test_custom_export_official_model_whisper(self, dynamo: bool):
         model_id = "openai/whisper-tiny.en"
         config = AutoConfig.from_pretrained(model_id)
         custom_onnx_config = CustomWhisperOnnxConfig(config=config, task="automatic-speech-recognition")
@@ -466,6 +470,7 @@ class OnnxCustomExport(TestCase):
                 no_post_process=True,
                 model_kwargs={"output_attentions": True},
                 custom_onnx_configs=custom_onnx_configs,
+                dynamo=dynamo,
             )
 
             model = onnx.load(os.path.join(tmpdirname, "decoder_model.onnx"))
@@ -473,6 +478,25 @@ class OnnxCustomExport(TestCase):
             output_names = [outp.name for outp in model.graph.output]
             assert "decoder_attentions.0" in output_names
             assert "cross_attentions.0" in output_names
+
+    @parameterized.expand([False, True])
+    def test_custom_export_official_model_tiny_llm(self, dynamo: bool):
+        model_id = "arnir0/Tiny-LLM"
+
+        with TemporaryDirectory() as tmpdirname:
+            main_export(
+                model_id,
+                output=tmpdirname,
+                no_post_process=True,
+                model_kwargs={"output_attentions": True},
+                dynamo=dynamo,
+            )
+
+            model = onnx.load(os.path.join(tmpdirname, "model.onnx"))
+
+            output_names = [outp.name for outp in model.graph.output]
+            assert "logits" in output_names
+            assert "present.0.key" in output_names
 
     @parameterized.expand([(None,), (fn_get_submodels_custom,)])
     @mock.patch.dict("sys.modules", triton_pre_mlir=mock.Mock())

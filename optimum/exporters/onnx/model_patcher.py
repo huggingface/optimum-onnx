@@ -205,9 +205,18 @@ def preprocess_past_key_values(past_key_values):
         and isinstance(past_key_values[0], (list, tuple))
     ):
         if len(past_key_values[0]) == 2:
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+            if hasattr(DynamicCache, "from_legacy_cache"):
+                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+            else:
+                past_key_values = DynamicCache(past_key_values)
         elif len(past_key_values[0]) == 4:
-            past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
+            if hasattr(EncoderDecoderCache, "from_legacy_cache"):
+                past_key_values = EncoderDecoderCache.from_legacy_cache(past_key_values)
+            else:
+                past_key_values = EncoderDecoderCache(
+                    DynamicCache([layer[:2] for layer in past_key_values]),
+                    DynamicCache([layer[2:] for layer in past_key_values]),
+                )
         else:
             raise ValueError(
                 f"past_key_values should have either 2 or 4 elements, but it has {len(past_key_values[0])} elements."
@@ -218,7 +227,20 @@ def preprocess_past_key_values(past_key_values):
 
 def postprocess_past_key_values(past_key_values, output_names: list[str]):
     if is_transformers_version(">=", "4.48") and isinstance(past_key_values, (EncoderDecoderCache, DynamicCache)):
-        past_key_values = past_key_values.to_legacy_cache()
+        if hasattr(past_key_values, "to_legacy_cache"):
+            past_key_values = past_key_values.to_legacy_cache()
+        elif isinstance(past_key_values, DynamicCache):
+            past_key_values = [(lay.keys, lay.values) for lay in past_key_values.layers]
+        elif isinstance(past_key_values, EncoderDecoderCache):
+            past_key_values = [
+                (self_lay.keys, self_lay.values, cross_lay.keys, cross_lay.values)
+                for self_lay, cross_lay in zip(
+                    past_key_values.self_attention_cache.layers,
+                    past_key_values.cross_attention_cache.layers,
+                )
+            ]
+        else:
+            raise NotImplementedError(f"Unable to serialize class {type(past_key_values)}.")
 
     if (
         isinstance(past_key_values, (list, tuple))
@@ -373,6 +395,12 @@ def find_packed_sequence_indices_patched(position_ids: torch.Tensor) -> torch.Te
     return torch.zeros_like(position_ids)
 
 
+if is_transformers_version(">=", "4.53"):
+    _prepare_padding_mask_slice = "_slice" in inspect.signature(prepare_padding_mask).parameters
+else:
+    _prepare_padding_mask_slice = False
+
+
 # Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
     batch_size: int,
@@ -390,7 +418,10 @@ def sdpa_mask_without_vmap(
 
     q_length = cache_position.shape[0]
     # Potentially pad the 2D mask, and slice it correctly
-    padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+    if _prepare_padding_mask_slice:
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
+    else:
+        padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset)
 
     # Under specific conditions, we can avoid materializing the mask, instead relying on the `is_causal` argument
     if allow_is_causal_skip and _ignore_causal_mask_sdpa(padding_mask, q_length, kv_length, kv_offset, local_size):
