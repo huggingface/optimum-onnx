@@ -52,11 +52,11 @@ from transformers import (
 )
 from transformers.modeling_outputs import BaseModelOutput, ImageSuperResolutionOutput
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
-from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from transformers.utils import http_user_agent
 
 from optimum.exporters.tasks import TasksManager
+from optimum.onnx.utils import get_preprocessor
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModel,
