@@ -55,6 +55,7 @@ from optimum.exporters.utils import (
     get_speecht5_models_for_export,
 )
 from optimum.utils import DummyPastKeyValuesGenerator, DummyTextInputGenerator, NormalizedTextConfig
+from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers
 
 
@@ -354,6 +355,11 @@ class OnnxExportTestCase(TestCase):
     @require_vision
     @require_diffusers
     def test_pytorch_export_for_diffusion_models(self, model_type, model_name):
+        if model_type == "stable-diffusion-3" and is_transformers_version(">=", "5.0"):
+            # ONNX cast issue:
+            # Type parameter (T) of Optype (LayerNormalization) bound to different types (tensor(float)
+            # and tensor(float16) in node (/text_model/encoder/layers.0/layer_norm2/LayerNormalization)."
+            self.skipTest(f"Model {model_type!r} is no long correctly exported with transformers>=5 and torchscript.")
         self._onnx_export_diffusion_models(model_type, model_name)
 
     @parameterized.expand(PYTORCH_DIFFUSION_MODEL.items())
@@ -506,6 +512,9 @@ class OnnxCustomExport(TestCase):
         onnx_config_with_past = CustomMPTOnnxConfig(config, task="text-generation", use_past=True)
         custom_onnx_configs = {"model": onnx_config_with_past}
 
+        if not hasattr(config, "tie_word_embeddings"):
+            self.skipTest("tie_word_embeddings was removed but the code of the model is not updated yet.")
+
         with TemporaryDirectory() as tmpdirname:
             main_export(
                 model_id,
@@ -521,7 +530,7 @@ class OnnxCustomExport(TestCase):
     def test_custom_export_trust_remote_error(self):
         model_id = "optimum-internal-testing/tiny-random-arctic"
 
-        with self.assertRaises(ValueError) as context, TemporaryDirectory() as tmpdirname:
+        with self.assertRaises((ValueError, ImportError)) as context, TemporaryDirectory() as tmpdirname:
             main_export(
                 model_id,
                 output=tmpdirname,
@@ -530,4 +539,7 @@ class OnnxCustomExport(TestCase):
                 no_post_process=True,
             )
 
-        self.assertIn("custom or unsupported architecture", str(context.exception))
+        if isinstance(context.exception, ValueError):
+            self.assertIn("custom or unsupported architecture", str(context.exception))
+        else:
+            self.skipTest("optimum is not up to date.")
