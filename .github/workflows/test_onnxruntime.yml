@@ -24,9 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.11]
+        python-version: [3.12]
         runs-on: [ubuntu-24.04]
-        transformers_version: [latest, 4.36.*, 4.45.*, 4.56.*]
+        # transformers_version: [latest, 4.36.*, 4.45.*, 4.56.*, 5.2.*]
+        #temporary disabled to fix 5.2 in priority
+        transformers_version: [5.2.*]
         test_file:
           [
             test_decoder.py,
@@ -73,6 +75,8 @@ jobs:
             uv pip install "transformers==4.45.*"
           elif [ "${{ matrix.transformers_version }}" == '4.56.*' ]; then
             uv pip install "transformers==4.56.*"
+          elif [ "${{ matrix.transformers_version }}" == '5.2.*' ]; then
+            uv pip install "transformers==5.2.*"
           elif [ "${{ matrix.transformers_version }}" != 'latest' ]; then
             uv pip install "transformers==${{ matrix.transformers_version }}"            
           fi

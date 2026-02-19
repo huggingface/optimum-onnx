@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "optimum @ git+https://github.com/huggingface/optimum",
-    "transformers>=4.36,<4.58.0",
+    "transformers>=4.36,<6.0",
     "onnx",
     "onnxscript",
 ]

@@ -496,7 +496,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
             "roberta",
             "roformer",
             "squeezebert",
-            ("xlm-qa", "4.56"),  # test it only for transformers>=4.56
+            "xlm-qa",
             "xlm-roberta",
             "rembert",
         ]
