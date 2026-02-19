@@ -46,6 +46,7 @@ tests = [
     "datasets",
     "einops",
     "hf_xet",
+    "huggingface_hub",
     "parameterized",
     "Pillow",
     "pytest-xdist",

@@ -564,7 +564,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pipe(question, context)
+        outputs = pipe(question=question, context=context)
 
         self.assertEqual(pipe.device, pipe.model.device)
         self.assertGreaterEqual(outputs["score"], 0.0)
@@ -577,7 +577,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         pipe = pipeline("question-answering")
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pipe(question, context)
+        outputs = pipe(question=question, context=context)
 
         # compare model output class
         self.assertGreaterEqual(outputs["score"], 0.0)
@@ -604,7 +604,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, device=0)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pipe(question, context)
+        outputs = pipe(question=question, context=context)
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
@@ -630,7 +630,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         pipe = pipeline("question-answering", model=onnx_model, tokenizer=tokenizer, device=0)
         question = "Whats my name?"
         context = "My Name is Philipp and I live in Nuremberg."
-        outputs = pipe(question, context)
+        outputs = pipe(question=question, context=context)
         # check model device
         self.assertEqual(pipe.model.device.type.lower(), "cuda")
         # compare model output class
