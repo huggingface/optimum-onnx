@@ -1234,8 +1234,14 @@ class VitPoseModelPatcher(ModelPatcher):
 def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor:
     batch_size, sequence_length, hidden_dim = hidden_states.shape
     hidden_states = hidden_states.view(-1, hidden_dim)
+
     # router_logits: (batch * sequence_length, n_experts)
     router_logits = self.gate(hidden_states)
+
+    # gate returns a tuple with transformers>=5.0, this patch is no longer accurate.
+    # _, routing_weights, selected_experts = self.gate(hidden_states)
+    if isinstance(router_logits, tuple):
+        router_logits = router_logits[2]
 
     routing_weights = torch.nn.functional.softmax(router_logits, dim=1, dtype=torch.float)
     routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
