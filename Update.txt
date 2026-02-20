@@ -1,0 +1,27 @@
+Files Modified
+1. optimum/exporters/onnx/input_generators.py
+Added imports: DEFAULT_DUMMY_SHAPES, DummyInputGenerator
+Added DummyQwen2VLVisionInputGenerator class that generates:
+pixel_values: pre-flattened patches (total_patches, 1176) — Qwen2-VL's non-standard format where 1176 = 3 × 2 × 14 × 14
+image_grid_thw: grid dimensions (num_images, 3) with [grid_t, grid_h, grid_w] per image
+2. optimum/exporters/onnx/model_configs.py
+Added import of DummyQwen2VLVisionInputGenerator
+Added Qwen2VLOnnxConfig class registered as "qwen2_vl" with tasks: feature-extraction, feature-extraction-with-past, text-generation, text-generation-with-past
+Design Decisions
+Decision	Choice	Rationale
+Base class	TextDecoderWithPositionIdsOnnxConfig	Qwen2-VL is a decoder-based VLM with position_ids support
+Normalized config	NormalizedTextConfigWithGQA.with_args()	Maps text attributes through text_config.* to handle the composite Qwen2VLConfig
+PKV generator	MistralDummyPastKeyValuesGenerator	Handles GQA-style key-value heads (same as Llama/Qwen2)
+Position IDs	3D (3, batch_size, seq_len)	Qwen2-VL uses M-RoPE with temporal/height/width dimensions
+Vision inputs	Only in initial encoding	Excluded during cached generation (use_past_in_inputs=True)
+Verification Results
+Test	Result
+Import & registration	qwen2_vl registered with TasksManager for ONNX
+Config with real Qwen2-VL-2B	Normalized config correctly resolves all text/vision attributes
+Dummy input generation	Correct shapes: input_ids [2,20], position_ids [3,2,20], pixel_values [32,1176], image_grid_thw [2,3]
+PyTorch forward pass	Produces logits [2, 20, 151936]
+ONNX export	2.4 MB graph + 9.7 GB weights exported at opset 18
+ONNX Runtime inference	Produces matching logits shape (2, 20, 151936)
+Numerical accuracy	Max diff 0.036, mean diff 0.0015 (acceptable for 2B model)
+Known Limitation
+The vision encoder's internal operations (iteration over grid_thw, cu_seqlens computation) use data-dependent shapes that become constants during ONNX tracing. This means the exported model expects the same number of images per inference as used during tracing. A model patcher could address this in a follow-up by making the vision encoder's attention mechanism ONNX-friendly for truly dynamic batch sizes.
