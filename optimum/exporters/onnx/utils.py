@@ -234,18 +234,28 @@ def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "in
 
     return models_for_export
 
+def generate_config_dim(
+    model: PreTrainedModel, 
+    dim_name: list[str] | None = None,
+):
+    if dim_name is None:
+        return {}
+    #config_dict = model.config.to_dict()
+    tmp = {k: getattr(model.config, k) for k in dim_name if hasattr(model.config, k)}
+    print(tmp)
+    return {k: getattr(model.config, k) for k in dim_name if hasattr(model.config, k)}
+    
 def get_dynamic_models_for_export(
     pipeline: DiffusionPipeline,
     models_and_inputs: dict | None = None,
     models_and_outputs: dict | None = None,
+    module_arch_fields: dict[str, list[str]] | None = None,
     int_dtype: str = "int64", 
     float_dtype: str = "fp32"
 ):
     import copy
     import types
     from functools import partial
-
-    config_dim = {"in_channels": 16, "d_model": 4096}
 
     models_for_export = {}
     text_encoder = pipeline.text_encoder
@@ -256,7 +266,7 @@ def get_dynamic_models_for_export(
                                           float_dtype=float_dtype,
                                           model_inputs=models_and_inputs["text_encoder"],
                                           model_outputs=models_and_outputs["text_encoder"],
-                                          config_dim=config_dim)
+                                          config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder"]))
     models_for_export["text_encoder"] = (text_encoder, text_encoder_config) 
 
     transformer = pipeline.transformer
@@ -267,7 +277,7 @@ def get_dynamic_models_for_export(
                                           float_dtype=float_dtype,
                                           model_inputs=models_and_inputs["transformer"],
                                           model_outputs=models_and_outputs["transformer"],
-                                          config_dim=config_dim)
+                                          config_dim=generate_config_dim(transformer, module_arch_fields["transformer"]))
     models_for_export["transformer"] = (transformer, transformer_config)
 
     vae_decoder = copy.deepcopy(pipeline.vae)
@@ -282,7 +292,7 @@ def get_dynamic_models_for_export(
                                           float_dtype=float_dtype,
                                           model_inputs=models_and_inputs["vae_decoder"],
                                           model_outputs=models_and_outputs["vae_decoder"],
-                                          config_dim=config_dim)
+                                          config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_decoder"]))
     models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
     return models_for_export
 
@@ -301,6 +311,7 @@ def _get_submodels_and_onnx_configs(
     model_kwargs: dict | None = None,
     models_and_inputs: dict | None = None,
     models_and_outputs: dict | None = None,
+    module_arch_fields: dict[str, list[str]] | None = None,
 ):
     if library_name == "transformers" and model.config.model_type == "metaclip_2":
         export_config_constructor = TasksManager.get_exporter_config_constructor(
@@ -320,7 +331,7 @@ def _get_submodels_and_onnx_configs(
 
     ## 
     if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None:
-        return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, int_dtype, float_dtype)
+        return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, module_arch_fields, int_dtype, float_dtype)
 
     return _get_submodels_and_export_configs(
         model,
@@ -384,7 +395,8 @@ def make_dataclass_output_hook(dummy_outputs, module_name):
 
 def _get_submodels_and_tensors_(
     model: PreTrainedModel | DiffusionPipeline,
-    inf_kwargs: dict[str, Any] | None = None):
+    inf_kwargs: dict[str, Any] | None = None,
+):
     import torch.nn as nn
     import inspect
     import types

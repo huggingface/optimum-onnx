@@ -275,6 +275,10 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         providers: Sequence[str] | None = None,
         provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
         session_options: SessionOptions | None = None,
+        # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        # module_arch_configs
+        module_arch_fields: dict[str, list[str]] | None = None,
         # inference options
         use_io_binding: bool | None = None,
         # hub options and preloaded models
@@ -381,18 +385,6 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 "no_dynamic_axes": kwargs.pop("no_dynamic_axes", False),
             }
 
-            prompt = "A cat walks on the grass, realistic"
-            negative_prompt = "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
-
-            inf_kwargs = {
-                "prompt": prompt,
-                "negative_prompt": negative_prompt,
-                "height": 240,
-                "width":416,
-                "num_frames": 21,
-                "guidance_scale": 5.0
-            }
-
             main_export(
                 model_name_or_path=model_name_or_path,
                 # export related arguments
@@ -401,6 +393,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 do_validation=False,
                 task=cls.task,
                 inf_kwargs = inf_kwargs,
+                module_arch_fields = module_arch_fields,
                 # export related arguments
                 **export_kwargs,
                 # hub related arguments

@@ -67,7 +67,10 @@ def main_export(
     framework: str | None = "pt",
     atol: float | None = None,
     pad_token_id: int | None = None,
-    inf_kwargs: dict[str,Any] | None = None,
+    # inference kwargs
+    inf_kwargs: dict[str, Any] | None = None,
+    # module_arch_configs
+    module_arch_fields: dict[str, list[str]] | None = None,
     # hub options
     subfolder: str = "",
     revision: str = "main",
@@ -213,7 +216,7 @@ def main_export(
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
-    print(inf_kwargs)
+    print("inference kwargs: ", inf_kwargs)
 
     if framework is None:
         framework = TasksManager.determine_framework(
@@ -426,6 +429,7 @@ def main_export(
         slim=slim,
         dynamo=dynamo,
         inf_kwargs=inf_kwargs,
+        module_arch_fields=module_arch_fields,
         **kwargs_shapes,
     )
 
