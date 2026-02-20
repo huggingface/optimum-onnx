@@ -60,7 +60,7 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
-from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
+from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options, load_shapes_as_torch_size
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -363,7 +363,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         # export the model if no ONNX files are found or if asked explicitly
         if export:
             model_save_tmpdir = Path("/dev/shm")
-            model_save_path = Path("/dev/shm")
+            model_save_path = model_save_tmpdir
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -406,6 +406,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 # hub related arguments
                 **hub_kwargs
             )
+                
 
         # download the model if needed
         if not model_save_path.is_dir():
@@ -489,7 +490,18 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         ort_pipeline.register_to_config(**config)
         ort_pipeline.register_to_config(_name_or_path=config.get("_name_or_path", model_name_or_path))
-
+        for key, comp in ort_pipeline.components.items():
+            output_dir = os.path.join(model_save_path, "io_binding")
+            file_path = os.path.join(output_dir, f"{key}_outputs.json")
+            if key == "vae":
+                if comp.encoder is not None:
+                    file_path = os.path.join(output_dir, f"{key}_encoder_outputs.json")
+                    comp.encoder.set_io_binding_file(file_path)
+                if comp.decoder is not None:
+                    file_path = os.path.join(output_dir, f"{key}_decoder_outputs.json")
+                    comp.decoder.set_io_binding_file(file_path)
+            else:
+                comp.set_io_binding_file(file_path)
         return ort_pipeline
 
     def save_pretrained(
@@ -586,6 +598,11 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin, CacheMixin):
         config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
 
+        self.io_binding_file = None
+
+    def set_io_binding_file(self, filename):
+        self.io_binding_file = filename
+
     def save_pretrained(self, save_directory: str | Path):
         """Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
@@ -649,8 +666,10 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            known_output_shapes = {"out_sample": sample.shape}
 
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            known_output_shapes["out_sample"] = sample.shape
+            
             known_output_buffers = None
             # in LCM, the scheduler uses both the input sample (latents) and the output sample (model_pred) to compute the next latents
             # latents, denoised = self.scheduler.step(model_pred, t, latents, **extra_step_kwargs, return_dict=False)
@@ -715,7 +734,8 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            known_output_shapes = {"out_hidden_states": hidden_states.shape}
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            known_output_shapes["out_hidden_states"] = hidden_states.shape
 
             known_output_buffers = None
             # in Flux model, the scheduler uses both the input hidden_states (latents) and the output hidden_states (noise_pred) to compute the next latents
@@ -749,6 +769,7 @@ class ORTTransformer(ORTModelMixin):
 
 
 class ORTTextEncoder(ORTModelMixin):
+        
     def forward(
         self,
         input_ids: np.ndarray | torch.Tensor,
@@ -764,7 +785,10 @@ class ORTTextEncoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs, 
+                                                                     known_output_shapes=known_output_shapes, 
+                                                                     known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -821,7 +845,10 @@ class ORTVaeEncoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs, 
+                                                                     known_output_shapes=known_output_shapes, 
+                                                                     known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -854,8 +881,6 @@ class ORTVaeDecoder(ORTModelMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        print("vae decoder: ", self.config)
-
         # can be missing from models exported long ago
         if not hasattr(self.config, "scaling_factor") and hasattr(self.config, "block_out_channels"):
             logger.warning(
@@ -877,7 +902,12 @@ class ORTVaeDecoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs,
+                                                                    known_output_shapes=known_output_shapes,
+                                                                    known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
