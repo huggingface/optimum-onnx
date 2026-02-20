@@ -211,7 +211,6 @@ def main_export(
     task = TasksManager.map_from_synonym(task)
 
     print(inf_kwargs)
-    print(f"library name {library_name}")
 
     if framework is None:
         framework = TasksManager.determine_framework(
@@ -239,7 +238,6 @@ def main_export(
                 "Please install it with `pip install diffusers`."
             )
 
-    print(f"After infer library_name: {library_name}")
 
     torch_dtype = None
     if framework == "pt":
@@ -402,11 +400,10 @@ def main_export(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
 
-    print(type(model)) # good 
 
     onnx_export_from_model(
         model=model,
-        output=output,
+        output=output, #model save path 
         opset=opset,
         optimize=optimize,
         monolith=monolith,

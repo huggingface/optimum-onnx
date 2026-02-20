@@ -580,7 +580,6 @@ def export_pytorch(
                 **dynamo_kwargs,
             )
 
-            print("dynamic_axes: ", dynamix_axes)
 
         # check if external data was exported
         onnx_model = onnx.load(str(output), load_external_data=False)
@@ -968,7 +967,6 @@ def onnx_export_from_model(
         )
 
     output = Path(output)
-    print("output: ", output)
     if not output.exists():
         output.mkdir(parents=True)
 
@@ -1105,8 +1103,24 @@ def onnx_export_from_model(
         model_kwargs=model_kwargs,
     )
 
-    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! export model !!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    if models_and_outputs is not None:
+        import json
+        output_dir = os.path.join(output, "io_binding")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for module_name, dummy_outputs in models_and_outputs.items():
+            # convert tuple -> list for json
+            serializable = {
+                name: list(shape)
+                for name, shape in dummy_outputs.items()
+            }
 
+            file_path = os.path.join(output_dir, f"{module_name}_outputs.json")
+
+            with open(file_path, "w") as f:
+                json.dump(serializable, f, indent=4)
+            print(f"Saved: {file_path}")
+            
     if optimize is not None:
         from optimum.onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
@@ -1153,7 +1167,6 @@ def onnx_export_from_model(
         # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
         use_subprocess = False
 
-    print("do_validation: !!!!!!!!!!!!!!!!!!!", do_validation)
 
     if do_validation is True:
         try:
