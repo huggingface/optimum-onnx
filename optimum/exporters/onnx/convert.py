@@ -471,6 +471,7 @@ def export_pytorch(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a PyTorch model to an ONNX Intermediate Representation.
 
@@ -529,7 +530,8 @@ def export_pytorch(
         if input_shapes is None:
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
-        input_shapes = {}
+        if export_by_inference is True:
+            input_shapes = {}
 
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
@@ -579,7 +581,6 @@ def export_pytorch(
                 opset_version=opset,
                 **dynamo_kwargs,
             )
-
 
         # check if external data was exported
         onnx_model = onnx.load(str(output), load_external_data=False)
@@ -632,6 +633,7 @@ def export_models(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[list[str]], list[list[str]]]:
     """Exports a Pytorch encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
@@ -700,6 +702,7 @@ def export_models(
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
                 model_kwargs=model_kwargs,
+                export_by_inference=export_by_inference,
             )
         )
 
@@ -719,6 +722,7 @@ def export(
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
     model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a Pytorch model to an ONNX Intermediate Representation.
 
@@ -754,7 +758,6 @@ def export(
         `Tuple[List[str], List[str]]`: A tuple with an ordered list of the model's inputs, and the named outputs from
         the ONNX configuration.
     """
-    print("export function: ")
     if not is_torch_available():
         raise ImportError("Cannot convert because PyTorch is not installed. Please install PyTorch first.")
 
@@ -799,6 +802,7 @@ def export(
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
             model_kwargs=model_kwargs,
+            export_by_inference=export_by_inference,
         )
 
     else:
@@ -807,9 +811,9 @@ def export(
         )
 
     if not disable_dynamic_axes_fix:
-        input_shapes = {}
+        if export_by_inference is True:
+            input_shapes = {}
         config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
-    print("after export: ")
     return export_output
 
 
@@ -835,6 +839,7 @@ def onnx_export_from_model(
     slim: bool = False,
     inf_kwargs: dict[str,Any] | None = None,
     module_arch_fields: dict[str, list[str]] | None = None,
+    export_by_inference: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -990,11 +995,15 @@ def onnx_export_from_model(
                 f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
             )
 
-    # inference model to trace input and output tensor shape
-    models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(
-        model=model, 
-        inf_kwargs=inf_kwargs,
-    )
+    if export_by_inference is True:
+        # inference model to trace input and output tensor shape
+        models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(
+            model=model, 
+            inf_kwargs=inf_kwargs,
+        )
+    else:
+        models_and_inputs = None
+        models_and_outputs = None
 
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
@@ -1106,6 +1115,7 @@ def onnx_export_from_model(
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
         model_kwargs=model_kwargs,
+        export_by_inference=export_by_inference,
     )
 
     if models_and_outputs is not None:
@@ -1171,7 +1181,6 @@ def onnx_export_from_model(
     if device == "cpu":
         # Using multiprocessing for validation is useful only on CUDA EP that leaks memory.
         use_subprocess = False
-
 
     if do_validation is True:
         try:

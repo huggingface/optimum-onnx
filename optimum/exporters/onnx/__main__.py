@@ -71,6 +71,8 @@ def main_export(
     inf_kwargs: dict[str, Any] | None = None,
     # module_arch_configs
     module_arch_fields: dict[str, list[str]] | None = None,
+    # flag for export_by_inference
+    export_by_inference: bool = False,
     # hub options
     subfolder: str = "",
     revision: str = "main",
@@ -213,8 +215,6 @@ def main_export(
     original_task = task
     task = TasksManager.map_from_synonym(task)
 
-    print("inference kwargs: ", inf_kwargs)
-
     if framework is None:
         framework = TasksManager.determine_framework(
             model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
@@ -240,7 +240,6 @@ def main_export(
                 "The library name was inferred as `diffusers`, which is not installed. "
                 "Please install it with `pip install diffusers`."
             )
-
 
     torch_dtype = None
     if framework == "pt":
@@ -403,10 +402,9 @@ def main_export(
         model_name_or_path, subfolder=subfolder, trust_remote_code=trust_remote_code
     )
 
-
     onnx_export_from_model(
         model=model,
-        output=output, #model save path 
+        output=output,
         opset=opset,
         optimize=optimize,
         monolith=monolith,
@@ -426,6 +424,7 @@ def main_export(
         slim=slim,
         inf_kwargs=inf_kwargs,
         module_arch_fields=module_arch_fields,
+        export_by_inference=export_by_inference,
         **kwargs_shapes,
     )
 

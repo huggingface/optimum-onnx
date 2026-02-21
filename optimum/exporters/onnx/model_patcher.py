@@ -568,7 +568,6 @@ class ModelPatcher:
         self.orig_forward = getattr(self._model, self.orig_forward_name)
 
         if is_transformers_version(">=", "4.54") and hasattr(self.orig_forward, "__wrapped__"):
-            print("wrapped")
             # the original check_model_inputs has some failing cases that we fix in traceable_check_model_inputs
             # we fix those issues in a PR in transformers https://github.com/huggingface/transformers/pull/40811
             # issues are: support for positional args (use_cache for instance) and fix for _CAN_RECORD_REGISTRY

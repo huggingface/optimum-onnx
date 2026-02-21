@@ -280,6 +280,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         inf_kwargs: dict[str, Any] | None = None,
         # module_arch_configs
         module_arch_fields: dict[str, list[str]] | None = None,
+        # flag to use export_by_inference
+        export_by_inference: bool = False,
         # inference options
         use_io_binding: bool | None = None,
         # hub options and preloaded models
@@ -367,8 +369,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         # export the model if no ONNX files are found or if asked explicitly
         if export:
-            model_save_tmpdir = Path("/dev/shm")
-            model_save_path = model_save_tmpdir
+            model_save_tmpdir = TemporaryDirectory()
+            model_save_path = Path(model_save_tmpdir.name)
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -395,6 +397,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 task=cls.task,
                 inf_kwargs = inf_kwargs,
                 module_arch_fields = module_arch_fields,
+                export_by_inference = export_by_inference,
                 # export related arguments
                 **export_kwargs,
                 # hub related arguments
@@ -763,7 +766,6 @@ class ORTTransformer(ORTModelMixin):
 
 
 class ORTTextEncoder(ORTModelMixin):
-        
     def forward(
         self,
         input_ids: np.ndarray | torch.Tensor,

@@ -2910,7 +2910,7 @@ class DummyOnnxConfig(OnnxConfig):
             return model_inputs_dynamic_axes
         if self.task == "backbone":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
+                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
             return model_inputs_dynamic_axes
         if self.task == "sample_encode":
             for key, value in self.model_inputs.items():
@@ -2931,7 +2931,7 @@ class DummyOnnxConfig(OnnxConfig):
             return model_outputs_dynamic_axes
         if self.task == "backbone":
             for key, value in self.model_outputs.items():
-                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
             return model_outputs_dynamic_axes
         if self.task == "sample_encode":
             for key, value in self.model_outputs.items():
