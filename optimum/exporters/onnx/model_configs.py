@@ -2912,9 +2912,13 @@ class DummyOnnxConfig(OnnxConfig):
             for key, value in self.model_inputs.items():
                 model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
             return model_inputs_dynamic_axes
+        if self.task == "sample_encode":
+            for key, value in self.model_inputs.items():
+                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
+            return model_inputs_dynamic_axes
         if self.task == "latent_decode":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "input")
+                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
             return model_inputs_dynamic_axes
         return model_inputs_dynamic_axes
             
@@ -2929,9 +2933,13 @@ class DummyOnnxConfig(OnnxConfig):
             for key, value in self.model_outputs.items():
                 model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "")
             return model_outputs_dynamic_axes
+        if self.task == "sample_encode":
+            for key, value in self.model_outputs.items():
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
+            return model_outputs_dynamic_axes
         if self.task == "latent_decode":
             for key, value in self.model_outputs.items():
-                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "output")
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
             return model_outputs_dynamic_axes
         return model_outputs_dynamic_axes
 

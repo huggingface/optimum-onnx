@@ -269,6 +269,17 @@ def get_dynamic_models_for_export(
                                           config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder"]))
     models_for_export["text_encoder"] = (text_encoder, text_encoder_config) 
 
+    text_encoder_2 = pipeline.text_encoder_2
+    text_encoder_2_config = DummyOnnxConfig(config=text_encoder_2.config, 
+                                            task="text-encoding", 
+                                            preprocessors=None, 
+                                            int_dtype=int_dtype,
+                                            float_dtype=float_dtype,
+                                            model_inputs=models_and_inputs["text_encoder_2"],
+                                            model_outputs=models_and_outputs["text_encoder_2"],
+                                            config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder_2"]))
+    models_for_export["text_encoder_2"] = (text_encoder_2, text_encoder_2_config) 
+
     transformer = pipeline.transformer
     transformer_config = DummyOnnxConfig(config=transformer.config, 
                                           task="backbone", 
@@ -280,11 +291,26 @@ def get_dynamic_models_for_export(
                                           config_dim=generate_config_dim(transformer, module_arch_fields["transformer"]))
     models_for_export["transformer"] = (transformer, transformer_config)
 
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    # proper forward wrapper
+    def encode_forward(self, sample):
+        return vae_encoder.encode(self, x=sample, return_dict=False)
+    vae_encoder.forward = types.MethodType(encode_forward, vae_encoder)
+    vae_encoder_config = DummyOnnxConfig(config=vae_encoder.config, 
+                                          task="sample_encode", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["vae_encoder"],
+                                          model_outputs=models_and_outputs["vae_encoder"],
+                                          config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_encoder"]))
+    models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_config)
+
     vae_decoder = copy.deepcopy(pipeline.vae)
     # proper forward wrapper
-    def vae_forward(self, latent_sample):
+    def decode_forward(self, latent_sample):
         return vae_decoder.decode(self, z=latent_sample, return_dict=False)
-    vae_decoder.forward = types.MethodType(vae_forward, vae_decoder)
+    vae_decoder.forward = types.MethodType(decode_forward, vae_decoder)
     vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
                                           task="latent_decode", 
                                           preprocessors=None, 
@@ -420,6 +446,12 @@ def _get_submodels_and_tensors_(
             model.text_encoder.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder")))
         hooks.append(
             model.text_encoder.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder")))
+
+    if "text_encoder_2" in dummy_inputs.keys():
+        hooks.append(
+            model.text_encoder_2.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder_2")))
+        hooks.append(
+            model.text_encoder_2.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder_2")))
 
     if "transformer" in dummy_inputs.keys():
         transformer_original_forward = model.transformer.forward
