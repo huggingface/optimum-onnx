@@ -240,9 +240,7 @@ def generate_config_dim(
 ):
     if dim_name is None:
         return {}
-    #config_dict = model.config.to_dict()
     tmp = {k: getattr(model.config, k) for k in dim_name if hasattr(model.config, k)}
-    print(tmp)
     return {k: getattr(model.config, k) for k in dim_name if hasattr(model.config, k)}
     
 def get_dynamic_models_for_export(
@@ -267,18 +265,19 @@ def get_dynamic_models_for_export(
                                           model_inputs=models_and_inputs["text_encoder"],
                                           model_outputs=models_and_outputs["text_encoder"],
                                           config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder"]))
-    models_for_export["text_encoder"] = (text_encoder, text_encoder_config) 
+    models_for_export["text_encoder"] = (text_encoder, text_encoder_config)
 
-    text_encoder_2 = pipeline.text_encoder_2
-    text_encoder_2_config = DummyOnnxConfig(config=text_encoder_2.config, 
-                                            task="text-encoding", 
-                                            preprocessors=None, 
-                                            int_dtype=int_dtype,
-                                            float_dtype=float_dtype,
-                                            model_inputs=models_and_inputs["text_encoder_2"],
-                                            model_outputs=models_and_outputs["text_encoder_2"],
-                                            config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder_2"]))
-    models_for_export["text_encoder_2"] = (text_encoder_2, text_encoder_2_config) 
+    if hasattr(pipeline, "text_encoder_2") and "text_encoder_2" in models_and_outputs.keys():
+        text_encoder_2 = pipeline.text_encoder_2
+        text_encoder_2_config = DummyOnnxConfig(config=text_encoder_2.config, 
+                                                task="text-encoding", 
+                                                preprocessors=None, 
+                                                int_dtype=int_dtype,
+                                                float_dtype=float_dtype,
+                                                model_inputs=models_and_inputs["text_encoder_2"],
+                                                model_outputs=models_and_outputs["text_encoder_2"],
+                                                config_dim=generate_config_dim(text_encoder, module_arch_fields["text_encoder_2"]))
+        models_for_export["text_encoder_2"] = (text_encoder_2, text_encoder_2_config) 
 
     transformer = pipeline.transformer
     transformer_config = DummyOnnxConfig(config=transformer.config, 
@@ -291,35 +290,37 @@ def get_dynamic_models_for_export(
                                           config_dim=generate_config_dim(transformer, module_arch_fields["transformer"]))
     models_for_export["transformer"] = (transformer, transformer_config)
 
-    vae_encoder = copy.deepcopy(pipeline.vae)
-    # proper forward wrapper
-    def encode_forward(self, sample):
-        return vae_encoder.encode(self, x=sample, return_dict=False)
-    vae_encoder.forward = types.MethodType(encode_forward, vae_encoder)
-    vae_encoder_config = DummyOnnxConfig(config=vae_encoder.config, 
-                                          task="sample_encode", 
-                                          preprocessors=None, 
-                                          int_dtype=int_dtype,
-                                          float_dtype=float_dtype,
-                                          model_inputs=models_and_inputs["vae_encoder"],
-                                          model_outputs=models_and_outputs["vae_encoder"],
-                                          config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_encoder"]))
-    models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_config)
+    if "vae_encoder" in models_and_inputs.keys():
+        vae_encoder = copy.deepcopy(pipeline.vae)
+        # proper forward wrapper
+        def encode_forward(self, sample):
+            return vae_encoder.encode(self, x=sample, return_dict=False)
+        vae_encoder.forward = types.MethodType(encode_forward, vae_encoder)
+        vae_encoder_config = DummyOnnxConfig(config=vae_encoder.config, 
+                                              task="sample_encode", 
+                                              preprocessors=None, 
+                                              int_dtype=int_dtype,
+                                              float_dtype=float_dtype,
+                                              model_inputs=models_and_inputs["vae_encoder"],
+                                              model_outputs=models_and_outputs["vae_encoder"],
+                                              config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_encoder"]))
+        models_for_export["vae_encoder"] = (vae_encoder, vae_encoder_config)
 
-    vae_decoder = copy.deepcopy(pipeline.vae)
-    # proper forward wrapper
-    def decode_forward(self, latent_sample):
-        return vae_decoder.decode(self, z=latent_sample, return_dict=False)
-    vae_decoder.forward = types.MethodType(decode_forward, vae_decoder)
-    vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
-                                          task="latent_decode", 
-                                          preprocessors=None, 
-                                          int_dtype=int_dtype,
-                                          float_dtype=float_dtype,
-                                          model_inputs=models_and_inputs["vae_decoder"],
-                                          model_outputs=models_and_outputs["vae_decoder"],
-                                          config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_decoder"]))
-    models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
+    if "vae_decoder" in models_and_inputs.keys():
+        vae_decoder = copy.deepcopy(pipeline.vae)
+        # proper forward wrapper
+        def decode_forward(self, latent_sample):
+            return vae_decoder.decode(self, z=latent_sample, return_dict=False)
+        vae_decoder.forward = types.MethodType(decode_forward, vae_decoder)
+        vae_decoder_config = DummyOnnxConfig(config=vae_decoder.config, 
+                                              task="latent_decode", 
+                                              preprocessors=None, 
+                                              int_dtype=int_dtype,
+                                              float_dtype=float_dtype,
+                                              model_inputs=models_and_inputs["vae_decoder"],
+                                              model_outputs=models_and_outputs["vae_decoder"],
+                                              config_dim=generate_config_dim(vae_decoder, module_arch_fields["vae_decoder"]))
+        models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
     return models_for_export
 
 def _get_submodels_and_onnx_configs(
@@ -355,8 +356,8 @@ def _get_submodels_and_onnx_configs(
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
 
-    ## 
-    if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None:
+    ## use inference to trace input and output shape
+    if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None and module_arch_fields is not None:
         return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, module_arch_fields, int_dtype, float_dtype)
 
     return _get_submodels_and_export_configs(
@@ -377,16 +378,19 @@ def _get_submodels_and_onnx_configs(
 
 def make_positional_hook(dummy_inputs, module_name):
     import inspect
-    def hook(module, args):
+    def hook(module, args, kwargs):
         sig = inspect.signature(module.forward)
-        # Bind positional args to real parameter names
-        bound = sig.bind_partial(*args)
-
+        params = list(sig.parameters.values())
+        # remove self if present
+        if params and params[0].name == "self":
+            params = params[1:]
         named_shapes = {}
-        for name, value in bound.arguments.items():
-            if torch.is_tensor(value):
-                named_shapes[name] = tuple(value.shape)
-
+        for p, v in zip(params, args):
+            if torch.is_tensor(v):
+                named_shapes[p.name] = tuple(v.shape)
+        for k, v in kwargs.items():
+            if torch.is_tensor(v):
+                named_shapes[k] = tuple(v.shape)
         dummy_inputs[module_name] = named_shapes
         return None  # do not modify inputs
     return hook
@@ -443,13 +447,13 @@ def _get_submodels_and_tensors_(
 
     if "text_encoder" in dummy_inputs.keys():
         hooks.append(
-            model.text_encoder.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder")))
+            model.text_encoder.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder"), with_kwargs=True))
         hooks.append(
             model.text_encoder.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder")))
 
     if "text_encoder_2" in dummy_inputs.keys():
         hooks.append(
-            model.text_encoder_2.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder_2")))
+            model.text_encoder_2.register_forward_pre_hook(make_positional_hook(dummy_inputs, "text_encoder_2"), with_kwargs=True))
         hooks.append(
             model.text_encoder_2.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "text_encoder_2")))
 
@@ -513,9 +517,6 @@ def _get_submodels_and_tensors_(
 
     filtered_inputs = {k: v for k, v in dummy_inputs.items() if v}
     filtered_outputs = {k: v for k, v in dummy_outputs.items() if v}
-
-    print("dummy_inputs: ", filtered_inputs)
-    print("dummy_outputs: ", filtered_outputs)
 
     # remove all the model hooks 
     for h in hooks:

@@ -129,9 +129,3 @@ class DummyTupleInputGenerator(DummyInputGenerator):
         elif "mask" in input_name:
             return self.random_mask_tensor(list(tensor_shape), padding_side=self.padding_side, framework=framework, dtype=int_dtype)
         return self.random_float_tensor(list(tensor_shape), framework=framework, dtype=float_dtype)
-            
-
-            
-        
-        
-    
