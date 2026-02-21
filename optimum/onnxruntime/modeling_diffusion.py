@@ -39,6 +39,7 @@ from diffusers.pipelines import (
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
     WanPipeline,
+    HunyuanVideo15Pipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
@@ -1108,6 +1109,16 @@ class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
     main_input_name = "prompt"
     auto_model_class = WanPipeline
 
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTHunyuanVideo15Pipeline(ORTDiffusionPipeline, HunyuanVideo15Pipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-video generation using transformer Model and corresponding to [WanPipeline]
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan.py#L95).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = HunyuanVideo15Pipeline
+
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
@@ -1135,6 +1146,7 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
 ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
     [
         ("wan", ORTWanPipeline),
+        ("hunyuan", ORTHunyuanVideo15Pipeline)
     ]
 )
 
