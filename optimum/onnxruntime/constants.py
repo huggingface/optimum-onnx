@@ -23,3 +23,8 @@ DECODER_ONNX_FILE_PATTERN = r"(.*)?decoder((?!(with_past|merged)).)*?\.onnx"
 DECODER_WITH_PAST_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?with_past(.*)?\.onnx"
 DECODER_MERGED_ONNX_FILE_PATTERN = r"(.*)?decoder(.*)?merged(.*)?\.onnx"
 ONNX_FILE_PATTERN = r".*\.onnx$"
+
+# Some newer text-to-video pipelines such as Wan handles the encoder-decoder scaling at a model levels instead of pipeline level.
+ENCODER_DECODER_HANDLES_SCALING_FACTOR = [
+    "AutoencoderKLWan",
+]

@@ -32,6 +32,8 @@ from optimum.utils import (
     DummySeq2SeqDecoderTextInputGenerator,
     DummySeq2SeqPastKeyValuesGenerator,
     DummyTextInputGenerator,
+    DummyTimestepInputGenerator,
+    DummyVideoInputGenerator,
     DummyVisionInputGenerator,
     logging,
 )
@@ -410,3 +412,9 @@ class EncoderDecoderBaseOnnxConfig(OnnxSeq2SeqConfigWithPast):
             models_and_onnx_configs[ONNX_DECODER_WITH_PAST_NAME][1]._decoder_onnx_config.is_merged = True
 
         return models_and_onnx_configs, onnx_files_subpaths
+
+
+class VideoOnnxConfig(OnnxConfig):
+    """Handles video architectures."""
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (DummyVideoInputGenerator, DummyTimestepInputGenerator)
