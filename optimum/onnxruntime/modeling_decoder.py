@@ -187,8 +187,11 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
 
         if self.config.model_type in {"gemma", "gemma3_text", "gpt_oss", "nemotron"}:
             self.embed_size_per_head = self.config.head_dim
-        elif self.config.model_type == "gemma3":
+        elif self.config.model_type in {"gemma3", "paligemma", "qwen3_vl"}:
             self.embed_size_per_head = self.config.text_config.head_dim
+        elif self.config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
+            text_config = self.config.text_config
+            self.embed_size_per_head = text_config.hidden_size // text_config.num_attention_heads
         elif self.old_gpt_bigcode_modeling:
             # (before v4.54) GPT BigCode fuses keys and values in one tensor, doubling the head dimension
             self.embed_size_per_head = self.config.hidden_size // self.config.num_attention_heads * 2
@@ -219,7 +222,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
             "stablelm",
         }:
             self.num_key_value_heads = self.config.num_key_value_heads
-        elif self.config.model_type == "gemma3":
+        elif self.config.model_type in {"gemma3", "paligemma", "qwen2_vl", "qwen2_5_vl", "qwen3_vl"}:
             self.num_key_value_heads = self.config.text_config.num_key_value_heads
         elif self.config.model_type == "falcon":
             if self.config.new_decoder_architecture or not self.config.multi_query:
@@ -318,6 +321,19 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                         "The model gpt_bigcode requires position_ids for batched generation but none were provided. "
                         "Please provide position_ids or attention_mask (from which position_ids can be inferred)."
                     )
+            elif self.config.model_type in {"qwen2_vl", "qwen2_5_vl", "qwen3_vl"}:
+                # VL models with M-RoPE need attention-mask-based 3D position_ids
+                if attention_mask is not None:
+                    position_ids = (attention_mask.cumsum(-1) - 1).clamp(min=0)
+                    position_ids = position_ids[:, past_seq_len:]
+                else:
+                    position_ids = (
+                        torch.arange(past_seq_len, out_seq_len, dtype=torch.long, device=input_ids.device)
+                        .unsqueeze(0)
+                        .expand(batch_size, -1)
+                    )
+                # Expand to 3D for M-RoPE: (3, batch_size, seq_len)
+                position_ids = position_ids.unsqueeze(0).expand(3, -1, -1).contiguous()
             else:
                 # Create position_ids from input_ids
                 position_ids = (
@@ -325,6 +341,14 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     .unsqueeze(0)
                     .expand(batch_size, -1)
                 )
+
+        # VL models with M-RoPE need 3D position_ids: (3, batch_size, seq_len)
+        if (
+            position_ids is not None
+            and position_ids.ndim == 2
+            and self.config.model_type in {"qwen2_vl", "qwen2_5_vl", "qwen3_vl"}
+        ):
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1).contiguous()
 
         use_cache_branch = None
         if self.is_merged:
@@ -640,6 +664,8 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
         # Important: for encoder-decoder models used with CausalLM, we need to set the is_decoder flag to True
         # and the is_encoder_decoder flag to False. This is needed for the model to work correctly with generation logic.
         config.use_cache = use_cache
+        if hasattr(config, "text_config"):
+            config.text_config.use_cache = use_cache
         if hasattr(config, "is_decoder"):
             config.is_decoder = True
         if hasattr(config, "is_encoder_decoder"):

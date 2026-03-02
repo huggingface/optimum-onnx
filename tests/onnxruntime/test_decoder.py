@@ -45,11 +45,15 @@ from optimum.exporters.onnx.model_configs import (
     Olmo2OnnxConfig,
     OlmoOnnxConfig,
     OPTOnnxConfig,
+    PaliGemmaOnnxConfig,
     Phi3OnnxConfig,
     PhiOnnxConfig,
     Qwen2OnnxConfig,
+    Qwen2VLOnnxConfig,
+    Qwen2_5_VLOnnxConfig,
     Qwen3MoeOnnxConfig,
     Qwen3OnnxConfig,
+    Qwen3VLOnnxConfig,
     SmolLM3OnnxConfig,
     StableLMOnnxConfig,
 )
@@ -147,8 +151,21 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         SUPPORTED_ARCHITECTURES.append("stablelm")
     if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.extend(["gpt_oss", "gpt_oss_mxfp4"])
+    if is_transformers_version(">=", str(Qwen2VLOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("qwen2_vl")
+    if is_transformers_version(">=", str(Qwen2_5_VLOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("qwen2_5_vl")
+    if is_transformers_version(">=", str(Qwen3VLOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("qwen3_vl")
+    if is_transformers_version(">=", str(PaliGemmaOnnxConfig.MIN_TRANSFORMERS_VERSION)):
+        SUPPORTED_ARCHITECTURES.append("paligemma")
 
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
+
+    VLM_ARCHITECTURES = {"paligemma", "qwen2_vl", "qwen2_5_vl", "qwen3_vl"}  # noqa: RUF012
+
+    # PaliGemma has tied weights (lm_head / embed_tokens) with small ONNX export discrepancies
+    ATOL_OVERRIDES = {"paligemma": 5e-4}  # noqa: RUF012
 
     # base generation kwargs
     GEN_KWARGS = {  # noqa: RUF012
@@ -206,7 +223,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         if trust_remote_code:
             model_kwargs["trust_remote_code"] = True
 
-        if model_arch != "gemma3":
+        if model_arch in self.VLM_ARCHITECTURES:
+            from transformers import AutoModelForImageTextToText
+
+            set_seed(SEED)
+            model = AutoModelForImageTextToText.from_pretrained(MODEL_NAMES[model_arch], **model_kwargs).eval()
+            return model
+
+        if model_arch not in ("gemma3",):
             # When loading a gemma3 model with AutoModelForCausalLM, a Gemma3ForConditionalGeneration is inferred
             # which doesn't take a use_cache argument at instantiation (yep, that is weird)
             model_kwargs["use_cache"] = use_cache
@@ -275,7 +299,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.generation_config, GenerationConfig)
 
         self.assertEqual(onnx_model.generation_config.use_cache, use_cache)
-        self.assertEqual(onnx_model.config.use_cache, use_cache)
+        # VL models store use_cache on text_config, not top-level config
+        config_for_cache = getattr(onnx_model.config, "text_config", onnx_model.config)
+        self.assertEqual(config_for_cache.use_cache, use_cache)
         self.assertEqual(onnx_model.can_use_cache, use_cache)
 
         if use_io_binding is not None:
@@ -294,11 +320,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs1.logits, torch.Tensor)
         self.assertIsInstance(outputs2.logits, torch.Tensor)
 
-        if is_transformers_version("<", "4.39.0") and "attention_mask" in inputs:
+        atol = self.ATOL_OVERRIDES.get(onnx_model.config.model_type, self.ATOL)
+        rtol = self.RTOL
+
+        if "attention_mask" in inputs:
             self.mask_logits(outputs1.logits, inputs["attention_mask"])
             self.mask_logits(outputs2.logits, inputs["attention_mask"])
 
-        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=self.ATOL, rtol=self.RTOL)
+        torch.testing.assert_close(outputs1.logits, outputs2.logits, atol=atol, rtol=rtol)
 
         if use_cache:
             self.assertTrue("past_key_values" in outputs1)
@@ -338,12 +367,12 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
                         (layer.keys, layer.values) for layer in outputs2.past_key_values.self_attention_cache.layers
                     ]
 
-            if is_transformers_version("<", "4.39.0") and "attention_mask" in inputs:
+            if "attention_mask" in inputs:
                 self.mask_past_key_values(onnx_model, outputs1.past_key_values, inputs["attention_mask"])
                 self.mask_past_key_values(onnx_model, outputs2.past_key_values, inputs["attention_mask"])
 
             torch.testing.assert_close(
-                outputs1.past_key_values, outputs2.past_key_values, atol=self.ATOL, rtol=self.RTOL
+                outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol
             )
 
     # INTEGRATION TESTS
@@ -520,6 +549,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_logits_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
+        if not use_cache and model_arch in self.VLM_ARCHITECTURES:
+            self.skipTest("VL models without cache require vision inputs not supported by ORTModelForCausalLM")
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
             "test_name": test_name,
@@ -610,6 +641,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
     def test_compare_generation_with_and_without_past_key_values(self, model_arch):
+        if model_arch in self.VLM_ARCHITECTURES:
+            self.skipTest("VL models without cache require vision inputs not supported by ORTModelForCausalLM")
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         without_pkv_setup_args = {
             "test_name": model_arch + "_False",
@@ -640,6 +673,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_logits_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
+        if not use_cache and model_arch in self.VLM_ARCHITECTURES:
+            self.skipTest("VL models without cache require vision inputs not supported by ORTModelForCausalLM")
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
             "test_name": test_name,
