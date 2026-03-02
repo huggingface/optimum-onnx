@@ -73,7 +73,6 @@ if is_transformers_version(">=", "4.54"):
 if is_transformers_version(">=", "4.55"):
     from transformers import Mxfp4Config
 
-
 logger = get_logger(__name__)
 
 
@@ -640,6 +639,8 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
     def test_compare_logits_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
+        if is_transformers_version(">=", "5.2") and model_arch in ("qwen3_moe",):
+            self.skipTest("needs a patch for sdpa_attention_forward")
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
             "test_name": test_name,
@@ -688,8 +689,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     # PIPELINE TESTS
     @parameterized.expand(grid_parameters({"use_cache": [True, False]}))
     def test_ort_pipeline_with_default_model(self, test_name: str, use_cache: bool):
+        if is_transformers_version(">=", "5.2"):
+            self.skipTest("export=True is no longer supported.")
         texts = self.get_inputs("gpt2", for_pipeline=True)
-        pipe = ort_pipeline("text-generation", model_kwargs={"export": True, "use_cache": use_cache})
+        pipe = ort_pipeline("text-generation", model_kwargs={"use_cache": use_cache})
         self.check_onnx_model_attributes(pipe.model, use_cache=use_cache)
 
         set_seed(SEED)
@@ -702,13 +705,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pipe.save_pretrained(tmpdir)
-            pipe = ort_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache})
+            pipe = ort_pipeline("text-generation", model=tmpdir, model_kwargs={"use_cache": use_cache, "export": True})
             set_seed(SEED)
             outputs_local_model = pipe(texts, **self.GEN_KWARGS)
             self.assertEqual(outputs, outputs_local_model)
 
     @parameterized.expand(grid_parameters({"model_arch": ["llama"], "use_cache": [True, False]}))
     def test_ort_pipeline_with_hub_model_id(self, test_name: str, model_arch: str, use_cache: bool):
+        if is_transformers_version(">=", "5.2"):
+            self.skipTest("`pad_token_id` should be positive but got -1, but pad_token_id==98 in pipe.model.config.")
         texts = self.get_inputs(model_arch, for_pipeline=True)
         pipe = ort_pipeline("text-generation", model=MODEL_NAMES[model_arch], model_kwargs={"use_cache": use_cache})
 

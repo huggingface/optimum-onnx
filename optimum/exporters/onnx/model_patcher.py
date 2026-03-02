@@ -1244,7 +1244,10 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
         router_logits = router_logits[2]
 
     routing_weights = torch.nn.functional.softmax(router_logits, dim=1, dtype=torch.float)
-    routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+    if hasattr(self, "top_k"):
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+    else:
+        routing_weights, selected_experts = torch.topk(routing_weights, self.config.num_experts_per_tok, dim=-1)
     if self.norm_topk_prob:  # only diff with mixtral sparse moe block!
         routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
     # we cast back to the input dtype

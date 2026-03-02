@@ -420,6 +420,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             "vision-encoder-decoder",
         } and is_transformers_version(">=", "5.0"):
             self.skipTest(f"optimum or model too old for transformers>=5, model is {model_type!r} and {model_name!r}")
+        if model_type in {"qwen3_moe"} and is_transformers_version(">=", "5.2"):
+            self.skipTest(f"needs a patch for sdpa_attention_forward, model is {model_type!r} and {model_name!r}")
+        if model_type in {"xlm-roberta", "mctct"} and is_transformers_version(">=", "5.2"):
+            self.skipTest(f"needs a patch for sdpa_attention_forward, model is {model_type!r} and {model_name!r}")
 
         model_kwargs = None
         if model_type == "speecht5":
