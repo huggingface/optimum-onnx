@@ -664,6 +664,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
+    )
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(

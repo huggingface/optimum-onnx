@@ -518,6 +518,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
+    )
     def test_compare_logits_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
