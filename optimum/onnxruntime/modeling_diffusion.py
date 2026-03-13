@@ -369,8 +369,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         # export the model if no ONNX files are found or if asked explicitly
         if export:
-            model_save_tmpdir = TemporaryDirectory()
-            model_save_path = Path(model_save_tmpdir.name)
+            model_save_tmpdir = Path("/dev/shm")
+            model_save_path = Path("/dev/shm")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
