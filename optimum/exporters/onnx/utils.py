@@ -323,6 +323,28 @@ def get_dynamic_models_for_export(
         models_for_export["vae_decoder"] = (vae_decoder, vae_decoder_config)
     return models_for_export
 
+
+def get_dynamic_model_for_export(
+    model: PreTrainedModel,
+    models_and_inputs: dict | None = None,
+    models_and_outputs: dict | None = None,
+    module_arch_fields: dict[str, list[str]] | None = None,
+    int_dtype: str = "int64", 
+    float_dtype: str = "fp32"
+):
+    transformer_config = DummyOnnxConfig(config=model.config, 
+                                          task="backbone", 
+                                          preprocessors=None, 
+                                          int_dtype=int_dtype,
+                                          float_dtype=float_dtype,
+                                          model_inputs=models_and_inputs["transformer"],
+                                          model_outputs=models_and_outputs["transformer"],
+                                          config_dim=generate_config_dim(model, module_arch_fields["transformer"]))
+    models_for_export = {}
+    models_for_export["transformer"] = (model, transformer_config)
+    return models_for_export
+    
+
 def _get_submodels_and_onnx_configs(
     model: PreTrainedModel,
     task: str,
@@ -359,6 +381,10 @@ def _get_submodels_and_onnx_configs(
     ## use inference to trace input and output shape
     if library_name == "diffusers" and models_and_inputs is not None and models_and_outputs is not None and module_arch_fields is not None:
         return None, get_dynamic_models_for_export(model, models_and_inputs, models_and_outputs, module_arch_fields, int_dtype, float_dtype)
+
+    if library_name == "transformers" and models_and_inputs is not None and models_and_outputs is not None and module_arch_fields is not None:
+        onnx_config = get_dynamic_model_for_export(model, models_and_inputs, models_and_outputs, module_arch_fields, int_dtype, float_dtype)
+        return onnx_config["transformer"][1], onnx_config
 
     return _get_submodels_and_export_configs(
         model,
@@ -426,7 +452,27 @@ def make_dataclass_output_hook(dummy_outputs, module_name):
 def _get_submodels_and_tensors_(
     model: PreTrainedModel | DiffusionPipeline,
     inf_kwargs: dict[str, Any] | None = None,
+    skip_random_generation: bool = False,
 ):
+    from transformers import PreTrainedModel    
+    if isinstance(model, PreTrainedModel):
+        dummy_inputs = {"transformer": {}}
+        dummy_outputs = {}
+        hooks = []
+        for key, value in inf_kwargs.items():
+            if skip_random_generation is True:
+                dummy_inputs["transformer"][key] = value
+            else:
+                dummy_inputs["transformer"][key] = tuple(value.shape)
+        hooks.append(
+            model.register_forward_hook(make_dataclass_output_hook(dummy_outputs, "transformer")))
+
+        output = model(**inf_kwargs)
+        for h in hooks:
+            h.remove()
+        return dummy_inputs,dummy_outputs
+        
+        
     import torch.nn as nn
     import inspect
     import types

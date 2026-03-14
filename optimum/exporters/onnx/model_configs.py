@@ -2893,6 +2893,7 @@ class DummyOnnxConfig(OnnxConfig):
 
             find_match = False
             for key, value in config_dim.items():
+                print(value, dim, " value dim") 
                 if value == dim:
                     find_match = True
                     break
@@ -2905,6 +2906,7 @@ class DummyOnnxConfig(OnnxConfig):
 
     @property
     def inputs(self) -> dict[str,dict[int,str]]:
+        import torch
         model_inputs_dynamic_axes = {}
         if self.task == "text-encoding":
             for key, value in self.model_inputs.items():
@@ -2912,15 +2914,24 @@ class DummyOnnxConfig(OnnxConfig):
             return model_inputs_dynamic_axes
         if self.task == "backbone":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
+                if isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
             return model_inputs_dynamic_axes
         if self.task == "sample_encode":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
+                if isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
             return model_inputs_dynamic_axes
         if self.task == "latent_decode":
             for key, value in self.model_inputs.items():
-                model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
+                if isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
             return model_inputs_dynamic_axes
         return model_inputs_dynamic_axes
             
@@ -2946,7 +2957,11 @@ class DummyOnnxConfig(OnnxConfig):
         return model_outputs_dynamic_axes
 
     def generate_dummy_inputs(self, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp16"):
+        import torch
         dummy_inputs = {}
         for key, value in self.model_inputs.items():
-            dummy_inputs[key] = self.dummy_tuple_input_generator.generate(key, value, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
+            if isinstance(value, torch.Tensor):
+                dummy_inputs[key] = value
+            else:
+                dummy_inputs[key] = self.dummy_tuple_input_generator.generate(key, value, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype)
         return dummy_inputs

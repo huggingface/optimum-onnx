@@ -673,6 +673,12 @@ def export_pytorch(
 
                 debug_torch_export_export(model, dummy_inputs, export_kwargs["dynamic_shapes"])
 
+            print("here ", dummy_inputs.keys())
+            for key, value in dummy_inputs.items():
+                print(key, value.shape)
+            print("here ", input_names)
+            print("here ", output_names)
+
             # Export can work with named args
             # but the dict containing named args has to be the last element of the args tuple.
             onnx_export(
@@ -953,6 +959,7 @@ def onnx_export_from_model(
     inf_kwargs: dict[str,Any] | None = None,
     module_arch_fields: dict[str, list[str]] | None = None,
     export_by_inference: bool = False,
+    skip_random_generation: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -1069,7 +1076,7 @@ def onnx_export_from_model(
         float_dtype = "fp32"
 
     # TODO: support onnx_config.py in the model repo
-    if custom_architecture and custom_onnx_configs is None:
+    if custom_architecture and custom_onnx_configs is None and export_by_inference is False:
         raise ValueError(
             f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model_type} to be supported natively in the ONNX export."
         )
@@ -1115,10 +1122,12 @@ def onnx_export_from_model(
         models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(
             model=model, 
             inf_kwargs=inf_kwargs,
+            skip_random_generation=skip_random_generation,
         )
     else:
         models_and_inputs = None
         models_and_outputs = None
+
 
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,

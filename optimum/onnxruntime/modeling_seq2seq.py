@@ -30,6 +30,8 @@ from transformers import (
     GenerationMixin,
     Pix2StructForConditionalGeneration,
     WhisperForConditionalGeneration,
+    Gemma3ForConditionalGeneration,
+    Qwen2_5_VLForConditionalGeneration,
 )
 
 
@@ -904,6 +906,11 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
+        # export options
+        inf_kwargs: dict[str, Any] | None = None,
+        module_arch_fields: dict[str, Any] | None=None,
+        export_by_inference: bool = False,
+        skip_random_generation: bool = False,
     ) -> ORTModelForConditionalGeneration:
         onnx_files = find_files_matching_pattern(
             model_id,
@@ -1086,6 +1093,11 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         # inference options
         use_merged: bool = False,
         use_cache: bool = True,
+        # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        module_arch_fields: dict[str,Any] | None = None,
+        export_by_inference: bool = False,
+        skip_random_generation: bool = False,
         **kwargs,
     ) -> ORTModelForConditionalGeneration:
         # this is guaranteed to work since we it uses a mapping from model classes to task names
@@ -1101,8 +1113,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
                 f"The `task` is automatically inferred from the class as `{task}`."
             )
 
-        save_dir = TemporaryDirectory()
-        save_dir_path = Path(save_dir.name)
+        save_dir = Path("/dev/shm")
+        save_dir_path = Path("/dev/shm")
 
         main_export(
             model_name_or_path=model_id,
@@ -1118,6 +1130,10 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
             force_download=force_download,
             trust_remote_code=trust_remote_code,
             library_name=cls._library_name,
+            inf_kwargs=inf_kwargs,
+            module_arch_fields=module_arch_fields,
+            export_by_inference=export_by_inference,
+            skip_random_generation=skip_random_generation,
         )
         maybe_save_preprocessors(model_id, save_dir_path, src_subfolder=subfolder)
 
@@ -1223,7 +1239,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
     """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5."""
 
     main_input_name = "input_ids"
-    auto_model_class = AutoModelForSeq2SeqLM
+    auto_model_class = Qwen2_5_VLForConditionalGeneration
 
     _ort_encoder_class = ORTEncoder
 
