@@ -2893,7 +2893,6 @@ class DummyOnnxConfig(OnnxConfig):
 
             find_match = False
             for key, value in config_dim.items():
-                print(value, dim, " value dim") 
                 if value == dim:
                     find_match = True
                     break

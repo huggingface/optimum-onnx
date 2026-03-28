@@ -1239,7 +1239,7 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
     """Sequence-to-sequence model with a language modeling head for ONNX Runtime inference. This class officially supports bart, blenderbot, blenderbot-small, longt5, m2m_100, marian, mbart, mt5, pegasus, t5."""
 
     main_input_name = "input_ids"
-    auto_model_class = Qwen2_5_VLForConditionalGeneration
+    auto_model_class = AutoModelForSeq2SeqLM
 
     _ort_encoder_class = ORTEncoder
 

@@ -371,6 +371,11 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         dtype: torch.dtype = torch.float32,
         # other arguments
         model_save_dir: str | Path | TemporaryDirectory | None = None,
+        # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        module_arch_fields: dict[str,Any] | None = None,
+        export_by_inference: bool = False,
+        skip_random_generation: bool = False,
     ) -> ORTModel:
         onnx_files = find_files_matching_pattern(
             model_id,
@@ -437,6 +442,11 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         trust_remote_code: bool = False,
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: bool | str | None = None,
+         # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        module_arch_fields: dict[str,Any] | None = None,
+        export_by_inference: bool = False,
+        skip_random_generation: bool = False,
         # other arguments
         **kwargs,
     ) -> ORTModel:
@@ -450,8 +460,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
                 f"The `task` is automatically inferred from the class as `{task}`."
             )
 
-        model_save_dir = TemporaryDirectory()
-        model_save_path = Path(model_save_dir.name)
+        model_save_dir = Path("/dev/shm")
+        model_save_path = Path("/dev/shm")
+
+        print("before main export")
 
         main_export(
             model_name_or_path=model_id,
@@ -467,6 +479,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             force_download=force_download,
             trust_remote_code=trust_remote_code,
             library_name=cls._library_name,
+            inf_kwargs=inf_kwargs,
+            module_arch_fields=module_arch_fields,
+            export_by_inference=export_by_inference,
+            skip_random_generation=skip_random_generation,
         )
         maybe_save_preprocessors(model_id, model_save_path, src_subfolder=subfolder)
 
@@ -495,6 +511,11 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
         session_options: SessionOptions | None = None,
         # inference options
         use_io_binding: bool | None = None,
+        # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        module_arch_fields: dict[str, Any] | None = None,
+        export_by_inference: bool = False,
+        skip_random_generation: bool = False,
         **kwargs,
     ) -> Self:
         """provider (`str`, defaults to `"CPUExecutionProvider"`):
@@ -595,6 +616,10 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
             provider_options=provider_options,
             session_options=session_options,
             use_io_binding=use_io_binding,
+            inf_kwargs=inf_kwargs,
+            module_arch_fields=module_arch_fields,
+            export_by_inference=export_by_inference,
+            skip_random_generation=skip_random_generation,
             **kwargs,
         )
 

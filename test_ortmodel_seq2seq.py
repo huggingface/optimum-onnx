@@ -1,8 +1,8 @@
 from transformers import AutoTokenizer
-from transformers import ORTModelForCausalLM
+from optimum.onnxruntime import ORTModelForSeq2SeqLM
 
+ckpt = "google-t5/t5-small"
 tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
-model = ORTModelForCausalLM.from_pretrained("google-t5/t5-small")
 
 # inference
 input_ids = tokenizer(
@@ -14,14 +14,15 @@ module_arch_fields = {
     "transformer": ["d_model", "vocab_size"]
 }
 
-model = ORTModelForCausalLM.from_pretrained(
+# not work
+model = ORTModelForSeq2SeqLM.from_pretrained(
     ckpt, 
     inf_kwargs=inf_kwargs,
     export_by_inference=True,
     module_arch_fields=module_arch_fields,
-    torch_dtype=torch.bfloat16,
-    skip_random_generation=False,
-).eval()
+    skip_random_generation=True,
+    export=True,
+)
 
 outputs = model.generate(input_ids)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
