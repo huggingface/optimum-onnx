@@ -196,21 +196,21 @@ And here is a summary for the saving time with different sequence lengths (32 / 
 Environment:
 
 ```
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 440.33.01    Driver Version: 440.33.01    CUDA Version: 11.3     |
-|-------------------------------+----------------------+----------------------+
-| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
-|===============================+======================+======================|
-|   0  Tesla T4            On   | 00000000:00:1E.0 Off |                    0 |
-| N/A   28C    P8     8W /  70W |      0MiB / 15109MiB |      0%      Default |
-+-------------------------------+----------------------+----------------------+
++-------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.102.01         | Driver Version: 581.57 | CUDA Version: 13.0   |
+|-------------------------------+------------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|           Memory-Usage | GPU-Util  Compute M. |
+|===============================+========================+======================|
+|   0  Tesla T4            On   |   00000000:00:1E.0 Off |                    0 |
+| N/A   28C    P8     8W /  70W |        0MiB / 15109MiB |      0%      Default |
++-------------------------------+------------------------+----------------------+
 
 - Platform: Linux-5.4.0-1089-aws-x86_64-with-glibc2.29
-- Python version: 3.8.10
-- `transformers` version: 4.24.0
-- `optimum` version: 1.5.0
-- PyTorch version: 1.12.0+cu113
+- Python version: 3.12.3
+- `transformers` version: 5.2.0
+- `optimum` version: 2.1.0
+- PyTorch version: 2.10.0+cu130
 ```
 
 Note that previous experiments are run with __vanilla ONNX__ models exported directly from the exporter. If you are interested in __further acceleration__, with `ORTOptimizer` you can optimize the graph and convert your model to FP16 if you have a GPU with mixed precision capabilities.

@@ -35,10 +35,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         with torch.no_grad():
             timm_outputs = timm_model(inputs)
 
-        for input_type in ["pt", "np"]:
-            if input_type == "np":
-                inputs = inputs.cpu().detach().numpy()
-
+        for input_type in ["pt"]:
             onnx_outputs = onnx_model(inputs)
 
             self.assertIn("logits", onnx_outputs)

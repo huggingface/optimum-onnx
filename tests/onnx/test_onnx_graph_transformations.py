@@ -57,9 +57,12 @@ class WeightSharingTestCase(TestCase):
                     )
 
                 original_outputs = model(**tokenizer("Hello from Hugging Face", return_tensors="pt"))
-                compressed_outputs = compressed_albert_session.run(
-                    None, dict(tokenizer("Hello from Hugging Face", return_tensors="np"))
-                )
+                feeds = dict(tokenizer("Hello from Hugging Face", return_tensors="np"))
+                if "token_type_ids" not in feeds and "token_type_ids" in {
+                    i.name for i in original_albert_ir.graph.input
+                }:
+                    feeds["token_type_ids"] = np.zeros(feeds["input_ids"].shape, dtype=np.int64)
+                compressed_outputs = compressed_albert_session.run(None, feeds)
 
             self.assertTrue(
                 np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4)
