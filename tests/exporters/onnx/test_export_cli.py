@@ -39,6 +39,7 @@ from optimum.exporters.error_utils import MinimumVersionError
 from optimum.exporters.onnx import main_export
 from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime import ONNX_DECODER_NAME, ONNX_DECODER_WITH_PAST_NAME, ONNX_ENCODER_NAME
+from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.testing_utils import grid_parameters, require_diffusers, require_sentence_transformers, require_timm
 
 
@@ -410,6 +411,19 @@ class OnnxCLIExportTestCase(unittest.TestCase):
             self.skipTest("Temporarily disabled upon transformers 4.28 release")
         if model_type in {"arcee"}:
             self.skipTest(f"no longer works {model_name!r}")
+        if model_type in {
+            "camembert",
+            "internlm2",
+            "monolith",
+            "moonshine",
+            "patchtsmixer",
+            "vision-encoder-decoder",
+        } and is_transformers_version(">=", "5.0"):
+            self.skipTest(f"optimum or model too old for transformers>=5, model is {model_type!r} and {model_name!r}")
+        if model_type in {"qwen3_moe"} and is_transformers_version(">=", "5.2"):
+            self.skipTest(f"needs a patch for sdpa_attention_forward, model is {model_type!r} and {model_name!r}")
+        if model_type in {"xlm-roberta", "mctct"} and is_transformers_version(">=", "5.2"):
+            self.skipTest(f"needs a patch for sdpa_attention_forward, model is {model_type!r} and {model_name!r}")
 
         model_kwargs = None
         if model_type == "speecht5":
@@ -650,6 +664,10 @@ class OnnxCLIExportTestCase(unittest.TestCase):
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME in folder_contents)
                 self.assertTrue(ONNX_DECODER_WITH_PAST_NAME + "_data" in folder_contents)
 
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
+    )
     def test_trust_remote_code(self):
         with TemporaryDirectory() as tmpdirname:
             out = subprocess.run(

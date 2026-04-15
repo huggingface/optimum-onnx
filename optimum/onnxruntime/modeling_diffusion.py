@@ -27,9 +27,6 @@ import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin
 from diffusers.pipelines import (
-    AutoPipelineForImage2Image,
-    AutoPipelineForInpainting,
-    AutoPipelineForText2Image,
     LatentConsistencyModelImg2ImgPipeline,
     LatentConsistencyModelPipeline,
     StableDiffusionImg2ImgPipeline,
@@ -39,19 +36,51 @@ from diffusers.pipelines import (
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
 )
-from diffusers.pipelines.auto_pipeline import (
-    AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
-    AUTO_INPAINT_PIPELINES_MAPPING,
-    AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
-)
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import SchedulerMixin
 from diffusers.schedulers.scheduling_utils import SCHEDULER_CONFIG_NAME
 from diffusers.utils.constants import CONFIG_NAME
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
+
+
+try:
+    from diffusers.pipelines import (
+        AutoPipelineForImage2Image,
+        AutoPipelineForInpainting,
+        AutoPipelineForText2Image,
+    )
+    from diffusers.pipelines.auto_pipeline import (
+        AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+        AUTO_INPAINT_PIPELINES_MAPPING,
+        AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+    )
+except RuntimeError:
+    from optimum.utils import is_diffusers_version
+
+    if is_diffusers_version("<", "0.37.0"):
+        try:
+            from transformers import MT5Tokenizer  # noqa: F401
+        except ImportError:
+            import transformers
+
+            transformers.MT5Tokenizer = None
+            from diffusers.pipelines import (
+                AutoPipelineForImage2Image,
+                AutoPipelineForInpainting,
+                AutoPipelineForText2Image,
+            )
+            from diffusers.pipelines.auto_pipeline import (
+                AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
+                AUTO_INPAINT_PIPELINES_MAPPING,
+                AUTO_TEXT2IMAGE_PIPELINES_MAPPING,
+            )
+    else:
+        raise
+
+
 from huggingface_hub import HfApi, create_repo
 from huggingface_hub.utils import validate_hf_hub_args
-from transformers import CLIPFeatureExtractor, CLIPTokenizer
+from transformers import CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
 from transformers.utils import http_user_agent
@@ -130,7 +159,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         tokenizer: CLIPTokenizer | None = None,
         tokenizer_2: CLIPTokenizer | None = None,
         tokenizer_3: CLIPTokenizer | None = None,
-        feature_extractor: CLIPFeatureExtractor | None = None,
+        # Formerly of type CLIPFeatureExtractor but this class is not longer available in transformers >= 5.0
+        feature_extractor=None,
         # stable diffusion xl specific arguments
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetics_score: bool = False,
