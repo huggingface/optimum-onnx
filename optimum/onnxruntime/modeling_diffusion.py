@@ -38,6 +38,8 @@ from diffusers.pipelines import (
     StableDiffusionXLImg2ImgPipeline,
     StableDiffusionXLInpaintPipeline,
     StableDiffusionXLPipeline,
+    WanPipeline,
+    HunyuanVideo15Pipeline,
 )
 from diffusers.pipelines.auto_pipeline import (
     AUTO_IMAGE2IMAGE_PIPELINES_MAPPING,
@@ -59,7 +61,7 @@ from transformers.utils import http_user_agent
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.onnxruntime.base import ORTParentMixin, ORTSessionMixin
-from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options
+from optimum.onnxruntime.utils import get_device_for_provider, prepare_providers_and_provider_options, load_shapes_as_torch_size
 from optimum.utils import (
     DIFFUSION_MODEL_TEXT_ENCODER_2_SUBFOLDER,
     DIFFUSION_MODEL_TEXT_ENCODER_3_SUBFOLDER,
@@ -274,6 +276,12 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         providers: Sequence[str] | None = None,
         provider_options: Sequence[dict[str, Any]] | dict[str, Any] | None = None,
         session_options: SessionOptions | None = None,
+        # inference kwargs
+        inf_kwargs: dict[str, Any] | None = None,
+        # module_arch_configs
+        module_arch_fields: dict[str, list[str]] | None = None,
+        # flag to use export_by_inference
+        export_by_inference: bool = False,
         # inference options
         use_io_binding: bool | None = None,
         # hub options and preloaded models
@@ -361,8 +369,8 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         # export the model if no ONNX files are found or if asked explicitly
         if export:
-            model_save_tmpdir = TemporaryDirectory()
-            model_save_path = Path(model_save_tmpdir.name)
+            model_save_tmpdir = Path("/dev/shm")
+            model_save_path = Path("/dev/shm")
 
             torch_dtype = kwargs.pop("torch_dtype", None)
             if torch_dtype is not None:
@@ -387,11 +395,15 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 no_post_process=True,
                 do_validation=False,
                 task=cls.task,
+                inf_kwargs = inf_kwargs,
+                module_arch_fields = module_arch_fields,
+                export_by_inference = export_by_inference,
                 # export related arguments
                 **export_kwargs,
                 # hub related arguments
-                **hub_kwargs,
+                **hub_kwargs
             )
+                
 
         # download the model if needed
         if not model_save_path.is_dir():
@@ -475,7 +487,18 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
 
         ort_pipeline.register_to_config(**config)
         ort_pipeline.register_to_config(_name_or_path=config.get("_name_or_path", model_name_or_path))
-
+        for key, comp in ort_pipeline.components.items():
+            output_dir = os.path.join(model_save_path, "io_binding")
+            file_path = os.path.join(output_dir, f"{key}_outputs.json")
+            if key == "vae":
+                if comp.encoder is not None:
+                    file_path = os.path.join(output_dir, f"{key}_encoder_outputs.json")
+                    comp.encoder.set_io_binding_file(file_path)
+                if comp.decoder is not None:
+                    file_path = os.path.join(output_dir, f"{key}_decoder_outputs.json")
+                    comp.decoder.set_io_binding_file(file_path)
+            else:
+                comp.set_io_binding_file(file_path)
         return ort_pipeline
 
     def save_pretrained(
@@ -572,6 +595,11 @@ class ORTModelMixin(ORTSessionMixin, ConfigMixin, CacheMixin):
         config_dict = self._dict_from_json_file(config_file_path)
         self.register_to_config(**config_dict)
 
+        self.io_binding_file = None
+
+    def set_io_binding_file(self, filename):
+        self.io_binding_file = filename
+
     def save_pretrained(self, save_directory: str | Path):
         """Saves the ONNX model and its configuration file to a directory, so that it can be re-loaded using the
         [`from_pretrained`] class method.
@@ -635,8 +663,10 @@ class ORTUnet(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            known_output_shapes = {"out_sample": sample.shape}
 
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            known_output_shapes["out_sample"] = sample.shape
+            
             known_output_buffers = None
             # in LCM, the scheduler uses both the input sample (latents) and the output sample (model_pred) to compute the next latents
             # latents, denoised = self.scheduler.step(model_pred, t, latents, **extra_step_kwargs, return_dict=False)
@@ -701,7 +731,8 @@ class ORTTransformer(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            known_output_shapes = {"out_hidden_states": hidden_states.shape}
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            known_output_shapes["out_hidden_states"] = hidden_states.shape
 
             known_output_buffers = None
             # in Flux model, the scheduler uses both the input hidden_states (latents) and the output hidden_states (noise_pred) to compute the next latents
@@ -750,7 +781,10 @@ class ORTTextEncoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs, 
+                                                                     known_output_shapes=known_output_shapes, 
+                                                                     known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -807,7 +841,10 @@ class ORTVaeEncoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs, 
+                                                                     known_output_shapes=known_output_shapes, 
+                                                                     known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -841,7 +878,7 @@ class ORTVaeDecoder(ORTModelMixin):
         super().__init__(*args, **kwargs)
 
         # can be missing from models exported long ago
-        if not hasattr(self.config, "scaling_factor"):
+        if not hasattr(self.config, "scaling_factor") and hasattr(self.config, "block_out_channels"):
             logger.warning(
                 "The `scaling_factor` attribute is missing from the VAE decoder configuration. "
                 "Please re-export the model with newer version of optimum and diffusers to avoid this warning."
@@ -861,7 +898,12 @@ class ORTVaeDecoder(ORTModelMixin):
         }
 
         if self.use_io_binding:
-            output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
+
+            known_output_shapes = load_shapes_as_torch_size(self.io_binding_file)
+
+            output_shapes, output_buffers = self._prepare_io_binding(model_inputs,
+                                                                    known_output_shapes=known_output_shapes,
+                                                                    known_output_buffers=None)
 
             if self.device.type == "cpu":
                 self.session.run_with_iobinding(self._io_binding)
@@ -1059,6 +1101,26 @@ class ORTLatentConsistencyModelImg2ImgPipeline(ORTDiffusionPipeline, LatentConsi
     main_input_name = "image"
     auto_model_class = LatentConsistencyModelImg2ImgPipeline
 
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTWanPipeline(ORTDiffusionPipeline, WanPipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-video generation using transformer Model and corresponding to [WanPipeline]
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan.py#L95).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = WanPipeline
+
+@add_end_docstrings(ORT_PIPELINE_DOCSTRING)
+class ORTHunyuanVideo15Pipeline(ORTDiffusionPipeline, HunyuanVideo15Pipeline):
+    """ONNX Runtime-powered Pipeline for text-guided text-to-video generation using transformer Model and corresponding to [WanPipeline]
+    (https://github.com/huggingface/diffusers/blob/6290fdfda40610ce7b99920146853614ba529c6e/src/diffusers/pipelines/wan/pipeline_wan.py#L95).
+    """
+
+    task = "text-to-video"
+    main_input_name = "prompt"
+    auto_model_class = HunyuanVideo15Pipeline
+
 
 ORT_TEXT2IMAGE_PIPELINES_MAPPING = OrderedDict(
     [
@@ -1083,10 +1145,18 @@ ORT_INPAINT_PIPELINES_MAPPING = OrderedDict(
     ]
 )
 
+ORT_TEXT2VIDEO_PIPELINES_MAPPING = OrderedDict(
+    [
+        ("wan", ORTWanPipeline),
+        ("hunyuan", ORTHunyuanVideo15Pipeline)
+    ]
+)
+
 SUPPORTED_ORT_PIPELINES_MAPPINGS = [
     ORT_TEXT2IMAGE_PIPELINES_MAPPING,
     ORT_IMAGE2IMAGE_PIPELINES_MAPPING,
     ORT_INPAINT_PIPELINES_MAPPING,
+    ORT_TEXT2VIDEO_PIPELINES_MAPPING,
 ]
 
 
@@ -1190,6 +1260,7 @@ SUPPORTED_ORT_PIPELINES = [
     *ORT_TEXT2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_IMAGE2IMAGE_PIPELINES_MAPPING.values(),
     *ORT_INPAINT_PIPELINES_MAPPING.values(),
+    *ORT_TEXT2VIDEO_PIPELINES_MAPPING.values(),
 ]
 
 
@@ -1311,6 +1382,28 @@ class ORTPipelineForInpainting(ORTPipelineForTask):
     config_name = "model_index.json"
     auto_model_class = AutoPipelineForInpainting
     ort_pipelines_mapping = ORT_INPAINT_PIPELINES_MAPPING
+    
+
+class ORTPipelineForText2Video(ORTPipelineForTask):
+    """[`ORTPipelineForText2Video`] is a generic pipeline class that instantiates an text2video pipeline class. The
+    specific underlying pipeline class is automatically selected from either the
+    [`~ORTPipelineForText2Video.from_pretrained`] or [`~ORTPipelineForText2Video.from_pipe`] methods.
+
+    This class cannot be instantiated using `__init__()` (throws an error).
+
+    Class attributes:
+
+        - **config_name** (`str`) -- The configuration filename that stores the class and module names of all the
+          diffusion pipeline's components.
+        - **auto_model_class** (`Type[DiffusionPipeline]`) -- The corresponding/equivalent Diffusers pipeline class.
+        - **ort_pipelines_mapping** (`OrderedDict`) -- The mapping between the model names/architectures and the
+          corresponding ORT pipeline class.
+
+    """
+
+    config_name = "model_index.json"
+    auto_model_class = DiffusionPipeline
+    ort_pipelines_mapping = ORT_TEXT2VIDEO_PIPELINES_MAPPING
 
 
 GENERIC_ORT_PIPELINES = [
@@ -1318,6 +1411,7 @@ GENERIC_ORT_PIPELINES = [
     ORTPipelineForText2Image,
     ORTPipelineForImage2Image,
     ORTPipelineForInpainting,
+    ORTPipelineForText2Video,
 ]
 
 # Documentation updates

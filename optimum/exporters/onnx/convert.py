@@ -44,6 +44,7 @@ from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
 from optimum.exporters.onnx.utils import (
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
+    _get_submodels_and_tensors_,
     recursive_to_device,
 )
 from optimum.exporters.tasks import TasksManager
@@ -547,8 +548,9 @@ def export_pytorch(
     input_shapes: dict | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: dict[str, Any] | None = None,
     dynamo: bool = False,
+    model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a PyTorch model to an ONNX Intermediate Representation.
 
@@ -609,6 +611,9 @@ def export_pytorch(
         if input_shapes is None:
             input_shapes = {}  # will use the defaults from DEFAULT_DUMMY_SHAPES
 
+        if export_by_inference is True:
+            input_shapes = {}
+
         # Check that inputs match, and order them properly
         dummy_inputs = config.generate_dummy_inputs(framework="pt", **input_shapes)
 
@@ -667,6 +672,12 @@ def export_pytorch(
                 from ._debug_tool import debug_torch_export_export
 
                 debug_torch_export_export(model, dummy_inputs, export_kwargs["dynamic_shapes"])
+
+            print("here ", dummy_inputs.keys())
+            for key, value in dummy_inputs.items():
+                print(key, value.shape)
+            print("here ", input_names)
+            print("here ", output_names)
 
             # Export can work with named args
             # but the dict containing named args has to be the last element of the args tuple.
@@ -731,8 +742,9 @@ def export_models(
     dtype: str | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: dict[str, Any] | None = None,
     dynamo: bool = False,
+    model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[list[str]], list[list[str]]]:
     """Exports a Pytorch encoder decoder model to an ONNX Intermediate Representation.
     The following method exports the encoder and decoder components of the model as separate
@@ -802,8 +814,9 @@ def export_models(
                 dtype=dtype,
                 no_dynamic_axes=no_dynamic_axes,
                 do_constant_folding=do_constant_folding,
-                model_kwargs=model_kwargs,
                 dynamo=dynamo,
+                model_kwargs=model_kwargs,
+                export_by_inference=export_by_inference,
             )
         )
 
@@ -822,8 +835,9 @@ def export(
     dtype: str | None = None,
     no_dynamic_axes: bool = False,
     do_constant_folding: bool = True,
-    model_kwargs: dict[str, Any] | None = None,
     dynamo: bool = False,
+    model_kwargs: dict[str, Any] | None = None,
+    export_by_inference: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Exports a Pytorch model to an ONNX Intermediate Representation.
 
@@ -904,8 +918,9 @@ def export(
             input_shapes=input_shapes,
             no_dynamic_axes=no_dynamic_axes,
             do_constant_folding=do_constant_folding,
-            model_kwargs=model_kwargs,
             dynamo=dynamo,
+            model_kwargs=model_kwargs,
+            export_by_inference=export_by_inference,
         )
 
     else:
@@ -914,6 +929,8 @@ def export(
         )
 
     if not disable_dynamic_axes_fix:
+        if export_by_inference is True:
+            input_shapes = {}
         config.fix_dynamic_axes(output, device=device, input_shapes=input_shapes, dtype=dtype)
     return export_output
 
@@ -939,6 +956,10 @@ def onnx_export_from_model(
     do_constant_folding: bool = True,
     slim: bool = False,
     dynamo: bool = False,
+    inf_kwargs: dict[str,Any] | None = None,
+    module_arch_fields: dict[str, list[str]] | None = None,
+    export_by_inference: bool = False,
+    skip_random_generation: bool = False,
     **kwargs_shapes,
 ):
     """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
@@ -1055,7 +1076,7 @@ def onnx_export_from_model(
         float_dtype = "fp32"
 
     # TODO: support onnx_config.py in the model repo
-    if custom_architecture and custom_onnx_configs is None:
+    if custom_architecture and custom_onnx_configs is None and export_by_inference is False:
         raise ValueError(
             f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model_type} to be supported natively in the ONNX export."
         )
@@ -1096,6 +1117,18 @@ def onnx_export_from_model(
                 f"Exporting with a sequence length of 1 a {model_type} model is not supported and can yield unexpected results."
             )
 
+    if export_by_inference is True:
+        # inference model to trace input and output tensor shape
+        models_and_inputs, models_and_outputs = _get_submodels_and_tensors_(
+            model=model, 
+            inf_kwargs=inf_kwargs,
+            skip_random_generation=skip_random_generation,
+        )
+    else:
+        models_and_inputs = None
+        models_and_outputs = None
+
+
     onnx_config, models_and_onnx_configs = _get_submodels_and_onnx_configs(
         model=model,
         task=task,
@@ -1108,6 +1141,9 @@ def onnx_export_from_model(
         _variant=_variant,
         library_name=library_name,
         model_kwargs=model_kwargs,
+        models_and_inputs=models_and_inputs,
+        models_and_outputs=models_and_outputs,
+        module_arch_fields=module_arch_fields,
     )
 
     if library_name != "diffusers":
@@ -1202,10 +1238,29 @@ def onnx_export_from_model(
         dtype=float_dtype,
         no_dynamic_axes=no_dynamic_axes,
         do_constant_folding=do_constant_folding,
-        model_kwargs=model_kwargs,
         dynamo=dynamo,
+        model_kwargs=model_kwargs,
+        export_by_inference=export_by_inference,
     )
 
+    if models_and_outputs is not None:
+        import json
+        output_dir = os.path.join(output, "io_binding")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for module_name, dummy_outputs in models_and_outputs.items():
+            # convert tuple -> list for json
+            serializable = {
+                name: list(shape)
+                for name, shape in dummy_outputs.items()
+            }
+
+            file_path = os.path.join(output_dir, f"{module_name}_outputs.json")
+
+            with open(file_path, "w") as f:
+                json.dump(serializable, f, indent=4)
+            print(f"Saved: {file_path}")
+            
     if optimize is not None:
         from optimum.onnxruntime import AutoOptimizationConfig, ORTOptimizer
 
