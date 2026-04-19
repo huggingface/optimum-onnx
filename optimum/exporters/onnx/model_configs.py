@@ -643,11 +643,10 @@ _register_lighton_ocr_in_transformers()
     library_name="transformers",
 )
 class LightonOcrOnnxConfig(OnnxConfig):
-
     NORMALIZED_CONFIG_CLASS = LightonOcrNormalizedConfig
     MIN_TRANSFORMERS_VERSION = version.parse("4.56.0")
     SUPPORTS_PAST = True
-    VARIANTS = {
+    VARIANTS = {  # noqa: RUF012
         "split": "Vision encoder, token embeddings, and decoder are exported as separate ONNX models.",
     }
     DEFAULT_VARIANT = "split"
@@ -781,7 +780,6 @@ class LightonOcrOnnxConfig(OnnxConfig):
             ONNX_DECODER_NAME,
             ONNX_DECODER_WITH_PAST_NAME,
         )
-
 
         decoder_path = _Path(path, ONNX_DECODER_NAME + ".onnx")
         decoder_with_past_path = _Path(path, ONNX_DECODER_WITH_PAST_NAME + ".onnx")
