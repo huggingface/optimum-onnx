@@ -167,6 +167,41 @@ def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterCon
     return models_for_export
 
 
+def get_lighton_ocr_models_for_export(model: PreTrainedModel, config: ExporterConfig):
+    """Create the 4-part split for LightOn OCR: vision_encoder, embed_tokens, decoder, decoder_with_past."""
+    models_for_export = {}
+
+    vision_encoder_config = config.__class__(
+        model.config, task=config.task, variant=config.variant, component="vision_encoder"
+    )
+    embed_tokens_config = config.__class__(
+        model.config, task=config.task, variant=config.variant, component="embed_tokens"
+    )
+    decoder_config = config.__class__(
+        model.config,
+        task=config.task,
+        variant=config.variant,
+        component="decoder",
+        use_past=True,
+        use_past_in_inputs=False,
+    )
+    decoder_with_past_config = config.__class__(
+        model.config,
+        task=config.task,
+        variant=config.variant,
+        component="decoder",
+        use_past=True,
+        use_past_in_inputs=True,
+    )
+
+    models_for_export["vision_encoder"] = (model, vision_encoder_config)
+    models_for_export["embed_tokens"] = (model, embed_tokens_config)
+    models_for_export["decoder_model"] = (model, decoder_config)
+    models_for_export["decoder_with_past_model"] = (model, decoder_with_past_config)
+
+    return models_for_export
+
+
 def get_sana_models_for_export(pipeline: DiffusionPipeline, int_dtype: str = "int64", float_dtype: str = "fp32"):
     import copy
 
@@ -260,6 +295,19 @@ def _get_submodels_and_onnx_configs(
         )
         export_config.variant = _variant
         return export_config, get_metaclip_2_models_for_export(model, export_config)
+
+    if library_name == "transformers" and model.config.model_type == "lighton_ocr":
+        export_config_constructor = TasksManager.get_exporter_config_constructor(
+            model=model, exporter="onnx", task=task, library_name="transformers", model_type="lighton_ocr"
+        )
+        export_config = export_config_constructor(
+            model.config,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype,
+            preprocessors=preprocessors,
+        )
+        export_config.variant = _variant
+        return export_config, get_lighton_ocr_models_for_export(model, export_config)
 
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
