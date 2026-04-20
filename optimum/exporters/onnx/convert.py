@@ -1019,6 +1019,10 @@ def onnx_export_from_model(
     else:
         model_type = model.config.model_type
 
+    from optimum.exporters.onnx.utils import is_lighton_ocr
+    if is_lighton_ocr(model.config):
+        model_type = "lighton_ocr"
+
     library_name = TasksManager.infer_library_from_model(model)
 
     custom_architecture = library_name == "transformers" and model_type not in TasksManager._SUPPORTED_MODEL_TYPE

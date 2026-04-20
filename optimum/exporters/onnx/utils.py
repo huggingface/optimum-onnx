@@ -167,6 +167,13 @@ def get_metaclip_2_models_for_export(model: PreTrainedModel, config: ExporterCon
     return models_for_export
 
 
+def is_lighton_ocr(config):
+    arch = getattr(config, "architectures", [])
+    if "LightOnOCRForConditionalGeneration" in arch:
+        return True
+    return getattr(config, "model_type", None) == "lighton_ocr"
+
+
 def get_lighton_ocr_models_for_export(model: PreTrainedModel, config: ExporterConfig):
     """Create the 4-part split for LightOn OCR: vision_encoder, embed_tokens, decoder, decoder_with_past."""
     models_for_export = {}
@@ -296,7 +303,7 @@ def _get_submodels_and_onnx_configs(
         export_config.variant = _variant
         return export_config, get_metaclip_2_models_for_export(model, export_config)
 
-    if library_name == "transformers" and model.config.model_type == "lighton_ocr":
+    if library_name == "transformers" and is_lighton_ocr(model.config):
         export_config_constructor = TasksManager.get_exporter_config_constructor(
             model=model, exporter="onnx", task=task, library_name="transformers", model_type="lighton_ocr"
         )

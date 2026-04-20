@@ -360,6 +360,9 @@ def main_export(
         model_type = model.config.export_model_type
     else:
         model_type = model.config.model_type
+    from optimum.exporters.onnx.utils import is_lighton_ocr
+    if is_lighton_ocr(model.config):
+        model_type = "lighton_ocr"
 
     # ensure gpt_oss models dtype is float32 (dequantized to bf16 by default leading to incompatible dtypes)
     if is_mxfp4 and model_type == "gpt_oss":
