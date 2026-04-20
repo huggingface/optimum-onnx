@@ -134,7 +134,12 @@ def check_and_save_model(model: onnx.ModelProto, save_path: str | Path | None):
     # For larger models, we need to save them first and then check their save path.
     # https://github.com/onnx/onnx/blob/main/docs/PythonAPIOverview.md#checking-a-large-onnx-model-2gb
 
-    if model.ByteSize() < onnx.checker.MAXIMUM_PROTOBUF:
+    try:
+        model_size = model.ByteSize()
+    except Exception:
+        model_size = onnx.checker.MAXIMUM_PROTOBUF + 1
+
+    if model_size < onnx.checker.MAXIMUM_PROTOBUF:
         # For the try catch, refer to https://github.com/microsoft/onnxruntime/issues/14768
         try:
             onnx.checker.check_model(model)
@@ -157,8 +162,9 @@ def check_and_save_model(model: onnx.ModelProto, save_path: str | Path | None):
         os.remove(external_file_path)
 
     FORCE_ONNX_EXTERNAL_DATA = os.getenv("FORCE_ONNX_EXTERNAL_DATA", "0") == "1"  # noqa: N806
+    is_too_large = model_size >= onnx.checker.MAXIMUM_PROTOBUF
 
-    if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA:
+    if model_uses_external_data or FORCE_ONNX_EXTERNAL_DATA or is_too_large:
         onnx.save(
             model,
             save_path,

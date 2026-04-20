@@ -789,36 +789,8 @@ class LightonOcrOnnxConfig(OnnxConfig):
             import os
 
             import onnx
-            from optimum.onnx import graph_transformations, merge_decoders
+            from optimum.onnx import merge_decoders
 
-            _original_check_and_save = graph_transformations.check_and_save_model
-
-            def _large_model_check_and_save(model, save_path):
-                save_path = _Path(save_path).as_posix()
-                external_file_name = os.path.basename(save_path) + "_data"
-                external_file_path = os.path.join(os.path.dirname(save_path), external_file_name)
-
-                if save_path.endswith(".onnx") and os.path.isfile(save_path):
-                    os.remove(save_path)
-                if os.path.isfile(external_file_path):
-                    os.remove(external_file_path)
-
-                onnx.save(
-                    model,
-                    save_path,
-                    save_as_external_data=True,
-                    location=external_file_name,
-                    all_tensors_to_one_file=True,
-                    convert_attribute=True,
-                    size_threshold=100,
-                )
-                try:
-                    onnx.checker.check_model(save_path)
-                except Exception as e:
-                    if "No Op registered for" not in str(e):
-                        raise
-
-            graph_transformations.check_and_save_model = _large_model_check_and_save
             try:
                 merge_decoders(
                     decoder=decoder_path,
@@ -827,8 +799,6 @@ class LightonOcrOnnxConfig(OnnxConfig):
                 )
             except Exception as e:
                 raise RuntimeError("Unable to merge decoders") from e
-            finally:
-                graph_transformations.check_and_save_model = _original_check_and_save
 
             new_subpaths = []
             for sp in onnx_files_subpaths:
