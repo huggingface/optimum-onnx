@@ -638,6 +638,11 @@ _register_lighton_ocr_in_transformers()
 
 
 @register_tasks_manager_onnx(
+    "mistral3",
+    *["image-text-to-text", "image-text-to-text-with-past"],
+    library_name="transformers",
+)
+@register_tasks_manager_onnx(
     "lighton_ocr",
     *["image-text-to-text", "image-text-to-text-with-past"],
     library_name="transformers",

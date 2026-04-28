@@ -296,9 +296,9 @@ def _get_submodels_and_onnx_configs(
         export_config.variant = _variant
         return export_config, get_metaclip_2_models_for_export(model, export_config)
 
-    if library_name == "transformers" and model.config.model_type == "lighton_ocr":
+    if library_name == "transformers" and getattr(model.config, "model_type", None) in ["lighton_ocr", "mistral3"]:
         export_config_constructor = TasksManager.get_exporter_config_constructor(
-            model=model, exporter="onnx", task=task, library_name="transformers", model_type="lighton_ocr"
+            model=model, exporter="onnx", task=task, library_name="transformers", model_type=model.config.model_type
         )
         export_config = export_config_constructor(
             model.config,
