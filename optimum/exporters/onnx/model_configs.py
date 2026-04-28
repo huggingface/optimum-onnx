@@ -687,7 +687,7 @@ class LightonOcrOnnxConfig(OnnxConfig):
     def inputs(self) -> dict[str, dict[int, str]]:
         if self.component == "vision_encoder":
             return {
-                "pixel_values": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
+                "pixel_values": {0: "batch_size", 2: "height", 3: "width"},
             }
         elif self.component == "embed_tokens":
             return {
@@ -695,7 +695,7 @@ class LightonOcrOnnxConfig(OnnxConfig):
             }
         elif self.component == "decoder":
             common_inputs = {
-                "inputs_embeds": {0: "batch_size", 1: "sequence_length", 2: "hidden_size"},
+                "inputs_embeds": {0: "batch_size", 1: "sequence_length"},
                 "attention_mask": {0: "batch_size", 1: "past_sequence_length + sequence_length"},
                 "position_ids": {0: "batch_size", 1: "sequence_length"},
             }
@@ -708,11 +708,11 @@ class LightonOcrOnnxConfig(OnnxConfig):
     def outputs(self) -> dict[str, dict[int, str]]:
         if self.component == "vision_encoder":
             return {
-                "image_features": {0: "batch_size", 1: "num_image_tokens", 2: "hidden_size"},
+                "image_features": {0: "batch_size", 1: "num_image_tokens"},
             }
         elif self.component == "embed_tokens":
             return {
-                "inputs_embeds": {0: "batch_size", 1: "sequence_length", 2: "hidden_size"},
+                "inputs_embeds": {0: "batch_size", 1: "sequence_length"},
             }
         elif self.component == "decoder":
             common_outputs = {"logits": {0: "batch_size", 1: "sequence_length"}}
@@ -748,6 +748,7 @@ class LightonOcrOnnxConfig(OnnxConfig):
     def flatten_past_key_values(self, flattened_output, name, idx, t):
         flattened_output[f"{name}.{idx}.key"] = t[0]
         flattened_output[f"{name}.{idx}.value"] = t[1]
+
 
     def flatten_output_collection_property(self, name: str, field) -> dict[str, Any]:
         flattened_output = {}
