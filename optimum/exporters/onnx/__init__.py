@@ -29,7 +29,11 @@ _import_structure = {
         "validate_models_outputs",
         "onnx_export_from_model",
     ],
-    "utils": ["MODEL_TYPES_REQUIRING_POSITION_IDS", "get_metaclip_2_models_for_export"],
+    "utils": [
+        "MODEL_TYPES_REQUIRING_POSITION_IDS",
+        "get_metaclip_2_models_for_export",
+        "get_lighton_ocr_models_for_export",
+    ],
     "__main__": ["main_export"],
 }
 
@@ -44,7 +48,11 @@ if TYPE_CHECKING:
         validate_model_outputs,
         validate_models_outputs,
     )
-    from optimum.exporters.onnx.utils import MODEL_TYPES_REQUIRING_POSITION_IDS, get_metaclip_2_models_for_export
+    from optimum.exporters.onnx.utils import (
+        MODEL_TYPES_REQUIRING_POSITION_IDS,
+        get_lighton_ocr_models_for_export,
+        get_metaclip_2_models_for_export,
+    )
 else:
     import sys
 

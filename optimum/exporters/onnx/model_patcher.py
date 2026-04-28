@@ -1459,3 +1459,125 @@ class GptOssModelPatcher(ModelPatcher):
 
         if is_transformers_version(">=", "4.55.0"):
             GptOssExperts.forward = self.original_gpt_oss_forward
+
+
+class LightonOcrModelPatcher(ModelPatcher):
+    def __init__(
+        self,
+        config: OnnxConfig,
+        model: PreTrainedModel,
+        model_kwargs: dict[str, Any] | None = None,
+    ):
+        super().__init__(config, model, model_kwargs)
+        self._export_config = config
+
+        orig_sig = inspect.signature(self.orig_forward)
+        orig_param_names = list(orig_sig.parameters.keys())
+
+        @functools.wraps(self.orig_forward)
+        def patched_forward(*args, **kwargs):
+            for i, val in enumerate(args):
+                if i < len(orig_param_names):
+                    kwargs[orig_param_names[i]] = val
+
+            pixel_values = kwargs.get("pixel_values")
+            input_ids = kwargs.get("input_ids")
+            inputs_embeds = kwargs.get("inputs_embeds")
+            attention_mask = kwargs.get("attention_mask")
+            position_ids = kwargs.get("position_ids")
+            past_key_values = kwargs.get("past_key_values")
+            if config.component == "vision_encoder":
+                vision_tower = model.model.vision_tower
+                projector = model.model.multi_modal_projector
+
+                patch_size = vision_tower.patch_size
+                spatial_merge_size = projector.patch_merger.spatial_merge_size
+
+                patch_embeds = vision_tower.patch_conv(pixel_values)
+                h_patches = patch_embeds.shape[2]
+                w_patches = patch_embeds.shape[3]
+
+                patch_embeds_flat = patch_embeds[0].flatten(1).T.unsqueeze(0)
+                patch_embeds_flat = vision_tower.ln_pre(patch_embeds_flat)
+
+                max_width = vision_tower.config.image_size // patch_size
+                spatial = patch_embeds[0, 0]
+                row_ids = torch.ones_like(spatial).cumsum(dim=0) - 1
+                col_ids = torch.ones_like(spatial).cumsum(dim=1) - 1
+                position_ids_vis = (row_ids * max_width + col_ids).reshape(-1).long()
+
+                position_embeddings = vision_tower.patch_positional_embedding(patch_embeds_flat, position_ids_vis)
+
+                transformer_output = vision_tower.transformer(
+                    patch_embeds_flat,
+                    attention_mask=None,
+                    position_embeddings=position_embeddings,
+                    output_hidden_states=False,
+                    output_attentions=False,
+                    return_dict=True,
+                )
+                image_features = transformer_output[0].squeeze(0)
+
+                image_features = projector.norm(image_features)
+
+                d = image_features.shape[-1]
+                image_grid = image_features.view(h_patches, w_patches, d).permute(2, 0, 1).unsqueeze(0)
+                grid = torch.nn.functional.unfold(
+                    image_grid, kernel_size=spatial_merge_size, stride=spatial_merge_size
+                )
+                grid = grid.view(d * spatial_merge_size**2, -1).t()
+                image_features = projector.patch_merger.merging_layer(grid)
+
+                image_features = projector.linear_1(image_features)
+                image_features = projector.act(image_features)
+                image_features = projector.linear_2(image_features)
+
+                return {"image_features": image_features.unsqueeze(0)}
+
+            elif config.component == "embed_tokens":
+                embeds = model.model.language_model.embed_tokens(input_ids)
+                return {"inputs_embeds": embeds}
+
+            elif config.component == "decoder":
+                hidden_states = inputs_embeds
+                language_model = model.model.language_model
+
+                cache = None
+                if past_key_values is not None:
+                    cache = DynamicCache()
+                    for i, (k, v) in enumerate(past_key_values):
+                        cache.update(k, v, layer_idx=i)
+
+                lm_outputs = language_model(
+                    inputs_embeds=hidden_states,
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    past_key_values=cache,
+                    use_cache=True,
+                    return_dict=True,
+                )
+
+                hidden_states = lm_outputs.last_hidden_state
+                logits = model.lm_head(hidden_states)
+
+                result = {"logits": logits}
+                out_cache = lm_outputs.past_key_values
+                num_layers = len(language_model.layers)
+                for i in range(num_layers):
+                    key, value = out_cache[i]
+                    result[f"present.{i}.key"] = key
+                    result[f"present.{i}.value"] = value
+                return result
+
+        self.patched_forward = patched_forward
+
+    def __enter__(self):
+        if self._export_config.component == "vision_encoder":
+            self._orig_attn_impl = self._model.model.vision_tower.config._attn_implementation
+            self._model.model.vision_tower.config._attn_implementation = "eager"
+        super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if hasattr(self, "_orig_attn_impl"):
+            self._model.model.vision_tower.config._attn_implementation = self._orig_attn_impl

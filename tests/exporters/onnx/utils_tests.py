@@ -130,6 +130,7 @@ PYTORCH_EXPORT_MODELS_TINY = {
     "layoutlm": "hf-internal-testing/tiny-random-LayoutLMModel",
     "layoutlmv3": "hf-internal-testing/tiny-random-LayoutLMv3Model",
     "lilt": "hf-internal-testing/tiny-random-LiltModel",
+    "lighton_ocr": "Remidesbois/tiny-random-LightOnOCR",
     "llama": "fxmarty/tiny-llama-fast-tokenizer",
     "longt5": "fxmarty/tiny-random-working-LongT5Model",
     "longformer": "hf-internal-testing/tiny-random-LongformerModel",
