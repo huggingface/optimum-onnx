@@ -463,29 +463,80 @@ class OpenVINOQuantizeCommand(BaseOptimumCLICommand):
             quantization_config.to_dict() if hasattr(quantization_config, "to_dict") else quantization_config
         )
         print(f"quantization_config: {quantization_config_to_print}")
-        
-        # Import the quantization function with additional error handling
-        try:
-            from optimum.exporters.openvino import _main_quantize
-        except (ImportError, AttributeError) as e:
-            raise ImportError(
-                "Failed to import quantization function from optimum-intel. "
-                "Please ensure optimum-intel is properly installed with: "
-                "`pip install optimum-intel[openvino]` or `pip install optimum-intel`"
-            ) from e
 
-        # _main_quantize expects model artifacts to be present in `output`.
+        import numpy as np
+
+        from optimum.openvino.quantization import OpenVINOQuantizer, ORTCalibrationDataset
+
+        def _numpy_dtype_from_ort_type(type_str: str):
+            if "int64" in type_str:
+                return np.int64
+            if "int32" in type_str:
+                return np.int32
+            if "int16" in type_str:
+                return np.int16
+            if "int8" in type_str:
+                return np.int8
+            if "uint64" in type_str:
+                return np.uint64
+            if "uint32" in type_str:
+                return np.uint32
+            if "uint16" in type_str:
+                return np.uint16
+            if "uint8" in type_str:
+                return np.uint8
+            if "float16" in type_str:
+                return np.float16
+            if "float" in type_str:
+                return np.float32
+            if "double" in type_str:
+                return np.float64
+            if "bool" in type_str:
+                return np.bool_
+            return np.float32
+
+        def _normalized_shape(shape):
+            if shape is None:
+                return (1,)
+            dims = []
+            for dim in shape:
+                if isinstance(dim, int) and dim > 0:
+                    dims.append(dim)
+                else:
+                    dims.append(1)
+            return tuple(dims) if len(dims) > 0 else (1,)
+
         if self.args.model.is_dir():
-            if self.args.output.exists():
-                shutil.rmtree(self.args.output)
-            shutil.copytree(self.args.model, self.args.output)
+            onnx_models = sorted(self.args.model.glob("*.onnx"))
+        elif self.args.model.is_file() and self.args.model.suffix == ".onnx":
+            onnx_models = [self.args.model]
+        else:
+            raise ValueError(
+                "OpenVINOQuantizer CLI path expects a local ONNX file or a directory containing ONNX files. "
+                "Please provide --model pointing to .onnx or a folder with .onnx models."
+            )
 
-        _main_quantize(
-            model_name_or_path=self.args.model,
-            task=self.args.task,
-            library_name=library_name,
-            quantization_config=quantization_config,
-            output=self.args.output,
-            cache_dir=self.args.cache_dir,
-            trust_remote_code=self.args.trust_remote_code,
-        )
+        if len(onnx_models) == 0:
+            raise ValueError(f"No ONNX models found in: {self.args.model}")
+
+        save_dir = self.args.output
+        qconfig = ov_config
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        quantizers = [OpenVINOQuantizer.from_pretrained(model) for model in onnx_models]
+
+        for q in quantizers:
+            sample = {}
+            for input_name in q.input_names:
+                input_shape = _normalized_shape(q.input_shapes[input_name])
+                input_dtype = _numpy_dtype_from_ort_type(q.input_types[input_name])
+                sample[input_name] = np.zeros(input_shape, dtype=input_dtype)
+
+            calibration_dataset = ORTCalibrationDataset([sample])
+            q.quantize(
+                calibration_dataset=calibration_dataset,
+                ov_config=qconfig,
+                save_directory=save_dir,
+            )
+        
+
