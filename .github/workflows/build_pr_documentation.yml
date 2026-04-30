@@ -47,7 +47,7 @@ jobs:
           echo ${{ env.COMMIT_SHA }} > onnx-doc-build/commit_sha
           echo ${{ env.PR_NUMBER }} > onnx-doc-build/pr_number
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: doc-build-artifact
           path: onnx-doc-build/
