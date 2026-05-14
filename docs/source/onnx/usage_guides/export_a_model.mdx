@@ -70,13 +70,17 @@ The Optimum ONNX export can be used through Optimum command-line:
 ```bash
 optimum-cli export onnx --help
 
-usage: optimum-cli export onnx [-h] -m MODEL [--task TASK] [--opset OPSET] [--device DEVICE] [--dtype {fp32,fp16,bf16}] [--optimize {O1,O2,O3,O4}] [--monolith]
-                               [--no-post-process] [--variant VARIANT] [--framework {pt}] [--atol ATOL] [--cache_dir CACHE_DIR] [--trust-remote-code]
-                               [--pad_token_id PAD_TOKEN_ID] [--library-name {transformers,diffusers,timm,sentence_transformers}] [--model-kwargs MODEL_KWARGS]
-                               [--no-dynamic-axes] [--no-constant-folding] [--slim] [--dynamo] [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH]
-                               [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT] [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE]
-                               [--nb_max_frames NB_MAX_FRAMES] [--audio_sequence_length AUDIO_SEQUENCE_LENGTH] [--point_batch_size POINT_BATCH_SIZE]
-                               [--nb_points_per_image NB_POINTS_PER_IMAGE] [--visual_seq_length VISUAL_SEQ_LENGTH]
+usage: optimum-cli export onnx [-h] -m MODEL [--task TASK] [--opset OPSET] [--device DEVICE] [--dtype {fp32,fp16,bf16}]
+                               [--optimize {O1,O2,O3,O4}] [--monolith] [--no-post-process] [--variant VARIANT]
+                               [--framework {pt}] [--atol ATOL] [--cache_dir CACHE_DIR] [--trust-remote-code]
+                               [--pad_token_id PAD_TOKEN_ID] [--library-name {transformers,diffusers,timm,sentence_transformers}]
+                               [--model-kwargs MODEL_KWARGS] [--no-dynamic-axes] [--no-constant-folding] [--slim]
+                               [--dynamo] [--batch_size BATCH_SIZE] [--sequence_length SEQUENCE_LENGTH]
+                               [--num_choices NUM_CHOICES] [--width WIDTH] [--height HEIGHT]
+                               [--num_channels NUM_CHANNELS] [--feature_size FEATURE_SIZE]
+                               [--nb_max_frames NB_MAX_FRAMES] [--audio_sequence_length AUDIO_SEQUENCE_LENGTH]
+                               [--point_batch_size POINT_BATCH_SIZE] [--nb_points_per_image NB_POINTS_PER_IMAGE]
+                               [--visual_seq_length VISUAL_SEQ_LENGTH]
                                output
 
 options:
@@ -297,6 +301,33 @@ The new version enabled with `dynamo=True` (or `--dynamo` with `optimum-cli`) is
 for any opset >= 18. It is based on [torch.export.export](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/export.html).
 The following page [ONNX Operators](https://onnx.ai/onnx/operators/index.html)
 highlights which operators are available in every opset.
+
+A simple example:
+
+```bash
+optimum-cli export onnx -m arnir0/Tiny-LLM --dynamo --dtype fp16 --opset 24 tiny-llm
+```
+
+```
+Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:00<00:00, 2084.21it/s, Materializing param=model.norm.weight]
+[torch.onnx] Obtain model graph for `LlamaForCausalLM([...]` with `torch.export.export(..., strict=False)`...
+[torch.onnx] Obtain model graph for `LlamaForCausalLM([...]` with `torch.export.export(..., strict=False)`... ✅
+[torch.onnx] Run decompositions...
+[torch.onnx] Run decompositions... ✅
+[torch.onnx] Translate the graph into ONNX...
+[torch.onnx] Translate the graph into ONNX... ✅
+[torch.onnx] Optimize the ONNX graph...
+Applied 34 of general pattern rewrite rules.
+[torch.onnx] Optimize the ONNX graph... ✅
+                -[x] values not close enough, max diff: 0.02734375 (atol: 1e-05)
+                -[x] values not close enough, max diff: 0.0078125 (atol: 1e-05)
+                -[x] values not close enough, max diff: 0.00048828125 (atol: 1e-05)
+The ONNX export succeeded with the warning: The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance 1e-05:
+- logits: max diff = 0.02734375
+- present.0.key: max diff = 0.0078125
+- present.0.value: max diff = 0.00048828125.
+ The exported model was saved at: cli-tiny-llm.onnx
+```
 
 ## Custom export of Transformers models
 

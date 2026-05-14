@@ -27,11 +27,11 @@ import torch
 from parameterized import parameterized
 from testing_utils import MODEL_NAMES
 from transformers import AutoTokenizer
-from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import require_torch_gpu
 
 from optimum.exporters.onnx.model_configs import ModernBertOnnxConfig
 from optimum.exporters.tasks import TasksManager
+from optimum.onnx.utils import get_preprocessor
 from optimum.onnxruntime import (
     AutoOptimizationConfig,
     ORTConfig,
@@ -335,6 +335,10 @@ class ORTOptimizerForSeq2SeqLMIntegrationTest(ORTOptimizerTestMixin):
             }
         )
     )
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
+    )
     def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
@@ -447,6 +451,10 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
             }
         )
     )
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
+    )
     def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(
             test_name=test_name,
@@ -557,6 +565,10 @@ class ORTOptimizerForCausalLMIntegrationTest(ORTOptimizerTestMixin):
 
     @parameterized.expand(
         grid_parameters({**FULL_GRID, "use_cache": [False, True], "optimization_level": ["O1", "O2", "O3"]})
+    )
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.2") and is_transformers_version("<", "5.3"),
+        "cannot import find_pruneable_heads_and_indices (transformers)",
     )
     def test_optimization_levels_cpu(self, test_name: str, model_arch: str, use_cache: bool, optimization_level: str):
         self._test_optimization_levels(

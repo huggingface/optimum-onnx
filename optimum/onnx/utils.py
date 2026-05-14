@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+
 import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors, uses_external_data
 
@@ -94,3 +96,41 @@ def has_onnx_input(model: onnx.ModelProto | Path | str, input_name: str) -> bool
         model = onnx.load(model, load_external_data=False)
 
     return any(input.name == input_name for input in model.graph.input)
+
+
+def get_preprocessor(model_name: str) -> AutoTokenizer | AutoFeatureExtractor | AutoProcessor | None:
+    """Gets a preprocessor (tokenizer, feature extractor or processor) that is available for `model_name`.
+
+    Args:
+        model_name (`str`): Name of the model for which a preprocessor are loaded.
+
+    Returns:
+        `Optional[Union[AutoTokenizer, AutoFeatureExtractor, AutoProcessor]]`:
+            If a processor is found, it is returned. Otherwise, if a tokenizer or a feature extractor exists, it is
+            returned. If both a tokenizer and a feature extractor exist, an error is raised. The function returns
+            `None` if no preprocessor is found.
+
+    From PR `transformers#41700 <https://github.com/huggingface/transformers/pull/41700>`_.
+    """
+    try:
+        return AutoProcessor.from_pretrained(model_name)
+    except (ValueError, OSError, KeyError):
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except (OSError, KeyError):
+            tokenizer = None
+        try:
+            feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+        except (OSError, KeyError):
+            feature_extractor = None
+
+        if tokenizer is not None and feature_extractor is not None:
+            raise ValueError(
+                f"Couldn't auto-detect preprocessor for {model_name}. Found both a tokenizer and a feature extractor."
+            )
+        elif tokenizer is None and feature_extractor is None:
+            return None
+        elif tokenizer is not None:
+            return tokenizer
+        else:
+            return feature_extractor

@@ -367,4 +367,7 @@ def pipeline(  # noqa: D417
             **kwargs,
         )
 
+    if not hasattr(pipeline_with_ort_model, "modelcard"):
+        # transformers>=5.0 expects to see this attribute.
+        pipeline_with_ort_model.modelcard = None
     return pipeline_with_ort_model

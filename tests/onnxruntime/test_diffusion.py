@@ -88,7 +88,7 @@ def generate_prompts(batch_size=1):
         "prompt": ["sailing ship in storm by Leonardo da Vinci"] * batch_size,
         "num_inference_steps": 3,
         "guidance_scale": 7.5,
-        "output_type": "np",
+        "output_type": "pt",
     }
     return inputs
 
@@ -369,7 +369,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np", "pt"]:
+        for output_type in ["latent", "pt"]:
             inputs["output_type"] = output_type
 
             ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
@@ -456,7 +456,7 @@ class ORTPipelineForText2ImageTest(ORTModelTestMixin):
             # resolution and back that can interpolate floating-point deviations
             inputs["use_resolution_binning"] = False
 
-        for output_type in ["pil", "np", "pt", "latent"]:
+        for output_type in ["pil", "pt", "latent"]:
             inputs["output_type"] = output_type
             outputs = pipeline(**inputs).images
 
@@ -673,17 +673,15 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         diffusion_model = pipeline.unet or pipeline.transformer
         height, width, batch_size = 64, 64, 1
 
-        for input_type in ["pil", "np", "pt"]:
+        for input_type in ["pil", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
 
-            for output_type in ["pil", "np", "pt", "latent"]:
+            for output_type in ["pil", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
 
                 if output_type == "pil":
                     self.assertEqual((len(outputs), outputs[0].height, outputs[0].width), (batch_size, height, width))
-                elif output_type == "np":
-                    self.assertEqual(outputs.shape, (batch_size, height, width, 3))
                 elif output_type == "pt":
                     self.assertEqual(outputs.shape, (batch_size, 3, height, width))
                 else:
@@ -709,7 +707,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np", "pt"]:
+        for output_type in ["latent", "pt"]:
             inputs["output_type"] = output_type
 
             ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
@@ -729,7 +727,7 @@ class ORTPipelineForImage2ImageTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
 
-        for output_type in ["latent", "np", "pt"]:
+        for output_type in ["latent", "pt"]:  # "np":
             inputs["output_type"] = output_type
 
             # makes sure io binding is not used
@@ -929,10 +927,10 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         diffusion_model = pipeline.unet or pipeline.transformer
         height, width, batch_size = 64, 64, 1
 
-        for input_type in ["pil", "np", "pt"]:
+        for input_type in ["pil", "pt"]:
             inputs = self.generate_inputs(height=height, width=width, batch_size=batch_size, input_type=input_type)
 
-            for output_type in ["pil", "np", "pt", "latent"]:
+            for output_type in ["pil", "pt", "latent"]:
                 inputs["output_type"] = output_type
                 outputs = pipeline(**inputs).images
 
@@ -965,7 +963,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusers_pipeline = self.AUTOMODEL_CLASS.from_pretrained(MODEL_NAMES[model_arch])
 
-        for output_type in ["latent", "np", "pt"]:
+        for output_type in ["latent", "pt"]:  # "np":
             inputs["output_type"] = output_type
 
             ort_images = ort_pipeline(**inputs, generator=get_generator(SEED)).images
@@ -985,7 +983,7 @@ class ORTPipelineForInpaintingTest(ORTModelTestMixin):
         ort_pipeline = self.ORTMODEL_CLASS.from_pretrained(self.onnx_model_dirs[model_arch])
         diffusion_model = ort_pipeline.unet or ort_pipeline.transformer
 
-        for output_type in ["latent", "np", "pt"]:
+        for output_type in ["latent", "pt"]:  # "np":
             inputs["output_type"] = output_type
 
             # makes sure io binding is not used

@@ -414,7 +414,10 @@ def _run_validation(
         atol_msg = f"The maximum absolute difference between the output of the reference model and the ONNX exported model is not within the set tolerance {atol}:\n{msg}"
 
         if isinstance(config, SpeechT5OnnxConfig):
-            atol_msg += "\nIMPORTANT NOTE: SpeechT5 uses a dropout at inference and the output validation of ONNX Runtime inference vs PyTorch is expected to fail. Reference: https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L727"
+            atol_msg += (
+                "\nIMPORTANT NOTE: SpeechT5 uses a dropout at inference and the output validation of ONNX Runtime inference vs PyTorch "
+                "is expected to fail. Reference: https://github.com/huggingface/transformers/blob/v4.33.2/src/transformers/models/speecht5/modeling_speecht5.py#L727"
+            )
         raise AtolError(atol_msg)
 
 
@@ -941,7 +944,9 @@ def onnx_export_from_model(
     dynamo: bool = False,
     **kwargs_shapes,
 ):
-    """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**. This function is especially useful in case one needs to do modifications on the model, as overriding a forward call, before exporting to ONNX.
+    """Full-suite ONNX export function, exporting **from a pre-loaded PyTorch model**.
+    This function is especially useful in case one needs to do modifications on the model,
+    as overriding a forward call, before exporting to ONNX.
 
     Args:
         > Required parameters
@@ -978,10 +983,13 @@ def onnx_export_from_model(
             in case, for example, the model inputs/outputs are changed (for example, if
             `model_kwargs={"output_attentions": True}` is passed).
         custom_onnx_configs (`Optional[Dict[str, OnnxConfig]]`, defaults to `None`):
-            Experimental usage: override the default ONNX config used for the given model. This argument may be useful for advanced users that desire a finer-grained control on the export. An example is available [here](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model).
+            Experimental usage: override the default ONNX config used for the given model.
+            This argument may be useful for advanced users that desire a finer-grained control on the export.
+            An example is available [here](https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model).
         fn_get_submodels (`Optional[Callable]`, defaults to `None`):
             Experimental usage: Override the default submodels that are used at the export. This is
-            especially useful when exporting a custom architecture that needs to split the ONNX (e.g. encoder-decoder). If unspecified with custom models, optimum will try to use the default submodels used for the given task, with no guarantee of success.
+            especially useful when exporting a custom architecture that needs to split the ONNX (e.g. encoder-decoder).
+            If unspecified with custom models, optimum will try to use the default submodels used for the given task, with no guarantee of success.
         use_subprocess (`bool`, defaults to `False`):
             Do the ONNX exported model validation in subprocesses. This is especially useful when
             exporting on CUDA device, where ORT does not release memory at inference session
@@ -1030,7 +1038,9 @@ def onnx_export_from_model(
             task = TasksManager._infer_task_from_model_or_model_class(model=model)
         except (ValueError, KeyError) as e:
             raise RuntimeError(
-                f"The model task could not be automatically inferred in `onnx_export_from_model`. Please provide the argument `task` with the relevant task from {', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
+                f"The model task could not be automatically inferred in `onnx_export_from_model`. "
+                f"Please provide the argument `task` with the relevant task from "
+                f"{', '.join(TasksManager.get_all_tasks())}. Detailed error: {e}"
             )
 
         if (
@@ -1045,7 +1055,13 @@ def onnx_export_from_model(
 
         logger.info(f"Automatic task detection to: {task}.")
 
-    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and get_parameter_dtype else model.dtype
+    if isinstance(model, torch.nn.Module) and get_parameter_dtype:
+        dtype = get_parameter_dtype(model)
+    elif hasattr(model, "dtype"):
+        dtype = model.dtype
+    else:
+        # Let's peek the default.
+        dtype = torch.float32
 
     if "bfloat16" in str(dtype):
         float_dtype = "bf16"
@@ -1057,7 +1073,10 @@ def onnx_export_from_model(
     # TODO: support onnx_config.py in the model repo
     if custom_architecture and custom_onnx_configs is None:
         raise ValueError(
-            f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues if you would like the model type {model_type} to be supported natively in the ONNX export."
+            f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no custom onnx configuration was passed as `custom_onnx_configs`. "
+            f"Please refer to https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model#custom-export-of-transformers-models "
+            f"for an example on how to export custom models. Please open an issue at https://github.com/huggingface/optimum/issues "
+            f"if you would like the model type {model_type} to be supported natively in the ONNX export."
         )
 
     if task.startswith("text-generation") and model.config.is_encoder_decoder:
@@ -1189,7 +1208,8 @@ def onnx_export_from_model(
 
     if float_dtype == "bf16":
         logger.warning(
-            f"Exporting the model {model.__class__.__name__} in bfloat16 float dtype. After the export, ONNX Runtime InferenceSession with CPU/CUDA execution provider likely does not implement all operators for the bfloat16 data type, and the loading is likely to fail."
+            f"Exporting the model {model.__class__.__name__} in bfloat16 float dtype. After the export, ONNX Runtime InferenceSession "
+            f"with CPU/CUDA execution provider likely does not implement all operators for the bfloat16 data type, and the loading is likely to fail."
         )
 
     _, onnx_outputs = export_models(
