@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -772,6 +773,8 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
     Other attributes:
         encoder_file_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_ENCODER_NAME`):
             The name of the ONNX file containing the encoder part of the model.
+        file_name (`str`, defaults to `None`):
+            The name of the ONNX file containing the decoder part of the model.
         decoder_file_name (`str`,  defaults to `optimum.onnxruntime.utils.ONNX_DECODER_NAME`):
             The name of the ONNX file containing the decoder part of the model.
         decoder_file_with_past_name (`str`, defaults to `optimum.onnxruntime.utils.ONNX_DECODER_WITH_PAST_NAME`):
@@ -888,6 +891,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         cache_dir: str = HUGGINGFACE_HUB_CACHE,
         token: bool | str | None = None,
         # file options
+        file_name: str | None = None,
         encoder_file_name: str | None = None,
         decoder_file_name: str | None = None,
         decoder_with_past_file_name: str | None = None,
@@ -918,6 +922,14 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
         if Path(model_id).is_dir():
             onnx_files = [f.relative_to(model_id) for f in onnx_files]
 
+        if file_name is not None:
+            if decoder_file_name is not None:
+                raise ValueError(
+                    "`file_name` and `decoder_file_name` both specify the decoder ONNX file. "
+                    "Please pass only one of them."
+                )
+            decoder_file_name = file_name
+
         # we start with encoder to fail fast if something is wrong
         encoder_path = cls._infer_file_path(
             ENCODER_ONNX_FILE_PATTERN,
@@ -928,6 +940,7 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
 
         decoder_path = None
         decoder_with_past_path = None
+        decoder_file_name_is_merged = False
         # We default to looking for merged decoder if user didn't disable it explicitly.
         if use_merged is not False:
             try:
@@ -937,14 +950,21 @@ class ORTModelForConditionalGeneration(ORTParentMixin, ORTModel, GenerationMixin
                     target_file_name=decoder_file_name,
                     standard_file_name=ONNX_DECODER_MERGED_NAME,
                 )
-                use_merged = True
+                decoder_file_name_is_merged = decoder_file_name is not None and (
+                    re.search(DECODER_MERGED_ONNX_FILE_PATTERN, decoder_path.name) is not None
+                )
+                use_merged = decoder_file_name is None or decoder_file_name_is_merged
             except FileNotFoundError:
                 if use_merged is True:
                     raise
                 use_merged = False
 
         # if the user disabled merged explicitly, or if we didn't find it, or if the user provided file names
-        if use_merged is False or (decoder_file_name is not None or decoder_with_past_file_name is not None):
+        if (
+            use_merged is False
+            or (decoder_file_name is not None and not decoder_file_name_is_merged)
+            or decoder_with_past_file_name is not None
+        ):
             decoder_path = cls._infer_file_path(
                 DECODER_ONNX_FILE_PATTERN,
                 onnx_files=onnx_files,
