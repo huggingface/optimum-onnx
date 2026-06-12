@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "optimum @ git+https://github.com/huggingface/optimum",
+    "optimum~=2.2.0",
     "transformers>=4.36,<4.58.0",
     "onnx",
     "onnxscript",
