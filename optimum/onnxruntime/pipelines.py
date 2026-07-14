@@ -40,6 +40,42 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+
+# Transformers 5 removed several pipeline defaults and changed text generation's
+# default from GPT-2 to a 3B parameter model. Keep the defaults exposed by the
+# Optimum pipeline API under Transformers 4 so upgrading Transformers does not
+# unexpectedly make exports much larger or make previously valid calls fail.
+_TRANSFORMERS_V4_ORT_PIPELINE_DEFAULTS = {
+    "audio-classification": ("superb/wav2vec2-base-superb-ks", "372e048"),
+    "automatic-speech-recognition": ("facebook/wav2vec2-base-960h", "22aad52"),
+    "feature-extraction": ("distilbert/distilbert-base-cased", "6ea8117"),
+    "fill-mask": ("distilbert/distilroberta-base", "fb53ab8"),
+    "image-classification": ("google/vit-base-patch16-224", "3f49326"),
+    "image-segmentation": ("facebook/detr-resnet-50-panoptic", "d53b52a"),
+    "image-to-image": ("caidas/swin2SR-classical-sr-x2-64", "cee1c92"),
+    "image-to-text": ("ydshieh/vit-gpt2-coco-en", "5bebf1e"),
+    "question-answering": ("distilbert/distilbert-base-cased-distilled-squad", "564e9b5"),
+    "summarization": ("sshleifer/distilbart-cnn-12-6", "a4f8f3e"),
+    "text2text-generation": ("google-t5/t5-base", "a9723ea"),
+    "text-classification": ("distilbert/distilbert-base-uncased-finetuned-sst-2-english", "714eb0f"),
+    "text-generation": ("openai-community/gpt2", "607a30d"),
+    "token-classification": ("dbmdz/bert-large-cased-finetuned-conll03-english", "4c53496"),
+    "translation": ("google-t5/t5-base", "a9723ea"),
+    "zero-shot-classification": ("facebook/bart-large-mnli", "d7645e1"),
+    "zero-shot-image-classification": ("openai/clip-vit-base-patch32", "3d74acf"),
+}
+
+_PIPELINE_TASK_ALIASES = {
+    "image-text-to-text": "image-to-text",
+    "ner": "token-classification",
+    "sentiment-analysis": "text-classification",
+}
+
+if is_transformers_version(">=", "5.0.0"):
+    from optimum.onnxruntime.transformers_v5_pipelines import register_transformers_v5_ort_pipelines
+
+    register_transformers_v5_ort_pipelines(_TRANSFORMERS_V4_ORT_PIPELINE_DEFAULTS)
+
 if is_onnxruntime_available():
     from optimum.onnxruntime import (
         ORTModelForAudioClassification,
@@ -134,6 +170,12 @@ def ort_infer_framework_load_model(
     return "pt", ort_model
 
 
+def ort_load_model(model, config: PretrainedConfig | None = None, task: str | None = None, **model_kwargs):
+    """Transformers 5 counterpart of ``ort_infer_framework_load_model``."""
+    _, ort_model = ort_infer_framework_load_model(model, config=config, task=task, **model_kwargs)
+    return ort_model
+
+
 @contextlib.contextmanager
 def patch_pipelines_to_load_ort_model():
     if hasattr(transformers.pipelines, "infer_framework_load_model"):
@@ -144,6 +186,13 @@ def patch_pipelines_to_load_ort_model():
             yield
         finally:
             transformers.pipelines.infer_framework_load_model = original_infer_framework_load_model
+    elif hasattr(transformers.pipelines, "load_model"):
+        original_load_model = transformers.pipelines.load_model
+        transformers.pipelines.load_model = ort_load_model
+        try:
+            yield
+        finally:
+            transformers.pipelines.load_model = original_load_model
     else:
         try:
             yield
@@ -340,6 +389,24 @@ def pipeline(  # noqa: D417
             " as ONNX Runtime is the only supported backend. Please remove the `accelerator` argument."
         )
 
+    if is_transformers_version(">=", "5.0.0") and task is not None:
+        if task.startswith("translation_"):
+            task = "translation"
+        else:
+            task = _PIPELINE_TASK_ALIASES.get(task, task)
+
+    if model is None and is_transformers_version(">=", "5.0.0"):
+        default_task = _PIPELINE_TASK_ALIASES.get(task, task)
+        if default_task is not None and default_task.startswith("translation_"):
+            default_task = "translation"
+        if default_task in _TRANSFORMERS_V4_ORT_PIPELINE_DEFAULTS:
+            model, default_revision = _TRANSFORMERS_V4_ORT_PIPELINE_DEFAULTS[default_task]
+            revision = revision if revision is not None else default_revision
+            logger.warning(
+                f"No model was supplied, defaulted to {model} and revision {revision}.\n"
+                "Using a pipeline without specifying a model name and revision in production is not recommended."
+            )
+
     version_dependent_kwargs = {}
     if is_transformers_version(">=", "4.46.0"):
         # processor argument was added in transformers v4.46.0
@@ -366,5 +433,11 @@ def pipeline(  # noqa: D417
             **version_dependent_kwargs,
             **kwargs,
         )
+
+    # Transformers 5.0's Pipeline.save_pretrained reads this legacy attribute,
+    # while its Pipeline.__init__ no longer initializes it. Later v5 releases
+    # removed the stale read, so keep the object contract stable here.
+    if not hasattr(pipeline_with_ort_model, "modelcard"):
+        pipeline_with_ort_model.modelcard = None
 
     return pipeline_with_ort_model

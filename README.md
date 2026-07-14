@@ -25,6 +25,16 @@ pip install "optimum-onnx[onnxruntime-gpu]"
 
 To avoid conflicts between `onnxruntime` and `onnxruntime-gpu`, make sure the package `onnxruntime` is not installed by running `pip uninstall onnxruntime` prior to installing Optimum.
 
+#### Transformers compatibility
+
+Optimum ONNX supports Transformers 4.36 through 4.57 and the latest Transformers 5 release. The export, ONNX Runtime,
+optimization, quantization, Diffusers, pipeline, and `trust_remote_code` paths are tested across both major versions.
+Compatibility with older Transformers 5 minor releases is best-effort; upgrade to the latest v5 release for supported
+v5 behavior.
+
+Transformers 5 removed the MCTCT architecture itself, so MCTCT checkpoints require Transformers 4. All other
+architectures already supported by Optimum ONNX remain available without adding architecture-specific export paths.
+
 ### ONNX export
 
 It is possible to export 🤗 Transformers, Diffusers, Timm and Sentence Transformers models to the [ONNX](https://onnx.ai/) format and perform graph optimization as well as quantization easily:

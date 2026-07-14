@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from transformers import AutoFeatureExtractor, AutoProcessor, AutoTokenizer
+
 import onnx
 from onnx.external_data_helper import ExternalDataInfo, _get_initializer_tensors, uses_external_data
 
@@ -94,3 +96,33 @@ def has_onnx_input(model: onnx.ModelProto | Path | str, input_name: str) -> bool
         model = onnx.load(model, load_external_data=False)
 
     return any(input.name == input_name for input in model.graph.input)
+
+
+def get_preprocessor(model_name_or_path: str | Path, **kwargs):
+    """Load the processor, tokenizer, or feature extractor associated with a model.
+
+    This is the Transformers 4 ``transformers.onnx.utils.get_preprocessor``
+    behavior kept in Optimum ONNX because the ``transformers.onnx`` package was
+    removed in Transformers 5.
+    """
+    try:
+        return AutoProcessor.from_pretrained(model_name_or_path, **kwargs)
+    except (ValueError, OSError, KeyError):
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, **kwargs)
+        except (ValueError, OSError, KeyError):
+            tokenizer = None
+
+        try:
+            feature_extractor = AutoFeatureExtractor.from_pretrained(model_name_or_path, **kwargs)
+        except (ValueError, OSError, KeyError):
+            feature_extractor = None
+
+        if tokenizer is not None and feature_extractor is not None:
+            raise ValueError(
+                f"Couldn't auto-detect preprocessor for {model_name_or_path}. "
+                "Found both a tokenizer and a feature extractor."
+            )
+        if tokenizer is not None:
+            return tokenizer
+        return feature_extractor

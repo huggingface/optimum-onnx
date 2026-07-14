@@ -52,11 +52,11 @@ from transformers import (
 )
 from transformers.modeling_outputs import BaseModelOutput, ImageSuperResolutionOutput
 from transformers.models.swin2sr.configuration_swin2sr import Swin2SRConfig
-from transformers.onnx.utils import get_preprocessor
 from transformers.testing_utils import get_gpu_count, require_torch_gpu
 from transformers.utils import http_user_agent
 
 from optimum.exporters.tasks import TasksManager
+from optimum.onnx.utils import get_preprocessor
 from optimum.onnxruntime import (
     ONNX_WEIGHTS_NAME,
     ORTModel,
@@ -77,7 +77,7 @@ from optimum.onnxruntime import (
     ORTModelForZeroShotImageClassification,
     pipeline,
 )
-from optimum.utils import CONFIG_NAME, logging
+from optimum.utils import CONFIG_NAME, is_transformers_version, logging
 from optimum.utils.save_utils import maybe_load_preprocessors
 from optimum.utils.testing_utils import grid_parameters, remove_directory, require_hf_token, require_ort_rocm
 
@@ -2422,6 +2422,8 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         "wav2vec2",
         "wav2vec2-conformer",
     ]
+    if is_transformers_version(">=", "5.0"):
+        SUPPORTED_ARCHITECTURES.remove("mctct")
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
     ORTMODEL_CLASS = ORTModelForCTC

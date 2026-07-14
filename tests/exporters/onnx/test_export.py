@@ -46,11 +46,10 @@ from optimum.exporters.onnx import (
 from optimum.exporters.onnx.base import ConfigBehavior
 from optimum.exporters.onnx.config import TextDecoderOnnxConfig
 from optimum.exporters.onnx.model_configs import WhisperOnnxConfig
-from optimum.exporters.onnx.utils import get_sana_models_for_export
+from optimum.exporters.onnx.utils import get_diffusion_models_for_export, get_sana_models_for_export
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import (
     get_decoder_models_for_export,
-    get_diffusion_models_for_export,
     get_encoder_decoder_models_for_export,
     get_speecht5_models_for_export,
 )

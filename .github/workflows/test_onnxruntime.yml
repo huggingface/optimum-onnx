@@ -26,7 +26,9 @@ jobs:
       matrix:
         python-version: [3.11]
         runs-on: [ubuntu-24.04]
-        transformers_version: [latest, 4.36.*, 4.45.*, 4.56.*]
+        # `latest` exercises the current Transformers v5 release. Keep the
+        # oldest supported v4 releases and the last v4 minor for compatibility.
+        transformers_version: [latest, 4.36.*, 4.45.*, 4.56.*, 4.57.*]
         test_file:
           [
             test_decoder.py,

@@ -51,7 +51,7 @@ from diffusers.utils.constants import CONFIG_NAME
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
 from huggingface_hub import HfApi, create_repo
 from huggingface_hub.utils import validate_hf_hub_args
-from transformers import CLIPFeatureExtractor, CLIPTokenizer
+from transformers import CLIPImageProcessor, CLIPTokenizer
 from transformers.file_utils import add_end_docstrings
 from transformers.modeling_outputs import ModelOutput
 from transformers.utils import http_user_agent
@@ -130,7 +130,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
         tokenizer: CLIPTokenizer | None = None,
         tokenizer_2: CLIPTokenizer | None = None,
         tokenizer_3: CLIPTokenizer | None = None,
-        feature_extractor: CLIPFeatureExtractor | None = None,
+        feature_extractor: CLIPImageProcessor | None = None,
         # stable diffusion xl specific arguments
         force_zeros_for_empty_prompt: bool = True,
         requires_aesthetics_score: bool = False,

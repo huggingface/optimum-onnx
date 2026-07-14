@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any, Callable
 
 import torch
@@ -66,6 +67,16 @@ MODEL_TYPES_REQUIRING_POSITION_IDS = {
 }
 
 
+_DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE = {
+    "CLIPTextModel": "clip-text",
+    "CLIPTextModelWithProjection": "clip-text-with-projection",
+    "FluxTransformer2DModel": "flux-transformer-2d",
+    "SD3Transformer2DModel": "sd3-transformer-2d",
+    "UNet2DConditionModel": "unet-2d-condition",
+    "T5EncoderModel": "t5-encoder",
+}
+
+
 if is_transformers_version(">=", "4.46.0"):
     MODEL_TYPES_REQUIRING_POSITION_IDS.add("opt")
 
@@ -104,6 +115,86 @@ def recursive_to_dtype(
             value = value.to(dtype=dtype)
 
     return value
+
+
+def get_diffusion_models_for_export(
+    pipeline: DiffusionPipeline,
+    int_dtype: str = "int64",
+    float_dtype: str = "fp32",
+    exporter: str = "onnx",
+) -> dict[str, tuple[torch.nn.Module, ExporterConfig]]:
+    """Return diffusion submodels and ONNX configs across Transformers 4 and 5.
+
+    Transformers 5 flattened the CLIP text model and removed its ``text_model``
+    container. Keeping component discovery in the ONNX integration avoids
+    relying on either internal layout.
+    """
+    models_for_export = {}
+    is_sdxl = pipeline.__class__.__name__.startswith("StableDiffusionXL")
+    is_sd3 = pipeline.__class__.__name__.startswith("StableDiffusion3")
+
+    for name in ("text_encoder", "text_encoder_2", "text_encoder_3"):
+        submodel = getattr(pipeline, name, None)
+        if submodel is None:
+            continue
+        if name != "text_encoder_3" and (is_sdxl or is_sd3):
+            submodel.config.output_hidden_states = True
+            nested_text_model = getattr(submodel, "text_model", None)
+            if nested_text_model is not None:
+                nested_text_model.config.output_hidden_states = True
+        submodel.config.export_model_type = _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE.get(submodel.__class__.__name__)
+        models_for_export[name] = submodel
+
+    unet = getattr(pipeline, "unet", None)
+    if unet is not None:
+        unet.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
+        unet.config.time_cond_proj_dim = getattr(unet.config, "time_cond_proj_dim", None)
+        unet.config.text_encoder_projection_dim = (
+            pipeline.text_encoder_2.config.projection_dim if is_sdxl else pipeline.text_encoder.config.projection_dim
+        )
+        unet.config.export_model_type = _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE.get(unet.__class__.__name__)
+        models_for_export["unet"] = unet
+
+    transformer = getattr(pipeline, "transformer", None)
+    if transformer is not None:
+        transformer.config.requires_aesthetics_score = getattr(pipeline.config, "requires_aesthetics_score", False)
+        transformer.config.time_cond_proj_dim = getattr(transformer.config, "time_cond_proj_dim", None)
+        transformer.config.text_encoder_projection_dim = pipeline.text_encoder.config.projection_dim
+        transformer.config.export_model_type = _DIFFUSERS_CLASS_NAME_TO_SUBMODEL_TYPE.get(
+            transformer.__class__.__name__
+        )
+        models_for_export["transformer"] = transformer
+
+    vae_encoder = copy.deepcopy(pipeline.vae)
+    vae_encoder.forward = lambda sample: {"latent_parameters": vae_encoder.encode(x=sample)["latent_dist"].parameters}
+    models_for_export["vae_encoder"] = vae_encoder
+
+    vae_decoder = copy.deepcopy(pipeline.vae)
+    vae_decoder.forward = lambda latent_sample: vae_decoder.decode(z=latent_sample)
+    models_for_export["vae_decoder"] = vae_decoder
+
+    tasks = {
+        "text_encoder": ("feature-extraction", None),
+        "text_encoder_2": ("feature-extraction", None),
+        "text_encoder_3": ("feature-extraction", None),
+        "unet": ("semantic-segmentation", None),
+        "transformer": ("semantic-segmentation", None),
+        "vae_encoder": ("semantic-segmentation", "vae-encoder"),
+        "vae_decoder": ("semantic-segmentation", "vae-decoder"),
+    }
+    for name, submodel in models_for_export.items():
+        task, model_type = tasks[name]
+        config_constructor = TasksManager.get_exporter_config_constructor(
+            model=submodel,
+            exporter=exporter,
+            library_name="diffusers",
+            task=task,
+            model_type=model_type,
+        )
+        export_config = config_constructor(submodel.config, int_dtype=int_dtype, float_dtype=float_dtype)
+        models_for_export[name] = (submodel, export_config)
+
+    return models_for_export
 
 
 # Copied from https://github.com/microsoft/onnxruntime/issues/7846#issuecomment-850217402
@@ -263,6 +354,9 @@ def _get_submodels_and_onnx_configs(
 
     if library_name == "diffusers" and model.__class__.__name__.startswith("Sana"):
         return None, get_sana_models_for_export(model, int_dtype, float_dtype)
+
+    if library_name == "diffusers":
+        return None, get_diffusion_models_for_export(model, int_dtype, float_dtype)
 
     return _get_submodels_and_export_configs(
         model,

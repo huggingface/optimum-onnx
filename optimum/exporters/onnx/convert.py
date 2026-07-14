@@ -56,6 +56,7 @@ from optimum.onnx.utils import (
 )
 from optimum.utils import (
     DEFAULT_DUMMY_SHAPES,
+    DTYPE_MAPPER,
     ONNX_WEIGHTS_NAME,
     TORCH_MINIMUM_VERSION,
     is_diffusers_available,
@@ -85,6 +86,37 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 class DynamicAxisNameError(ValueError):
     pass
+
+
+def _align_model_dtype_with_export_config(model: nn.Module, config: OnnxConfig) -> nn.Module:
+    """Align floating model weights with the dtype used for generated export inputs.
+
+    Transformers 5 preserves checkpoint dtypes by default, while Transformers 4
+    initialized an unspecified load in fp32. A checkpoint can also contain mixed
+    floating dtypes. ONNX operators such as LayerNormalization require their
+    floating inputs and parameters to share a dtype, so the ONNX config is the
+    authoritative dtype for export.
+    """
+    if getattr(model, "is_quantized", False) or getattr(model, "hf_quantizer", None) is not None:
+        return model
+
+    float_dtype = getattr(config, "float_dtype", None)
+    if float_dtype is None:
+        return model
+
+    target_dtype = DTYPE_MAPPER.pt(float_dtype)
+    floating_dtypes = {
+        value.dtype
+        for value in chain(model.parameters(), model.buffers())
+        if value.is_floating_point() or value.is_complex()
+    }
+    if floating_dtypes and floating_dtypes != {target_dtype}:
+        logger.info(
+            f"Casting {model.__class__.__name__} floating weights from "
+            f"{sorted(map(str, floating_dtypes))} to {target_dtype} for ONNX export."
+        )
+        model = model.to(dtype=target_dtype)
+    return model
 
 
 def validate_models_outputs(
@@ -596,6 +628,7 @@ def export_pytorch(
             model_kwargs[logits_to_keep_name] = 0
 
     with torch.no_grad():
+        model = _align_model_dtype_with_export_config(model, config)
         model.config.return_dict = True
         model = model.eval()
 
@@ -1045,7 +1078,10 @@ def onnx_export_from_model(
 
         logger.info(f"Automatic task detection to: {task}.")
 
-    dtype = get_parameter_dtype(model) if isinstance(model, torch.nn.Module) and get_parameter_dtype else model.dtype
+    if isinstance(model, torch.nn.Module) and get_parameter_dtype:
+        dtype = get_parameter_dtype(model)
+    else:
+        dtype = getattr(model, "dtype", torch.float32)
 
     if "bfloat16" in str(dtype):
         float_dtype = "bf16"

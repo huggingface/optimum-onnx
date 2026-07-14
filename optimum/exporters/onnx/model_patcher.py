@@ -191,9 +191,28 @@ def override_arguments(args, kwargs, forward_signature, model_kwargs: dict[str, 
     return args, kwargs
 
 
-def preprocess_encoder_outputs(encoder_outputs):
+def preprocess_encoder_outputs(encoder_outputs, attention_mask=None, model=None):
     if is_transformers_version(">=", "4.54") and isinstance(encoder_outputs, (list, tuple)):
         encoder_outputs = BaseModelOutput(*encoder_outputs)
+
+    if (
+        is_transformers_version(">=", "5.0")
+        and attention_mask is not None
+        and getattr(encoder_outputs, "attention_mask", None) is None
+    ):
+        hidden_states = encoder_outputs.last_hidden_state
+        output_length = hidden_states.shape[1]
+        encoder = model.get_encoder() if model is not None and hasattr(model, "get_encoder") else None
+        if encoder is not None and hasattr(encoder, "_get_feat_extract_output_lengths"):
+            valid_lengths = encoder._get_feat_extract_output_lengths(attention_mask.sum(-1))
+            output_attention_mask = (
+                torch.arange(output_length, device=attention_mask.device)[None, :] < valid_lengths[:, None]
+            )
+        else:
+            output_attention_mask = torch.nn.functional.interpolate(
+                attention_mask[:, None].float(), size=output_length, mode="nearest"
+            )[:, 0].bool()
+        encoder_outputs.attention_mask = output_attention_mask.to(attention_mask.dtype)
 
     return encoder_outputs
 
@@ -223,6 +242,18 @@ def preprocess_past_key_values(past_key_values):
             )
 
     return past_key_values
+
+
+def forward_accepts_transformers_cache(signature: inspect.Signature) -> bool:
+    """Whether a forward signature opts into the Transformers cache-object API.
+
+    An empty annotation keeps the existing conversion behavior. An explicit legacy list/tuple annotation is honored,
+    which is required by custom Hub code written before cache objects became mandatory in Transformers.
+    """
+    parameter = signature.parameters.get("past_key_values")
+    if parameter is None or parameter.annotation is inspect.Parameter.empty:
+        return True
+    return "Cache" in str(parameter.annotation)
 
 
 def postprocess_past_key_values(past_key_values, output_names: list[str]):
@@ -404,19 +435,42 @@ else:
 # Custom vectorized implementation of sdpa_mask without using vmap
 def sdpa_mask_without_vmap(
     batch_size: int,
-    cache_position: torch.Tensor,
-    kv_length: int,
+    cache_position: torch.Tensor | None = None,
+    kv_length: int | None = None,
     kv_offset: int = 0,
     mask_function: Callable | None = None,
     attention_mask: torch.Tensor | None = None,
     local_size: int | None = None,
     allow_is_causal_skip: bool = True,
+    q_length: int | None = None,
+    q_offset: int = 0,
+    device: torch.device | str | None = None,
     **kwargs,
 ) -> torch.Tensor | None:
+    """Create an SDPA mask without ``vmap`` across Transformers 4 and 5.
+
+    Transformers 4.53-4.57 passes an explicit ``cache_position`` while
+    Transformers 5 passes ``q_length`` and ``q_offset``. Normalizing the two
+    public call shapes here keeps the tracing workaround independent from
+    individual model implementations.
+    """
+    if kv_length is None:
+        raise ValueError("kv_length must be provided when creating an attention mask.")
+
+    if cache_position is not None:
+        q_indices = cache_position
+        q_length = cache_position.shape[0]
+        device = cache_position.device
+    else:
+        if q_length is None:
+            raise ValueError("Either cache_position or q_length must be provided when creating an attention mask.")
+        if device is None:
+            device = attention_mask.device if attention_mask is not None else "cpu"
+        q_indices = torch.arange(q_length, dtype=torch.long, device=device) + q_offset
+
     if mask_function is None:
         mask_function = causal_mask_function
 
-    q_length = cache_position.shape[0]
     # Potentially pad the 2D mask, and slice it correctly
     if _prepare_padding_mask_slice:
         padding_mask = prepare_padding_mask(attention_mask, kv_length, kv_offset, _slice=False)
@@ -432,8 +486,7 @@ def sdpa_mask_without_vmap(
         mask_function = and_masks(mask_function, padding_mask_function(padding_mask))
 
     # Create broadcatable indices
-    device = cache_position.device
-    q_indices = cache_position[None, None, :, None]
+    q_indices = q_indices[None, None, :, None]
     head_indices = torch.arange(1, dtype=torch.long, device=device)[None, :, None, None]
     batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)[:, None, None, None]
     kv_indices = torch.arange(kv_length, dtype=torch.long, device=device)[None, None, None, :] + kv_offset
@@ -612,17 +665,28 @@ class ModelPatcher:
                 # Most models require past_key_values to be a cache instance instead of a tuple now
                 pkv_index = list(signature.parameters.keys()).index("past_key_values")
                 if pkv_index < len(args) and args[pkv_index] is not None:
-                    args[pkv_index] = preprocess_past_key_values(args[pkv_index])
+                    if forward_accepts_transformers_cache(signature):
+                        args[pkv_index] = preprocess_past_key_values(args[pkv_index])
                 elif kwargs.get("past_key_values") is not None:
-                    kwargs["past_key_values"] = preprocess_past_key_values(kwargs["past_key_values"])
+                    if forward_accepts_transformers_cache(signature):
+                        kwargs["past_key_values"] = preprocess_past_key_values(kwargs["past_key_values"])
 
             if "encoder_outputs" in signature.parameters:
                 # Some encoder-decoder models started to not accept encoder_outputs as tuple (e.g. moonshine)
                 encoder_outputs_index = list(signature.parameters.keys()).index("encoder_outputs")
+                attention_mask = kwargs.get("attention_mask")
+                if "attention_mask" in signature.parameters:
+                    attention_mask_index = list(signature.parameters.keys()).index("attention_mask")
+                    if attention_mask is None and attention_mask_index < len(args):
+                        attention_mask = args[attention_mask_index]
                 if encoder_outputs_index < len(args) and args[encoder_outputs_index] is not None:
-                    args[encoder_outputs_index] = preprocess_encoder_outputs(args[encoder_outputs_index])
+                    args[encoder_outputs_index] = preprocess_encoder_outputs(
+                        args[encoder_outputs_index], attention_mask=attention_mask, model=self._model
+                    )
                 elif kwargs.get("encoder_outputs") is not None:
-                    kwargs["encoder_outputs"] = preprocess_encoder_outputs(kwargs["encoder_outputs"])
+                    kwargs["encoder_outputs"] = preprocess_encoder_outputs(
+                        kwargs["encoder_outputs"], attention_mask=attention_mask, model=self._model
+                    )
 
             outputs = self.orig_forward(*args, **kwargs)
 
@@ -1235,14 +1299,21 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
     batch_size, sequence_length, hidden_dim = hidden_states.shape
     hidden_states = hidden_states.view(-1, hidden_dim)
     # router_logits: (batch * sequence_length, n_experts)
-    router_logits = self.gate(hidden_states)
+    router_outputs = self.gate(hidden_states)
+    if isinstance(router_outputs, tuple):
+        router_logits, routing_weights, selected_experts = router_outputs
+        return_router_logits = False
+    else:
+        router_logits = router_outputs
+        routing_weights = torch.nn.functional.softmax(router_logits, dim=1, dtype=torch.float)
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+        if self.norm_topk_prob:  # only diff with mixtral sparse moe block!
+            routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
+        # we cast back to the input dtype
+        routing_weights = routing_weights.to(hidden_states.dtype)
+        return_router_logits = True
 
-    routing_weights = torch.nn.functional.softmax(router_logits, dim=1, dtype=torch.float)
-    routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-    if self.norm_topk_prob:  # only diff with mixtral sparse moe block!
-        routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
-    # we cast back to the input dtype
-    routing_weights = routing_weights.to(hidden_states.dtype)
+    num_experts = getattr(self, "num_experts", self.experts.num_experts)
 
     final_hidden_states = torch.zeros(
         (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
@@ -1250,26 +1321,37 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
 
     # One hot encode the selected experts to create an expert mask
     # this will be used to easily index which expert is going to be sollicitated
-    expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
+    expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=num_experts).permute(2, 1, 0)
 
     # TODO: we loop over all possible experts instead of hit ones to avoid issues in graph execution.
     # expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
     # Loop over all available experts in the model and perform the computation on each expert
-    for expert_idx in range(self.num_experts):
-        expert_layer = self.experts[expert_idx]
+    for expert_idx in range(num_experts):
         idx, top_x = torch.where(expert_mask[expert_idx].squeeze(0))
 
         # Index the correct hidden states and compute the expert hidden state for
         # the current expert. We need to make sure to multiply the output hidden
         # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
         current_state = hidden_states[None, top_x].reshape(-1, hidden_dim)
-        current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
+        if hasattr(self.experts, "gate_up_proj"):
+            gate, up = torch.nn.functional.linear(current_state, self.experts.gate_up_proj[expert_idx]).chunk(
+                2, dim=-1
+            )
+            current_hidden_states = self.experts.act_fn(gate) * up
+            current_hidden_states = torch.nn.functional.linear(
+                current_hidden_states, self.experts.down_proj[expert_idx]
+            )
+        else:
+            current_hidden_states = self.experts[expert_idx](current_state)
+        current_hidden_states = current_hidden_states * routing_weights[top_x, idx, None]
 
         # However `index_add_` only support torch tensors for indexing so we'll use
         # the `top_x` tensor here.
         final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
     final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
-    return final_hidden_states, router_logits
+    if return_router_logits:
+        return final_hidden_states, router_logits
+    return final_hidden_states
 
 
 class Qwen3MoeModelPatcher(ModelPatcher):

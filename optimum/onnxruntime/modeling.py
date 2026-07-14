@@ -61,6 +61,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
     XVectorOutput,
 )
+from transformers.models.auto.configuration_auto import CONFIG_MAPPING
 from transformers.models.auto.modeling_auto import MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES
 
 
@@ -80,6 +81,7 @@ from optimum.onnxruntime.base import ORTSessionMixin
 from optimum.onnxruntime.constants import ONNX_FILE_PATTERN, ONNX_WEIGHTS_NAME
 from optimum.onnxruntime.utils import prepare_providers_and_provider_options
 from optimum.utils.file_utils import find_files_matching_pattern
+from optimum.utils.import_utils import is_transformers_version
 from optimum.utils.save_utils import maybe_save_preprocessors
 
 
@@ -185,6 +187,68 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     model_type = "onnx_model"
     auto_model_class = AutoModel
     _library_name: str | None = None
+
+    @classmethod
+    def _load_config(
+        cls,
+        config_name_or_path: str | os.PathLike,
+        subfolder: str = "",
+        revision: str = "main",
+        force_download: bool = False,
+        local_files_only: bool = False,
+        trust_remote_code: bool = False,
+        cache_dir: str = HUGGINGFACE_HUB_CACHE,
+        token: bool | str | None = None,
+    ) -> PretrainedConfig:
+        try:
+            return super()._load_config(
+                config_name_or_path,
+                subfolder=subfolder,
+                revision=revision,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                trust_remote_code=trust_remote_code,
+                cache_dir=cache_dir,
+                token=token,
+            )
+        except ValueError as error:
+            if not is_transformers_version(">=", "5.0") or "model_type" not in str(error):
+                raise
+            config_error = error
+
+        try:
+            from transformers import PreTrainedConfig
+        except ImportError:
+            from transformers import PretrainedConfig as PreTrainedConfig
+
+        config_dict, _ = PreTrainedConfig.get_config_dict(
+            config_name_or_path,
+            subfolder=subfolder,
+            revision=revision,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            trust_remote_code=trust_remote_code,
+            cache_dir=cache_dir,
+            token=token,
+        )
+        if "model_type" in config_dict:
+            raise config_error
+
+        identifiers = [str(config_name_or_path), *config_dict.get("architectures", [])]
+        normalized_identifiers = [re.sub(r"[^a-z0-9]", "", identifier.lower()) for identifier in identifiers]
+        for model_type in sorted(CONFIG_MAPPING.keys(), key=len, reverse=True):
+            normalized_model_type = re.sub(r"[^a-z0-9]", "", model_type.lower())
+            if any(normalized_model_type in identifier for identifier in normalized_identifiers):
+                logger.warning(
+                    "The configuration has no `model_type`; inferring the legacy model type `%s` from %s.",
+                    model_type,
+                    config_name_or_path,
+                )
+                config = AutoConfig.for_model(model_type, **config_dict)
+                config._name_or_path = str(config_name_or_path)
+                return config
+
+        raise config_error
 
     def __init__(
         self,
@@ -601,6 +665,11 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     def can_generate(self) -> bool:
         """Returns whether this model can generate sequences with `.generate()`."""
         return isinstance(self, GenerationMixin)
+
+    @classmethod
+    def is_remote_code(cls) -> bool:
+        """ORT wrappers are local implementations even when their source checkpoint used custom code."""
+        return False
 
     def _warn_on_unhandled_inputs(self, kwargs: dict[str, Any]) -> None:
         """Warn about unhandled input arguments.

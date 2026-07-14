@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from optimum.utils import is_transformers_version
+
 
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
@@ -362,6 +364,12 @@ PYTORCH_EXPORT_MODELS_LARGE = {
     "xlm": "xlm-clm-ende-1024",
     "xlm-roberta": "Unbabel/xlm-roberta-comet-small",
 }
+
+
+if is_transformers_version(">=", "5.0"):
+    # Transformers 5 removed the MCTCT architecture and its Auto classes.
+    PYTORCH_EXPORT_MODELS_TINY.pop("mctct")
+    PYTORCH_EXPORT_MODELS_LARGE.pop("mctct")
 
 
 PYTORCH_DIFFUSION_MODEL = {

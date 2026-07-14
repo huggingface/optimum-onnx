@@ -18,8 +18,11 @@ from typing import TYPE_CHECKING
 
 from transformers.utils import OptionalDependencyNotAvailable, _LazyModule
 
+from optimum.transformers_compat import ensure_transformers_v5_compatibility
 from optimum.utils import is_diffusers_available
 
+
+ensure_transformers_v5_compatibility()
 
 _import_structure = {
     "configuration": [

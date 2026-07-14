@@ -16,6 +16,8 @@
 from __future__ import annotations
 
 import argparse
+import inspect
+from functools import wraps
 from pathlib import Path
 
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -28,6 +30,7 @@ from optimum.exporters.onnx.constants import SDPA_ARCHS_ONNX_EXPORT_NOT_SUPPORTE
 from optimum.exporters.onnx.convert import onnx_export_from_model
 from optimum.exporters.tasks import TasksManager
 from optimum.exporters.utils import DisableCompileContextManager
+from optimum.transformers_compat import ensure_transformers_v5_compatibility
 from optimum.utils import DEFAULT_DUMMY_SHAPES, logging
 from optimum.utils.import_utils import (
     is_diffusers_available,
@@ -52,6 +55,152 @@ if TYPE_CHECKING:
     from optimum.exporters.onnx.base import OnnxConfig
 
 logger = logging.get_logger()
+
+ensure_transformers_v5_compatibility()
+
+
+class _LegacyConfigDefault:
+    """Descriptor materializing a Transformers v4 config default on first access."""
+
+    def __init__(self, name: str, value: Any):
+        self.name = name
+        self.value = value
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+        value = self.value.copy() if isinstance(self.value, (dict, list, set)) else self.value
+        instance.__dict__[self.name] = value
+        return value
+
+    def __set__(self, instance, value):
+        instance.__dict__[self.name] = value
+
+
+class _LegacyTiedWeights:
+    """Lazy fallback for v4 custom models which did not call the v5 ``post_init`` hook."""
+
+    _storage_name = "_optimum_all_tied_weights_keys"
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+        if self._storage_name not in instance.__dict__:
+            instance.__dict__[self._storage_name] = instance.get_expanded_tied_weights_keys(all_submodels=False)
+        return instance.__dict__[self._storage_name]
+
+    def __set__(self, instance, value):
+        instance.__dict__[self._storage_name] = value
+
+
+_TRANSFORMERS_V4_CONFIG_DEFAULTS = {
+    "torchscript": False,
+    "pruned_heads": {},
+    "tie_word_embeddings": True,
+    "is_decoder": False,
+    "cross_attention_hidden_size": None,
+    "add_cross_attention": False,
+    "tie_encoder_decoder": False,
+    "finetuning_task": None,
+    "task_specific_params": None,
+    "tokenizer_class": None,
+    "prefix": None,
+    "bos_token_id": None,
+    "pad_token_id": None,
+    "eos_token_id": None,
+    "sep_token_id": None,
+    "decoder_start_token_id": None,
+    "tf_legacy_loss": False,
+    "use_bfloat16": False,
+}
+
+
+def _ensure_transformers_v5_remote_code_compatibility(config) -> None:
+    """Restore the v4 base-class contract expected by already published custom model code.
+
+    Transformers v5 moved generation defaults out of ``PreTrainedConfig`` and requires new models to call
+    ``post_init``. Existing Hub repositories cannot be rewritten by the exporter, so fill only missing base defaults
+    on their dynamic config class and provide the tied-weights state that the v5 loader expects.
+    """
+    if not is_transformers_version(">=", "5.0"):
+        return
+
+    config_class = type(config)
+    for name, value in _TRANSFORMERS_V4_CONFIG_DEFAULTS.items():
+        if not hasattr(config, name):
+            setattr(config_class, name, _LegacyConfigDefault(name, value))
+
+    def add_legacy_rope_scaling_alias(model_config) -> None:
+        rope_scaling = getattr(model_config, "rope_scaling", None)
+        if not isinstance(rope_scaling, dict):
+            return
+        if rope_scaling.get("rope_type") == "default" and "factor" not in rope_scaling:
+            model_config.rope_scaling = None
+        elif "rope_type" in rope_scaling and "type" not in rope_scaling:
+            rope_scaling["type"] = rope_scaling["rope_type"]
+
+    add_legacy_rope_scaling_alias(config)
+    if not getattr(config_class, "_optimum_v5_rope_scaling_compatibility", False):
+        original_init = config_class.__init__
+
+        @wraps(original_init)
+        def init_with_legacy_rope_scaling(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            add_legacy_rope_scaling_alias(self)
+
+        config_class.__init__ = init_with_legacy_rope_scaling
+        config_class._optimum_v5_rope_scaling_compatibility = True
+
+    from transformers import PreTrainedModel
+
+    if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
+        PreTrainedModel.all_tied_weights_keys = _LegacyTiedWeights()
+
+
+def _ensure_transformers_v5_multiple_choice_pooler(config, task: str) -> None:
+    """Restore a pooler removed from a v5 multiple-choice model while its forward still consumes ``outputs[1]``."""
+    if task != "multiple-choice" or not is_transformers_version(">=", "5.0"):
+        return
+
+    from transformers import AutoModelForMultipleChoice
+
+    try:
+        model_class = AutoModelForMultipleChoice._model_mapping[type(config)]
+    except (KeyError, TypeError):
+        # Custom configurations are handled by the regular custom-export path.
+        return
+    if getattr(model_class, "_optimum_v5_pooler_compatibility", False):
+        return
+
+    try:
+        forward_source = inspect.getsource(model_class.forward)
+    except (OSError, TypeError):
+        return
+    if "outputs[1]" not in forward_source.replace(" ", ""):
+        return
+
+    original_init = model_class.__init__
+
+    @wraps(original_init)
+    def init_with_pooler(self, model_config, *args, **kwargs):
+        original_init(self, model_config, *args, **kwargs)
+        base_model = getattr(self, self.base_model_prefix, None)
+        if base_model is None or not hasattr(base_model, "pooler") or base_model.pooler is not None:
+            return
+
+        model_module = inspect.getmodule(type(base_model))
+        pooler_name = type(base_model).__name__.removesuffix("Model") + "Pooler"
+        pooler_class = getattr(model_module, pooler_name, None)
+        if pooler_class is None:
+            return
+
+        base_model.pooler = pooler_class(model_config)
+        base_model.pooler.apply(self._initialize_weights)
+
+    model_class.__init__ = init_with_pooler
+    model_class._optimum_v5_pooler_compatibility = True
 
 
 def main_export(
@@ -287,7 +436,10 @@ def main_export(
             force_download=force_download,
             trust_remote_code=trust_remote_code,
         )
+        if trust_remote_code:
+            _ensure_transformers_v5_remote_code_compatibility(config)
         model_type = config.model_type
+        _ensure_transformers_v5_multiple_choice_pooler(config, task)
 
         is_mxfp4 = getattr(config, "quantization_config", {}).get("quant_method", None) == "mxfp4"
         # mxfp4 quantized model will be dequantized to bf16
@@ -297,6 +449,15 @@ def main_export(
 
         if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
             custom_architecture = True
+            if custom_onnx_configs is None:
+                raise ValueError(
+                    f"Trying to export a {model_type} model, that is a custom or unsupported architecture, but no "
+                    "custom ONNX configuration was passed as `custom_onnx_configs`. Please refer to "
+                    "https://huggingface.co/docs/optimum/main/en/exporters/onnx/usage_guides/export_a_model"
+                    "#custom-export-of-transformers-models for an example on how to export custom models. Please "
+                    "open an issue at https://github.com/huggingface/optimum/issues if you would like the model type "
+                    f"{model_type} to be supported natively in the ONNX export."
+                )
         elif task not in TasksManager.get_supported_tasks_for_model_type(
             model_type, "onnx", library_name=library_name
         ):

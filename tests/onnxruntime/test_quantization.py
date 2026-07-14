@@ -207,7 +207,7 @@ class ORTStaticQuantizationTest(unittest.TestCase):
             quantizer = ORTQuantizer.from_pretrained(model)
 
             calibration_dataset = quantizer.get_calibration_dataset(
-                "glue",
+                "nyu-mll/glue",
                 dataset_config_name="sst2",
                 preprocess_function=partial(preprocess_function, tokenizer=tokenizer),
                 num_samples=40,
