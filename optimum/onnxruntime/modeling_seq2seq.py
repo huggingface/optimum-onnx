@@ -20,6 +20,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import (
@@ -391,14 +392,17 @@ class ORTEncoder(ORTSessionMixin):
         self.config = config
         self.initialize_ort_attributes(session, use_io_binding)
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, **kwargs) -> BaseModelOutput:
+    def forward(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None, **kwargs
+    ) -> BaseModelOutput:
         use_torch = isinstance(input_ids, torch.Tensor)
         self.raise_on_numpy_input_io_binding(use_torch)
 
-        model_inputs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        }
+        model_inputs = {"input_ids": input_ids}
+        if "attention_mask" in self.input_names:
+            if attention_mask is None:
+                attention_mask = torch.ones_like(input_ids) if use_torch else np.ones_like(input_ids)
+            model_inputs["attention_mask"] = attention_mask
 
         if self.use_io_binding:
             output_shapes, output_buffers = self._prepare_io_binding(model_inputs)
@@ -644,7 +648,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         if self.is_merged:
             # NOTE: This needs to be evaluated here before creating dummy past_key_values in the following block
             # Uses cache branch of merged decoders depending on whether real past key values are passed
-            use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
+            if use_torch:
+                use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
+            else:
+                use_cache_branch = np.full((1,), past_key_values is not None, dtype=np.bool_)
 
         # Save the precomputed cross-attention key/values
         cross_attention_key_values = None
@@ -655,7 +662,10 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
         # Generate dummy past for the first forward pass
         if len(self.key_value_input_names) > 0 and past_key_values is None:
             shape = (batch_size, self.num_attention_heads, 0, self.embed_size_per_head)
-            key_or_value = torch.zeros(shape, dtype=self.dtype, device=self.device)
+            if use_torch:
+                key_or_value = torch.zeros(shape, dtype=self.dtype, device=self.device)
+            else:
+                key_or_value = np.zeros(shape, dtype=np.float32)
             past_key_values = tuple(key_or_value for _ in range(len(self.key_value_input_names)))
         elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
             past_key_values = sum(past_key_values, ())
@@ -664,11 +674,17 @@ class ORTDecoderForSeq2Seq(ORTSessionMixin):
 
         # Generate dummy position cache for the first forward pass
         if "cache_position" in self.input_names and cache_position is None:
-            cache_position = torch.arange(past_seq_len, out_seq_len, dtype=torch.int64, device=self.device)
+            if use_torch:
+                cache_position = torch.arange(past_seq_len, out_seq_len, dtype=torch.int64, device=self.device)
+            else:
+                cache_position = np.arange(past_seq_len, out_seq_len, dtype=np.int64)
 
         # Generate dummy attention mask for Pix2Struct text model
         if "attention_mask" in self.input_names and attention_mask is None:
-            attention_mask = torch.ones((batch_size, out_seq_len), dtype=torch.int64, device=self.device)
+            if use_torch:
+                attention_mask = torch.ones((batch_size, out_seq_len), dtype=torch.int64, device=self.device)
+            else:
+                attention_mask = np.ones((batch_size, out_seq_len), dtype=np.int64)
 
         model_inputs = {
             "input_ids": input_ids,
@@ -1249,6 +1265,20 @@ class ORTModelForSeq2SeqLM(ORTModelForConditionalGeneration):
         **kwargs,
     ) -> Seq2SeqLMOutput:
         use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        if attention_mask is None:
+            if input_ids is not None:
+                attention_mask = (
+                    torch.ones_like(input_ids) if isinstance(input_ids, torch.Tensor) else np.ones_like(input_ids)
+                )
+            elif encoder_outputs is not None:
+                encoder_hidden_states = encoder_outputs.last_hidden_state
+                if isinstance(encoder_hidden_states, torch.Tensor):
+                    attention_mask = torch.ones(
+                        encoder_hidden_states.shape[:2], dtype=torch.long, device=encoder_hidden_states.device
+                    )
+                else:
+                    attention_mask = np.ones(encoder_hidden_states.shape[:2], dtype=np.int64)
 
         if use_cache and not self.can_use_cache:
             raise ValueError(

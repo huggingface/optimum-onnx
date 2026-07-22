@@ -46,7 +46,8 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-          pip install .[tests,onnxruntime-gpu] diffusers
+          # The fixed TensorRT image ships CUDA 12.6, while ORT 1.27+ wheels require CUDA 13.
+          pip install .[tests,onnxruntime-gpu] diffusers "onnxruntime-gpu<1.27"
 
       - name: Test with pytest
         run: |

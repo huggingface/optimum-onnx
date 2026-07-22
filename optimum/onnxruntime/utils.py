@@ -246,6 +246,8 @@ def prepare_providers_and_provider_options(
     """
     if providers is None:
         providers = [provider]
+        if provider == "TensorrtExecutionProvider":
+            providers.append("CUDAExecutionProvider")
 
     for provider in providers:
         validate_provider_availability(provider)

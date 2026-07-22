@@ -353,7 +353,7 @@ class ORTDiffusionPipeline(ORTParentMixin, DiffusionPipeline):
                 absolute_file_path.is_file()
                 or hf_api.file_exists(
                     repo_id=str(model_name_or_path),
-                    filename=str(relative_file_path),
+                    filename=relative_file_path.as_posix(),
                     revision=hub_kwargs.get("revision"),
                     token=hub_kwargs.get("token"),
                 )

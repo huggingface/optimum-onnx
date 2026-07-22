@@ -133,7 +133,14 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
     def process_past_key_values(self, model_arch: str, past_key_values):
         if isinstance(past_key_values, Cache):
             # convert transformers Cache to tuple of tuples
-            past_key_values = past_key_values.to_legacy_cache()
+            if hasattr(past_key_values, "to_legacy_cache"):
+                past_key_values = past_key_values.to_legacy_cache()
+            else:
+                # Transformers v5 caches are iterable but no longer expose `to_legacy_cache()`.
+                # Iteration also yields optional sliding-window entries, which are not ONNX cache inputs.
+                past_key_values = tuple(
+                    tuple(value for value in layer if value is not None) for layer in past_key_values
+                )
             if model_arch.endswith("encoder-decoder"):
                 # we don't output non-reusable bert-gpt2 cross attention pkv
                 # but transformers started returning them for some reason
@@ -164,11 +171,10 @@ class ORTSeq2SeqTestMixin(ORTModelTestMixin):
             self.assertTrue("past_key_values" in outputs2)
             self.assertIsInstance(outputs1.past_key_values, (tuple, list, Cache))
             self.assertIsInstance(outputs2.past_key_values, (tuple, list, Cache))
-            self.assertIsInstance(outputs1.past_key_values[0], tuple)
-            self.assertIsInstance(outputs2.past_key_values[0], tuple)
-
             outputs1.past_key_values = self.process_past_key_values(model_arch, outputs1.past_key_values)
             outputs2.past_key_values = self.process_past_key_values(model_arch, outputs2.past_key_values)
+            self.assertIsInstance(outputs1.past_key_values[0], tuple)
+            self.assertIsInstance(outputs2.past_key_values[0], tuple)
             torch.testing.assert_close(outputs1.past_key_values, outputs2.past_key_values, atol=atol, rtol=rtol)
 
     # INTEGRATION TESTS
@@ -455,7 +461,7 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
 
         tokenizer = self.get_tokenizer(model_arch)
         inputs = tokenizer(texts, return_tensors="pt", padding=True)
-        if for_generation and is_transformers_version(">=", "4.51.0"):
+        if for_generation and is_transformers_version(">=", "4.51.0") and is_transformers_version("<", "5.0.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)
@@ -617,6 +623,11 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
             # verify loading from local folder works
             model = self.ORTMODEL_CLASS.from_pretrained(tmpdirname, use_cache=use_cache, use_merged=use_merged)
             model.generate(**self.GEN_KWARGS)
+            model(
+                input_ids=np.array([[0]], dtype=np.int64),
+                decoder_input_ids=np.array([[0]], dtype=np.int64),
+                use_cache=use_cache,
+            )
             remove_directory(tmpdirname)
 
     @require_hf_token
@@ -968,7 +979,7 @@ class ORTModelForSpeechSeq2SeqIntegrationTest(ORTSeq2SeqTestMixin):
         else:
             inputs = feature_extractor(audios, return_tensors="pt", padding=True, return_attention_mask=True)
 
-        if for_generation and is_transformers_version(">=", "4.51.0"):
+        if for_generation and is_transformers_version(">=", "4.51.0") and is_transformers_version("<", "5.0.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)
@@ -1231,7 +1242,7 @@ class ORTModelForVision2SeqIntegrationTest(ORTSeq2SeqTestMixin):
 
         inputs = image_processor(images, return_tensors="pt")
 
-        if for_generation and is_transformers_version(">=", "4.51.0"):
+        if for_generation and is_transformers_version(">=", "4.51.0") and is_transformers_version("<", "5.0.0"):
             inputs["use_model_defaults"] = False
         if not for_generation:
             size = (next(iter(inputs.values())).shape[0], 10)

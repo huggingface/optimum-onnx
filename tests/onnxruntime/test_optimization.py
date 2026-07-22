@@ -431,9 +431,9 @@ class ORTOptimizerForSpeechSeq2SeqIntegrationTest(ORTOptimizerTestMixin):
             processor = get_preprocessor(model_id)
             features = processor.feature_extractor(data, return_tensors="pt").to(device)
 
-            model_outputs = ort_model.generate(features["input_features"])
+            model_outputs = ort_model.generate(features["input_features"], max_new_tokens=10)
 
-            optimized_model_outputs = optimized_model.generate(features["input_features"])
+            optimized_model_outputs = optimized_model.generate(features["input_features"], max_new_tokens=10)
 
             self.assertTrue(torch.equal(model_outputs, optimized_model_outputs))
             gc.collect()

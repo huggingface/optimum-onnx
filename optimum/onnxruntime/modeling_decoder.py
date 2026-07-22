@@ -124,6 +124,7 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
     """ONNX model with a causal language modeling head for ONNX Runtime inference. This class officially supports bloom, codegen, falcon, gpt2, gpt-bigcode, gpt_neo, gpt_neox, gptj, llama."""
 
     auto_model_class = AutoModelForCausalLM
+    _library_name = "transformers"
     main_input_name = "input_ids"
     _supports_cache_class = False
     _is_stateful = False

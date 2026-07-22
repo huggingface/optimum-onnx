@@ -188,6 +188,11 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
     auto_model_class = AutoModel
     _library_name: str | None = None
 
+    @contextlib.contextmanager
+    def _optimize_model_for_decode(self):
+        """Skip PyTorch-only decode optimizations for an already compiled ONNX graph."""
+        yield
+
     @classmethod
     def _load_config(
         cls,
@@ -643,24 +648,53 @@ class ORTModel(ORTSessionMixin, OptimizedModel):
                     f"`file_name` was set to `{file_name}` but will be ignored as the model will be converted to ONNX"
                 )
 
-        return super().from_pretrained(
-            model_id,
-            config=config,
-            export=_export,
-            force_download=force_download,
-            token=token,
-            cache_dir=cache_dir,
-            subfolder=subfolder,
-            local_files_only=local_files_only,
-            trust_remote_code=trust_remote_code,
-            revision=revision,
-            provider=provider,
-            providers=providers,
-            provider_options=provider_options,
-            session_options=session_options,
-            use_io_binding=use_io_binding,
+        from_pretrained_kwargs = {
+            "config": config,
+            "export": _export,
+            "force_download": force_download,
+            "token": token,
+            "cache_dir": cache_dir,
+            "subfolder": subfolder,
+            "local_files_only": local_files_only,
+            "trust_remote_code": trust_remote_code,
+            "revision": revision,
+            "provider": provider,
+            "providers": providers,
+            "provider_options": provider_options,
+            "session_options": session_options,
+            "use_io_binding": use_io_binding,
             **kwargs,
-        )
+        }
+
+        try:
+            return super().from_pretrained(model_id, **from_pretrained_kwargs)
+        except AttributeError as exception:
+            # Transformers v5 heterogeneous configs cannot always be parsed as a generic PretrainedConfig while
+            # Optimum infers the source library. ORT task-specific classes already know their source library, so use
+            # it for this narrow fallback instead of rejecting an otherwise valid Transformers checkpoint.
+            if (
+                not is_transformers_version(">=", "5.0")
+                or cls._library_name is None
+                or "max_position_embeddings" not in str(exception)
+            ):
+                raise
+
+            infer_library_from_model_descriptor = TasksManager.__dict__["infer_library_from_model"]
+            infer_library_from_model = TasksManager.infer_library_from_model
+
+            def infer_library_with_transformers_v5_fallback(tasks_manager_cls, *args, **kwargs):
+                try:
+                    return infer_library_from_model(*args, **kwargs)
+                except AttributeError as retry_exception:
+                    if "max_position_embeddings" not in str(retry_exception):
+                        raise
+                    return cls._library_name
+
+            TasksManager.infer_library_from_model = classmethod(infer_library_with_transformers_v5_fallback)
+            try:
+                return super().from_pretrained(model_id, **from_pretrained_kwargs)
+            finally:
+                TasksManager.infer_library_from_model = infer_library_from_model_descriptor
 
     def can_generate(self) -> bool:
         """Returns whether this model can generate sequences with `.generate()`."""

@@ -41,11 +41,11 @@ jobs:
 
       - name: Test with pytest
         run: |
-          HF_HOME=/tmp/ huggingface-cli download hf-internal-testing/tiny-random-gpt2
+          HF_HOME=/tmp/ hf download hf-internal-testing/tiny-random-gpt2
 
           HF_HOME=/tmp/ HF_HUB_OFFLINE=1 optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 gpt2_onnx --task text-generation
 
-          huggingface-cli download hf-internal-testing/tiny-random-gpt2
+          hf download hf-internal-testing/tiny-random-gpt2
 
           HF_HUB_OFFLINE=1 optimum-cli export onnx --model hf-internal-testing/tiny-random-gpt2 gpt2_onnx --task text-generation
 

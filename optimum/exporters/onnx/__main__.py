@@ -367,9 +367,17 @@ def main_export(
         )
 
     if library_name is None:
-        library_name = TasksManager.infer_library_from_model(
-            model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
-        )
+        try:
+            library_name = TasksManager.infer_library_from_model(
+                model_name_or_path, subfolder=subfolder, revision=revision, cache_dir=cache_dir, token=token
+            )
+        except AttributeError as error:
+            if not is_transformers_version(">=", "5.0") or "max_position_embeddings" not in str(error):
+                raise
+            # Transformers 5 may fail to instantiate a generic PreTrainedConfig while detecting the library of a
+            # heterogeneous RoPE model. Such a config is necessarily a Transformers model; its concrete AutoConfig
+            # class is loaded below and owns the per-layer position limits.
+            library_name = "transformers"
         if library_name == "sentence_transformers" and not is_sentence_transformers_available():
             logger.warning(
                 "The library name was inferred as `sentence_transformers`, which is not installed. "

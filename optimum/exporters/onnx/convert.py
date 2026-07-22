@@ -20,6 +20,7 @@ import gc
 import multiprocessing as mp
 import os
 import traceback
+from collections import Counter
 from inspect import signature
 from itertools import chain
 from pathlib import Path
@@ -570,6 +571,24 @@ def convert_dynamic_axes_into_dynamic_shapes(
     return dummy_inputs, final_shapes
 
 
+def _relax_unshared_dynamic_shapes(
+    dynamic_shapes: dict[str, Any], dynamic_axes: dict[str, dict[int, str]]
+) -> dict[str, Any]:
+    """Let Dynamo infer dimensions that do not express a cross-tensor relationship.
+
+    Recent PyTorch versions reject ``Dim.DYNAMIC`` when tracing proves that a dimension is static. Using ``Dim.AUTO``
+    for an axis name that occurs only once preserves named dimensions that relate inputs and outputs (for example the
+    batch dimension), while allowing model-specific dimensions such as a fixed ViT image size to be inferred.
+    """
+    from torch.utils._pytree import tree_map
+
+    name_counts = Counter(name for axes in dynamic_axes.values() for name in axes.values())
+    return tree_map(
+        lambda value: torch.export.Dim.AUTO if isinstance(value, str) and name_counts[value] == 1 else value,
+        dynamic_shapes,
+    )
+
+
 def export_pytorch(
     model: PreTrainedModel | ModelMixin,
     config: OnnxConfig,
@@ -674,21 +693,18 @@ def export_pytorch(
             if is_torch_version(">=", "2.9"):
                 export_kwargs = {"dynamo": dynamo, "external_data": dynamo}
                 if dynamo:
-                    if len(dynamic_axes) == len(dummy_inputs):
-                        export_kwargs["dynamic_shapes"] = dynamic_axes
+                    dummy_inputs, dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
+                        dummy_inputs,
+                        dynamic_axes,
+                    )
+                    if len(dynamic_shapes) == len(dummy_inputs) and list(dynamic_shapes) == list(dummy_inputs):
+                        export_kwargs["dynamic_shapes"] = _relax_unshared_dynamic_shapes(dynamic_shapes, dynamic_axes)
                     else:
-                        dummy_inputs, dynamic_shapes = convert_dynamic_axes_into_dynamic_shapes(
-                            dummy_inputs,
-                            dynamic_axes,
+                        raise NotImplementedError(
+                            f"The dummy inputs have {list(dummy_inputs)} arguments "
+                            f"when dynamic axes are {dynamic_axes} and inferred "
+                            f"dynamic shapes are {dynamic_shapes}."
                         )
-                        if len(dynamic_shapes) == len(dummy_inputs) and list(dynamic_shapes) == list(dummy_inputs):
-                            export_kwargs["dynamic_shapes"] = dynamic_shapes
-                        else:
-                            raise NotImplementedError(
-                                f"The dummy inputs have {list(dummy_inputs)} arguments "
-                                f"when dynamic axes are {dynamic_axes} and inferred "
-                                f"dynamic shapes are {dynamic_shapes}."
-                            )
                 else:
                     export_kwargs["dynamic_axes"] = dynamic_axes
             else:

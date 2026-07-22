@@ -244,16 +244,18 @@ def preprocess_past_key_values(past_key_values):
     return past_key_values
 
 
-def forward_accepts_transformers_cache(signature: inspect.Signature) -> bool:
+def forward_accepts_transformers_cache(signature: inspect.Signature, model: PreTrainedModel | None = None) -> bool:
     """Whether a forward signature opts into the Transformers cache-object API.
 
-    An empty annotation keeps the existing conversion behavior. An explicit legacy list/tuple annotation is honored,
-    which is required by custom Hub code written before cache objects became mandatory in Transformers.
+    Official Transformers models use cache objects even when their annotations still advertise legacy tuples. An
+    explicit legacy annotation is only honored for custom Hub code, which may keep the tuple-based implementation.
     """
     parameter = signature.parameters.get("past_key_values")
     if parameter is None or parameter.annotation is inspect.Parameter.empty:
         return True
-    return "Cache" in str(parameter.annotation)
+    if "Cache" in str(parameter.annotation):
+        return True
+    return model is not None and model.__class__.__module__.startswith("transformers.")
 
 
 def postprocess_past_key_values(past_key_values, output_names: list[str]):
@@ -665,10 +667,10 @@ class ModelPatcher:
                 # Most models require past_key_values to be a cache instance instead of a tuple now
                 pkv_index = list(signature.parameters.keys()).index("past_key_values")
                 if pkv_index < len(args) and args[pkv_index] is not None:
-                    if forward_accepts_transformers_cache(signature):
+                    if forward_accepts_transformers_cache(signature, self._model):
                         args[pkv_index] = preprocess_past_key_values(args[pkv_index])
                 elif kwargs.get("past_key_values") is not None:
-                    if forward_accepts_transformers_cache(signature):
+                    if forward_accepts_transformers_cache(signature, self._model):
                         kwargs["past_key_values"] = preprocess_past_key_values(kwargs["past_key_values"])
 
             if "encoder_outputs" in signature.parameters:
@@ -1269,12 +1271,17 @@ class MetaCLIP2Patcher(ModelPatcher):
 class CLIPModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
+        if is_transformers_version(">=", "5.0") and hasattr(self._model, "set_attn_implementation"):
+            self.original_attn_implementation = self._model.config._attn_implementation
+            self._model.set_attn_implementation("eager")
         if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             self.original_sdpa_forward = CLIPSdpaAttention.forward
             CLIPSdpaAttention.forward = CLIPAttention.forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "5.0") and hasattr(self._model, "set_attn_implementation"):
+            self._model.set_attn_implementation(self.original_attn_implementation)
         if is_transformers_version(">=", "4.43") and is_transformers_version("<", "4.48"):
             CLIPSdpaAttention.forward = self.original_sdpa_forward
 
@@ -1292,6 +1299,48 @@ class VitPoseModelPatcher(ModelPatcher):
             model_kwargs["dataset_index"] = torch.tensor(0, device=model.device)
 
         super().__init__(config, model, model_kwargs)
+
+
+def rt_detr_position_embedding_forward(self, width, height, device, dtype):
+    """Build RT-DETR position embeddings without float64 trigonometric ONNX operators."""
+    from transformers.models.rt_detr.modeling_rt_detr import torch_int
+
+    if self.embed_dim % 4 != 0:
+        raise ValueError(f"`embed_dim` must be divisible by 4, got {self.embed_dim}")
+
+    pos_dim = self.embed_dim // 4
+    omega = torch.arange(pos_dim, dtype=torch.float32, device=device) / pos_dim
+    omega = 1.0 / self.temperature**omega
+    grid_h = torch.arange(torch_int(height), dtype=torch.float32, device=device)
+    grid_w = torch.arange(torch_int(width), dtype=torch.float32, device=device)
+    grid_h, grid_w = torch.meshgrid(grid_h, grid_w, indexing="ij")
+    emb_h = grid_h.flatten().outer(omega)
+    emb_w = grid_w.flatten().outer(omega)
+    pos_embed = torch.cat([emb_h.sin(), emb_h.cos(), emb_w.sin(), emb_w.cos()], dim=1)
+    return pos_embed.to(dtype).unsqueeze(0)
+
+
+class RTDetrModelPatcher(ModelPatcher):
+    def __enter__(self):
+        super().__enter__()
+        if is_transformers_version(">=", "5.0"):
+            from transformers.models.d_fine.modeling_d_fine import DFineSinePositionEmbedding
+            from transformers.models.rt_detr.modeling_rt_detr import RTDetrSinePositionEmbedding
+            from transformers.models.rt_detr_v2.modeling_rt_detr_v2 import RTDetrV2SinePositionEmbedding
+
+            self.original_position_embedding_forwards = {
+                DFineSinePositionEmbedding: DFineSinePositionEmbedding.forward,
+                RTDetrSinePositionEmbedding: RTDetrSinePositionEmbedding.forward,
+                RTDetrV2SinePositionEmbedding: RTDetrV2SinePositionEmbedding.forward,
+            }
+            for position_embedding_class in self.original_position_embedding_forwards:
+                position_embedding_class.forward = rt_detr_position_embedding_forward
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
+        if is_transformers_version(">=", "5.0"):
+            for position_embedding_class, original_forward in self.original_position_embedding_forwards.items():
+                position_embedding_class.forward = original_forward
 
 
 # https://github.com/huggingface/transformers/blob/v4.53.0/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py#L228
@@ -1313,7 +1362,11 @@ def qwen3_moe_forward_patched(self, hidden_states: torch.Tensor) -> torch.Tensor
         routing_weights = routing_weights.to(hidden_states.dtype)
         return_router_logits = True
 
-    num_experts = getattr(self, "num_experts", self.experts.num_experts)
+    num_experts = getattr(self, "num_experts", None)
+    if num_experts is None:
+        num_experts = getattr(self.experts, "num_experts", None)
+    if num_experts is None:
+        num_experts = len(self.experts)
 
     final_hidden_states = torch.zeros(
         (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
@@ -1528,13 +1581,32 @@ def gpt_oss_forward(self, hidden_states: torch.Tensor, router_indices=None, rout
     return next_states
 
 
+def gpt_oss_v5_forward(self, hidden_states: torch.Tensor, router_indices=None, routing_weights=None) -> torch.Tensor:
+    """Vectorize the v5 top-k expert representation into ONNX-friendly gather and matmul operations."""
+    selected_gate_up_proj = self.gate_up_proj[router_indices]
+    gate_up = torch.matmul(hidden_states[:, None, None, :], selected_gate_up_proj).squeeze(-2)
+    gate_up = gate_up + self.gate_up_proj_bias[router_indices]
+    gate, up = gate_up[..., ::2], gate_up[..., 1::2]
+    gate = gate.clamp(min=None, max=self.limit)
+    up = up.clamp(min=-self.limit, max=self.limit)
+    gated_output = (up + 1) * gate * torch.sigmoid(gate * self.alpha)
+
+    selected_down_proj = self.down_proj[router_indices]
+    next_states = torch.matmul(gated_output.unsqueeze(-2), selected_down_proj).squeeze(-2)
+    next_states = next_states + self.down_proj_bias[router_indices]
+    return (next_states * routing_weights[..., None]).sum(dim=1)
+
+
 class GptOssModelPatcher(ModelPatcher):
     def __enter__(self):
         super().__enter__()
 
         if is_transformers_version(">=", "4.55.0"):
             self.original_gpt_oss_forward = GptOssExperts.forward
-            GptOssExperts.forward = gpt_oss_forward
+            if is_transformers_version(">=", "5.0"):
+                GptOssExperts.forward = gpt_oss_v5_forward
+            else:
+                GptOssExperts.forward = gpt_oss_forward
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)

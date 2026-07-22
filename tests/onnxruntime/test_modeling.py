@@ -524,7 +524,7 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id)
+        transformers_model = AutoModelForQuestionAnswering.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
 
         tokens = tokenizer("This is a sample output", return_tensors="pt")
@@ -554,6 +554,9 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The question-answering pipeline was removed in Transformers v5."
+    )
     def test_pipeline_ort_model(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -573,6 +576,9 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @pytest.mark.run_in_series
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The question-answering pipeline was removed in Transformers v5."
+    )
     def test_pipeline_model_is_none(self):
         pipe = pipeline("question-answering")
         question = "Whats my name?"
@@ -591,6 +597,9 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     @pytest.mark.trt_ep_test
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The question-answering pipeline was removed in Transformers v5."
+    )
     def test_pipeline_on_gpu(self, test_name: str, model_arch: str, provider: str):
         if provider == "TensorrtExecutionProvider" and model_arch != self.__class__.SUPPORTED_ARCHITECTURES[0]:
             self.skipTest("testing a single arch for TensorrtExecutionProvider")
@@ -619,6 +628,9 @@ class ORTModelForQuestionAnsweringIntegrationTest(ORTModelTestMixin):
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The question-answering pipeline was removed in Transformers v5."
+    )
     def test_pipeline_on_rocm_ep(self, test_name: str, model_arch: str, provider: str):
         provider = "ROCMExecutionProvider"
         model_args = {"test_name": model_arch, "model_arch": model_arch}
@@ -705,6 +717,11 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
     ]
 
     FULL_GRID = {"model_arch": SUPPORTED_ARCHITECTURES}  # noqa: RUF012
+    TRANSFORMERS_COMPARISON_ARCHITECTURES = SUPPORTED_ARCHITECTURES.copy()
+    if is_transformers_version(">=", "5.0"):
+        # The v5 loader reports this base checkpoint as corrupted and initializes its missing LM head
+        # non-deterministically, so two independent PyTorch loads cannot be compared meaningfully.
+        TRANSFORMERS_COMPARISON_ARCHITECTURES.remove("data2vec-text")
     ORTMODEL_CLASS = ORTModelForMaskedLM
     TASK = "fill-mask"
 
@@ -714,7 +731,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
 
         self.assertIn("only supports the tasks", str(context.exception))
 
-    @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @parameterized.expand(TRANSFORMERS_COMPARISON_ARCHITECTURES)
     def test_compare_to_transformers(self, model_arch):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -726,7 +743,7 @@ class ORTModelForMaskedLMIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForMaskedLM.from_pretrained(model_id)
+        transformers_model = AutoModelForMaskedLM.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
 
         text = f"The capital of France is {tokenizer.mask_token}."
@@ -926,7 +943,7 @@ class ORTModelForSequenceClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForSequenceClassification.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
 
         text = "This is a sample output"
@@ -1133,7 +1150,7 @@ class ORTModelForTokenClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForTokenClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForTokenClassification.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
 
         text = "This is a sample output"
@@ -1297,7 +1314,7 @@ class ORTModelForFeatureExtractionIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModel.from_pretrained(model_id)
+        transformers_model = AutoModel.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
         text = "This is a sample output"
         tokens = tokenizer(text, return_tensors="pt")
@@ -1511,7 +1528,7 @@ class ORTModelForFeatureExtractionFromImageModelsIntegrationTest(ORTModelTestMix
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModel.from_pretrained(model_id)
+        transformers_model = AutoModel.from_pretrained(model_id).eval()
         inputs = self.get_input(model_arch, return_tensors="pt")
         with torch.no_grad():
             transformers_outputs = transformers_model(**inputs)
@@ -1651,7 +1668,7 @@ class ORTModelForMultipleChoiceIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForMultipleChoice.from_pretrained(model_id)
+        transformers_model = AutoModelForMultipleChoice.from_pretrained(model_id).eval()
         tokenizer = get_preprocessor(model_id)
         num_choices = 4
         first_sentence = ["The sky is blue due to the shorter wavelength of blue light."] * num_choices
@@ -1851,8 +1868,8 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
+        pipe = pipeline("image-classification", model=onnx_model, image_processor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
         # check model device
@@ -1878,8 +1895,8 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         onnx_model = ORTModelForImageClassification.from_pretrained(
             self.onnx_model_dirs[model_arch], provider=provider
         )
-        preprocessor = get_preprocessor(model_id)
-        pipe = pipeline("image-classification", model=onnx_model, feature_extractor=preprocessor, device=0)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
+        pipe = pipeline("image-classification", model=onnx_model, image_processor=preprocessor, device=0)
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         outputs = pipe(url)
         # check model device
@@ -1915,7 +1932,7 @@ class ORTModelForImageClassificationIntegrationTest(ORTModelTestMixin):
         self.assertFalse(onnx_model.use_io_binding)
         self.assertTrue(io_model.use_io_binding)
 
-        preprocessor = get_preprocessor(model_id)
+        preprocessor = maybe_load_preprocessors(model_id)[-1]
         url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         image = Image.open(requests.get(url, stream=True).raw)
         inputs = preprocessor(images=[image] * 2, return_tensors="pt").to("cuda")
@@ -2267,7 +2284,7 @@ class ORTModelForAudioClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForAudioClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForAudioClassification.from_pretrained(model_id).eval()
         processor = AutoFeatureExtractor.from_pretrained(model_id)
 
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
@@ -2454,7 +2471,7 @@ class ORTModelForCTCIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForCTC.from_pretrained(model_id)
+        transformers_model = AutoModelForCTC.from_pretrained(model_id).eval()
         processor = AutoFeatureExtractor.from_pretrained(model_id)
 
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
@@ -2556,7 +2573,7 @@ class ORTModelForAudioXVectorIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForAudioXVector.from_pretrained(model_id)
+        transformers_model = AutoModelForAudioXVector.from_pretrained(model_id).eval()
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
 
@@ -2653,7 +2670,7 @@ class ORTModelForAudioFrameClassificationIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, PretrainedConfig)
 
         set_seed(SEED)
-        transformers_model = AutoModelForAudioFrameClassification.from_pretrained(model_id)
+        transformers_model = AutoModelForAudioFrameClassification.from_pretrained(model_id).eval()
         processor = AutoFeatureExtractor.from_pretrained(model_id)
         input_values = processor(self._generate_random_audio_data(), return_tensors="pt")
 
@@ -2706,7 +2723,7 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(onnx_model.config, Swin2SRConfig)
         set_seed(SEED)
 
-        transformers_model = AutoModelForImageToImage.from_pretrained(model_id)
+        transformers_model = AutoModelForImageToImage.from_pretrained(model_id).eval()
         image_processor = self._get_preprocessors(model_id)
 
         data = self._get_sample_image()
@@ -2742,6 +2759,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The image-to-image pipeline was removed in Transformers v5."
+    )
     def test_pipeline_image_to_image(self, model_arch: str):
         model_args = {"test_name": model_arch, "model_arch": model_arch}
         self._setup(model_args)
@@ -2761,6 +2781,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         gc.collect()
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The image-to-image pipeline was removed in Transformers v5."
+    )
     @require_torch_gpu
     @pytest.mark.cuda_ep_test
     def test_pipeline_on_gpu(self, model_arch: str):
@@ -2783,6 +2806,9 @@ class ORTModelForImageToImageIntegrationTest(ORTModelTestMixin):
         self.assertIsInstance(outputs, Image.Image)
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES)
+    @unittest.skipIf(
+        is_transformers_version(">=", "5.0"), "The image-to-image pipeline was removed in Transformers v5."
+    )
     @require_torch_gpu
     @require_ort_rocm
     @pytest.mark.rocm_ep_test

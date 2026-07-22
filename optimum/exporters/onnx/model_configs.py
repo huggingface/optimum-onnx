@@ -49,6 +49,7 @@ from optimum.exporters.onnx.model_patcher import (
     MoonshineModelPatcher,
     MusicgenModelPatcher,
     Qwen3MoeModelPatcher,
+    RTDetrModelPatcher,
     SAMModelPatcher,
     SentenceTransformersCLIPPatcher,
     SentenceTransformersTransformerPatcher,
@@ -225,7 +226,12 @@ class NystromformerOnnxConfig(BertOnnxConfig):
 
 @register_tasks_manager_onnx("xlm", *COMMON_TEXT_TASKS)
 class XLMOnnxConfig(BertOnnxConfig):
-    pass
+    @property
+    def inputs(self) -> dict[str, dict[int, str]]:
+        inputs = super().inputs.copy()
+        if is_transformers_version(">=", "5.0"):
+            inputs.pop("token_type_ids", None)
+        return inputs
 
 
 @register_tasks_manager_onnx("splinter", *["feature-extraction", "question-answering"])
@@ -296,7 +302,7 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
 
 
 @register_tasks_manager_onnx("flaubert", *COMMON_TEXT_TASKS)
-class FlaubertOnnxConfig(BertOnnxConfig):
+class FlaubertOnnxConfig(XLMOnnxConfig):
     pass
 
 
@@ -2698,6 +2704,8 @@ class PatchTSMixerOnnxConfig(PatchTSTOnnxConfig):
 
 @register_tasks_manager_onnx("rt_detr", *["object-detection"])
 class RTDetrOnnxConfig(ViTOnnxConfig):
+    _MODEL_PATCHER = RTDetrModelPatcher
+
     @property
     def inputs(self) -> dict[str, dict[int, str]]:
         return {

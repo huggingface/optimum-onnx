@@ -148,6 +148,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
     if is_transformers_version(">=", str(GPTOssOnnxConfig.MIN_TRANSFORMERS_VERSION)):
         SUPPORTED_ARCHITECTURES.extend(["gpt_oss", "gpt_oss_mxfp4"])
 
+    TRANSFORMERS_LOGIT_ARCHITECTURES = SUPPORTED_ARCHITECTURES.copy()
+    TRANSFORMERS_GENERATION_ARCHITECTURES = SUPPORTED_ARCHITECTURES.copy()
+    if is_transformers_version(">=", "5.0"):
+        # This published custom checkpoint produces only NaN logits and its model code still consumes tuple caches.
+        # Keep covering its export and ORT generation paths while avoiding invalid source-model comparisons on v5.
+        TRANSFORMERS_LOGIT_ARCHITECTURES.remove("internlm2")
+        TRANSFORMERS_GENERATION_ARCHITECTURES.remove("internlm2")
+
     TRUST_REMOTE_CODE_MODELS = {"internlm2"}  # noqa: RUF012
 
     # base generation kwargs
@@ -197,6 +205,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             inputs["use_model_defaults"] = False
 
         return inputs
+
+    def get_generation_kwargs(self, model_arch: str) -> dict:
+        generation_kwargs = self.GEN_KWARGS.copy()
+        if is_transformers_version(">=", "5.0") and model_arch == "internlm2":
+            # Sampling this legacy random checkpoint can produce invalid probabilities on v5; greedy decoding still
+            # exercises cache reuse and I/O binding deterministically.
+            generation_kwargs["do_sample"] = False
+        return generation_kwargs
 
     def get_transformers_model(
         self, model_arch: str, use_cache: bool = True, trust_remote_code: bool = False, **kwargs
@@ -518,7 +534,9 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             )
 
     # NUMERICAL CONSISTENCY WITH TRANSFORMERS
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": TRANSFORMERS_LOGIT_ARCHITECTURES, "use_cache": [True, False]})
+    )
     def test_compare_logits_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
@@ -545,7 +563,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             self.ATOL = atol
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(grid_parameters({"model_arch": TRANSFORMERS_GENERATION_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_generation_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
@@ -563,13 +581,14 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         inputs = self.get_inputs(model_arch, for_generation=True)
 
         set_seed(SEED)
-        outputs = model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        generation_kwargs = self.get_generation_kwargs(model_arch)
+        outputs = model.generate(**inputs, **generation_kwargs, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        onnx_outputs = onnx_model.generate(**inputs, **generation_kwargs, use_cache=use_cache)
         torch.testing.assert_close(outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
+    @parameterized.expand(grid_parameters({"model_arch": TRANSFORMERS_GENERATION_ARCHITECTURES, "use_cache": [True]}))
     def test_compare_beam_search_to_transformers(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
@@ -624,7 +643,7 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
             "use_cache": True,
             "trust_remote_code": trust_remote_code,
         }
-        self._setup(without_pkv_setup_args)
+        self._setup(with_pkv_setup_args)
 
         model_with_pkv = self.get_onnx_model(**with_pkv_setup_args)
         self.check_onnx_model_attributes(model_with_pkv, use_cache=True)
@@ -633,12 +652,15 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         inputs = self.get_inputs(model_arch, for_generation=True)
         set_seed(SEED)
-        outputs_model_with_pkv = model_with_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=True)
+        generation_kwargs = self.get_generation_kwargs(model_arch)
+        outputs_model_with_pkv = model_with_pkv.generate(**inputs, **generation_kwargs, use_cache=True)
         set_seed(SEED)
-        outputs_model_without_pkv = model_without_pkv.generate(**inputs, **self.GEN_KWARGS, use_cache=False)
+        outputs_model_without_pkv = model_without_pkv.generate(**inputs, **generation_kwargs, use_cache=False)
         torch.testing.assert_close(outputs_model_with_pkv, outputs_model_without_pkv, atol=self.ATOL, rtol=self.RTOL)
 
-    @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True, False]}))
+    @parameterized.expand(
+        grid_parameters({"model_arch": TRANSFORMERS_LOGIT_ARCHITECTURES, "use_cache": [True, False]})
+    )
     def test_compare_logits_with_and_without_io_binding(self, test_name: str, model_arch: str, use_cache: bool):
         trust_remote_code = model_arch in self.TRUST_REMOTE_CODE_MODELS
         setup_args = {
@@ -680,9 +702,10 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
 
         inputs = self.get_inputs(model_arch, for_generation=True)
         set_seed(SEED)
-        io_outputs = io_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        generation_kwargs = self.get_generation_kwargs(model_arch)
+        io_outputs = io_model.generate(**inputs, **generation_kwargs, use_cache=use_cache)
         set_seed(SEED)
-        onnx_outputs = onnx_model.generate(**inputs, **self.GEN_KWARGS, use_cache=use_cache)
+        onnx_outputs = onnx_model.generate(**inputs, **generation_kwargs, use_cache=use_cache)
         torch.testing.assert_close(io_outputs, onnx_outputs, atol=self.ATOL, rtol=self.RTOL)
 
     # PIPELINE TESTS

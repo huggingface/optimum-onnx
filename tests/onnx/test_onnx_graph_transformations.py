@@ -57,9 +57,11 @@ class WeightSharingTestCase(TestCase):
                     )
 
                 original_outputs = model(**tokenizer("Hello from Hugging Face", return_tensors="pt"))
-                compressed_outputs = compressed_albert_session.run(
-                    None, dict(tokenizer("Hello from Hugging Face", return_tensors="np"))
-                )
+                onnx_inputs = dict(tokenizer("Hello from Hugging Face", return_tensors="np"))
+                input_names = {model_input.name for model_input in compressed_albert_session.get_inputs()}
+                if "token_type_ids" in input_names and "token_type_ids" not in onnx_inputs:
+                    onnx_inputs["token_type_ids"] = np.zeros_like(onnx_inputs["input_ids"])
+                compressed_outputs = compressed_albert_session.run(None, onnx_inputs)
 
             self.assertTrue(
                 np.allclose(original_outputs.last_hidden_state.cpu().numpy(), compressed_outputs[0], atol=1e-4)
