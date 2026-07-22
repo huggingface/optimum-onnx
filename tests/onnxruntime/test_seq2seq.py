@@ -14,7 +14,9 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from typing import Optional
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -55,6 +57,7 @@ from optimum.onnxruntime import (
     ORTModelForSeq2SeqLM,
     ORTModelForSpeechSeq2Seq,
     ORTModelForVision2Seq,
+    modeling_seq2seq,
 )
 from optimum.onnxruntime import pipeline as ort_pipeline
 from optimum.onnxruntime.modeling_seq2seq import ORTDecoderForSeq2Seq, ORTEncoder
@@ -559,6 +562,118 @@ class ORTModelForSeq2SeqLMIntegrationTest(ORTSeq2SeqTestMixin):
         self.assertEqual({part.path.name for part in model.parts}, set(filenames.values()))
         self.check_onnx_model_attributes(model, use_cache=True, use_merged=False)
         self.assertTrue("subfolder" in str(model.model_save_dir))
+
+    @staticmethod
+    def _load_model_from_fake_onnx_files(onnx_files, **kwargs):
+        class FakeSession:
+            def __init__(self, model_path, **kwargs):
+                self._model_path = str(model_path)
+
+        class FakeORTPart(ORTEncoder):
+            def __init__(self, config, session, use_io_binding=None):
+                self.config = config
+                self.session = session
+                self.path = Path(session._model_path)
+
+        def fake_cached_file(model_id, filename, subfolder="", **kwargs):
+            return Path(model_id) / subfolder / filename
+
+        with (
+            mock.patch.object(modeling_seq2seq, "find_files_matching_pattern", return_value=onnx_files),
+            mock.patch.object(modeling_seq2seq, "InferenceSession", FakeSession),
+            mock.patch.object(ORTModelForSeq2SeqLM, "_cached_file", side_effect=fake_cached_file),
+            mock.patch.object(ORTModelForSeq2SeqLM, "_ort_encoder_class", FakeORTPart),
+            mock.patch.object(ORTModelForSeq2SeqLM, "_ort_decoder_class", FakeORTPart),
+        ):
+            return ORTModelForSeq2SeqLM._from_pretrained(
+                "fake-model",
+                config=PretrainedConfig(
+                    model_type="t5",
+                    vocab_size=32,
+                    num_attention_heads=4,
+                    hidden_size=16,
+                    is_encoder_decoder=True,
+                ),
+                generation_config=GenerationConfig(),
+                **kwargs,
+            )
+
+    def test_load_model_file_name_selects_custom_merged_decoder(self):
+        onnx_files = [
+            Path("onnx/encoder_model_quantized.onnx"),
+            Path("onnx/decoder_model_merged.onnx"),
+            Path("onnx/decoder_model_merged_quantized.onnx"),
+        ]
+
+        model = self._load_model_from_fake_onnx_files(
+            onnx_files,
+            subfolder="onnx",
+            encoder_file_name="encoder_model_quantized.onnx",
+            file_name="decoder_model_merged_quantized.onnx",
+        )
+
+        self.assertEqual(
+            {part.path.name for part in model.parts},
+            {"encoder_model_quantized.onnx", "decoder_model_merged_quantized.onnx"},
+        )
+
+    def test_load_model_decoder_file_name_selects_custom_merged_decoder(self):
+        onnx_files = [
+            Path("onnx/encoder_model_quantized.onnx"),
+            Path("onnx/decoder_model_merged.onnx"),
+            Path("onnx/decoder_model_merged_quantized.onnx"),
+        ]
+
+        model = self._load_model_from_fake_onnx_files(
+            onnx_files,
+            subfolder="onnx",
+            encoder_file_name="encoder_model_quantized.onnx",
+            decoder_file_name="decoder_model_merged_quantized.onnx",
+        )
+
+        self.assertEqual(
+            {part.path.name for part in model.parts},
+            {"encoder_model_quantized.onnx", "decoder_model_merged_quantized.onnx"},
+        )
+
+    def test_load_model_file_name_selects_non_merged_decoder(self):
+        onnx_files = [
+            Path("onnx/encoder_model_quantized.onnx"),
+            Path("onnx/decoder_model_merged.onnx"),
+            Path("onnx/decoder_model_quantized.onnx"),
+            Path("onnx/decoder_with_past_model_quantized.onnx"),
+        ]
+
+        model = self._load_model_from_fake_onnx_files(
+            onnx_files,
+            subfolder="onnx",
+            encoder_file_name="encoder_model_quantized.onnx",
+            file_name="decoder_model_quantized.onnx",
+            decoder_with_past_file_name="decoder_with_past_model_quantized.onnx",
+        )
+
+        self.assertEqual(
+            {part.path.name for part in model.parts},
+            {
+                "encoder_model_quantized.onnx",
+                "decoder_model_quantized.onnx",
+                "decoder_with_past_model_quantized.onnx",
+            },
+        )
+
+    def test_load_model_rejects_file_name_and_decoder_file_name(self):
+        onnx_files = [
+            Path("onnx/encoder_model.onnx"),
+            Path("onnx/decoder_model.onnx"),
+            Path("onnx/decoder_with_past_model.onnx"),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "`file_name` and `decoder_file_name`"):
+            self._load_model_from_fake_onnx_files(
+                onnx_files,
+                file_name="decoder_model.onnx",
+                decoder_file_name="decoder_model_quantized.onnx",
+            )
 
     def test_load_model_from_cache(self):
         model = self.ORTMODEL_CLASS.from_pretrained(self.ONNX_MODEL_ID)  # caching the model
