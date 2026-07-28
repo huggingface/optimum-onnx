@@ -76,6 +76,30 @@ def __ior_(g, self: torch._C.Value, other: torch._C.Value) -> torch._C.Value:
 
 torch.onnx.register_custom_op_symbolic("aten::__ior__", __ior_, 14)
 
+
+@symbolic_helper.parse_args("v", "v", "v")
+def upsample_nearest_exact_symbolic(g, input, output_size, scale_h=None) -> torch._C.Value:
+    # Compute scales from scale_h
+    scales = g.op("Concat", g.op("Constant", value_t=torch.tensor([1.0, 1.0], dtype=torch.float32)), scale_h, axis_i=0)
+    empty_roi = g.op("Constant", value_t=torch.tensor([], dtype=torch.float32))
+
+    return g.op(
+        "Resize",
+        input,
+        empty_roi,  # roi (unused for nearest)
+        scales,
+        mode_s="nearest",
+        coordinate_transformation_mode_s="half_pixel",
+        nearest_mode_s="round_prefer_floor",
+    )
+
+
+torch.onnx.register_custom_op_symbolic(
+    "aten::_upsample_nearest_exact2d",  # PyTorch op name
+    upsample_nearest_exact_symbolic,  # Your symbolic function
+    18,  # Target ONNX opset
+)
+
 if is_torch_version("<", "2.9"):
     # this was fixed in torch in 2.9 https://github.com/pytorch/pytorch/pull/159973
     from torch.onnx import JitScalarType
