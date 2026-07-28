@@ -4,6 +4,7 @@ import unittest
 import onnxruntime as ort
 import torch
 
+from optimum.onnxruntime.base import _safe_eval_dynamic_axis_expression
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, OptimizationConfig, ORTConfig
 from optimum.onnxruntime.utils import get_device_for_provider, get_provider_for_device
 
@@ -33,3 +34,18 @@ class ORTConfigTest(unittest.TestCase):
             ort_config.save_pretrained(tmp_dir)
             loaded_ort_config = ORTConfig.from_pretrained(tmp_dir)
             self.assertEqual(ort_config.to_dict(), loaded_ort_config.to_dict())
+
+
+class DynamicAxisExpressionEvaluationTest(unittest.TestCase):
+    def test_evaluates_supported_expression(self):
+        known_axes_values = {"batch_size": 2, "sequence_length": 3, "past_sequence_length": 7}
+        expression = "sequence_length + past_sequence_length * 2 - batch_size"
+
+        self.assertEqual(_safe_eval_dynamic_axis_expression(expression, known_axes_values), 15)
+
+    def test_rejects_malicious_expression(self):
+        known_axes_values = {"sequence_length": 3}
+        expression = "__import__('os').system('id')"
+
+        with self.assertRaises(ValueError):
+            _safe_eval_dynamic_axis_expression(expression, known_axes_values)
