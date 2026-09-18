@@ -84,6 +84,7 @@ class ORTConfigManager:
         "gpt_neox": "gpt2",
         "gptj": "gpt2",
         "granite": "gpt2",
+        "ibert": "bert",
         "longt5": "bert",
         "llama": "gpt2",
         "marian": "bart",
