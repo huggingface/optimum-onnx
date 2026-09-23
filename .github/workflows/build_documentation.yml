@@ -57,7 +57,7 @@ jobs:
 
       - name: Make documentation
         run: |
-          make doc BUILD_DIR=onnx-doc-build VERSION=${{ env.VERSION }}
+          make doc BUILD_DIR=onnx-doc-build VERSION=${VERSION}
 
       - name: Push documentation
         run: |
