@@ -520,7 +520,9 @@ class Gemma2OnnxConfig(GemmaOnnxConfig):
     MIN_TRANSFORMERS_VERSION = version.parse("4.53.0")
 
 
-@register_tasks_manager_onnx("gemma3_text", *COMMON_TEXT_GENERATION_TASKS)
+@register_tasks_manager_onnx(
+    "gemma3_text", *[*COMMON_TEXT_GENERATION_TASKS, "text-classification"]
+)
 class Gemma3TextOnnxConfig(GemmaOnnxConfig):
     # Gemma 3 was added in transformers v4.50 using HybridCache
     # DynamicCache support was added since v4.53
