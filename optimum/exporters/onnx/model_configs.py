@@ -406,7 +406,9 @@ class DecisionTransformerOnnxConfig(OnnxConfig):
             "state_preds": {0: "batch_size", 1: "sequence_length"},
             "action_preds": {0: "batch_size", 1: "sequence_length"},
             "return_preds": {0: "batch_size", 1: "sequence_length"},
-            "last_hidden_state": {0: "batch_size", 1: "sequence_length"},
+            # last_hidden_state is the raw encoder output over the stacked sequence
+            # (returns, states, actions), i.e. shape [batch_size, 3 * sequence_length, hidden_size].
+            "last_hidden_state": {0: "batch_size", 1: "3 * sequence_length"},
         }
 
 
