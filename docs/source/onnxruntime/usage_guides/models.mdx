@@ -1,7 +1,7 @@
 # Optimum Inference with ONNX Runtime
 
 Optimum is a utility package for building and running inference with accelerated runtime like ONNX Runtime.
-Optimum can be used to load optimized models from the [Hugging Face Hub](hf.co/models) and create pipelines
+Optimum can be used to load optimized models from the [Hugging Face Hub](https://huggingface.co/models) and create pipelines
 to run accelerated inference without rewriting your APIs.
 
 
@@ -24,7 +24,7 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
   result = pipe("He never went out without a book under his arm")
 ```
 
-More information for all the supported `ORTModelForXxx` in our [documentation](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling)
+More information for all the supported `ORTModelForXxx` in our [documentation](https://huggingface.co/docs/optimum-onnx/onnxruntime/package_reference/modeling)
 
 ### Transformers pipelines
 
@@ -39,7 +39,7 @@ You can also load your ONNX model using ONNX Runtime pipelines which replace `tr
   result = nlp_pipeline("I've been waiting for a HuggingFace course my whole life.")
 ```
 
-More information for all the supported `ORTXxxPipeline` in our [documentation](https://huggingface.co/docs/optimum/onnxruntime/package_reference/pipelines)
+More information for all the supported `ORTXxxPipeline` in our [documentation](https://huggingface.co/docs/optimum-onnx/onnxruntime/package_reference/pipelines)
 
 ### Diffusers models
 
@@ -57,7 +57,7 @@ Once your model was [exported to the ONNX format](https://huggingface.co/docs/op
   image = pipeline(prompt).images[0]
 ```
 
-More information for all the supported `ORTXxxPipeline` in our [documentation](https://huggingface.co/docs/optimum/onnxruntime/package_reference/modeling_diffusion)
+More information for all the supported `ORTXxxPipeline` in our [documentation](https://huggingface.co/docs/optimum-onnx/onnxruntime/package_reference/modeling_diffusion)
 
 
 ### Sentence Transformers models
