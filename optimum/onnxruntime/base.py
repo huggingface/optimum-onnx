@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import shutil
 from pathlib import Path
@@ -39,6 +40,59 @@ from optimum.utils.logging import get_logger
 logger = get_logger(__name__)
 
 NON_EMPTY_TENSOR = torch.tensor(0)
+
+_ALLOWED_BINARY_OPERATORS = {
+    ast.Add: lambda left, right: left + right,
+    ast.Sub: lambda left, right: left - right,
+    ast.Mult: lambda left, right: left * right,
+    ast.Div: lambda left, right: left / right,
+    ast.FloorDiv: lambda left, right: left // right,
+    ast.Mod: lambda left, right: left % right,
+}
+
+_ALLOWED_UNARY_OPERATORS = {
+    ast.UAdd: lambda operand: operand,
+    ast.USub: lambda operand: -operand,
+}
+
+
+def _safe_eval_dynamic_axis_expression(expression: str, known_axes_values: dict[str, int]) -> int:
+    """Safely evaluates arithmetic expressions used for ONNX dynamic axis inference."""
+
+    def _evaluate(node: ast.AST) -> int | float:
+        if isinstance(node, ast.Expression):
+            return _evaluate(node.body)
+
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, int):
+                return node.value
+            raise ValueError(f"Unsupported constant in dynamic axis expression: {node.value!r}")
+
+        if isinstance(node, ast.Name):
+            if node.id in known_axes_values:
+                return known_axes_values[node.id]
+            raise ValueError(f"Unknown axis token in dynamic axis expression: {node.id!r}")
+
+        if isinstance(node, ast.BinOp):
+            operator = _ALLOWED_BINARY_OPERATORS.get(type(node.op))
+            if operator is None:
+                raise ValueError(f"Unsupported operator in dynamic axis expression: {type(node.op).__name__}")
+            return operator(_evaluate(node.left), _evaluate(node.right))
+
+        if isinstance(node, ast.UnaryOp):
+            operator = _ALLOWED_UNARY_OPERATORS.get(type(node.op))
+            if operator is None:
+                raise ValueError(f"Unsupported unary operator in dynamic axis expression: {type(node.op).__name__}")
+            return operator(_evaluate(node.operand))
+
+        raise ValueError(f"Unsupported syntax in dynamic axis expression: {type(node).__name__}")
+
+    try:
+        parsed = ast.parse(expression, mode="eval")
+    except SyntaxError as exception:
+        raise ValueError(f"Invalid dynamic axis expression: {expression!r}") from exception
+
+    return int(_evaluate(parsed))
 
 
 class ORTSessionMixin:
@@ -351,12 +405,7 @@ class ORTSessionMixin:
             # simple case, the axis value is known
             return known_axes_values[axis_name]
 
-        tokens = axis_name.split(" ")
-        for idx, token in enumerate(tokens):
-            if token in known_axes_values:
-                tokens[idx] = str(known_axes_values[token])
-
-        return int(eval(" ".join(tokens)))
+        return _safe_eval_dynamic_axis_expression(axis_name, known_axes_values)
 
     def _prepare_io_binding(
         self,
