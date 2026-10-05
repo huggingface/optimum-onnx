@@ -106,11 +106,12 @@ def _replace_input_names(models: list[onnx.ModelProto], name_sharing_dict: dict[
 
 
 def _remove_redundant_initializers(models: list[onnx.ModelProto], name_sharing_dict: dict[tuple[str, int], str]):
-    """TODO: short documentation."""
+    """Removes initializers mapped to another name, preserving those excluded from weight sharing."""
     to_pop = []
     for i in range(len(models)):
         for idx, initializer in enumerate(models[i].graph.initializer):
-            if initializer.name != name_sharing_dict[(initializer.name, i)]:
+            name_id_pair = (initializer.name, i)
+            if name_id_pair in name_sharing_dict and initializer.name != name_sharing_dict[name_id_pair]:
                 to_pop.append(idx)
 
         for idx in sorted(to_pop, reverse=True):
