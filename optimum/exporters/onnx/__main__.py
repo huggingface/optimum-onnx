@@ -67,6 +67,13 @@ def main_export(
     framework: str | None = "pt",
     atol: float | None = None,
     pad_token_id: int | None = None,
+    # inference kwargs
+    inf_kwargs: dict[str, Any] | None = None,
+    # module_arch_configs
+    module_arch_fields: dict[str, list[str]] | None = None,
+    # flag for export_by_inference
+    export_by_inference: bool = False,
+    skip_random_generation: bool = False,
     # hub options
     subfolder: str = "",
     revision: str = "main",
@@ -295,11 +302,13 @@ def main_export(
             torch_dtype = torch.float32 if model_type == "gpt_oss" else torch.bfloat16
             loading_kwargs["quantization_config"] = Mxfp4Config(dequantize=True)
 
-        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE:
+        print("export_by_inference: ", export_by_inference)
+
+        if model_type not in TasksManager._SUPPORTED_MODEL_TYPE and export_by_inference is False:
             custom_architecture = True
-        elif task not in TasksManager.get_supported_tasks_for_model_type(
+        elif export_by_inference is False and task not in TasksManager.get_supported_tasks_for_model_type(
             model_type, "onnx", library_name=library_name
-        ):
+        ) and export_by_inference is False:
             if original_task == "auto":
                 autodetected_message = " (auto-detected)"
             else:
@@ -323,7 +332,6 @@ def main_export(
                 "Setting `attn_implementation='eager'` at loading time to ensure the attentions are returned by the model."
             )
             loading_kwargs["attn_implementation"] = "eager"
-
     with DisableCompileContextManager():
         model = TasksManager.get_model_from_task(
             task,
@@ -366,6 +374,7 @@ def main_export(
         model.to(torch.float32)
 
     if (
+        not export_by_inference and 
         not custom_architecture
         and library_name != "diffusers"
         and task + "-with-past"
@@ -420,6 +429,10 @@ def main_export(
         do_constant_folding=do_constant_folding,
         slim=slim,
         dynamo=dynamo,
+        inf_kwargs=inf_kwargs,
+        module_arch_fields=module_arch_fields,
+        export_by_inference=export_by_inference,
+        skip_random_generation=skip_random_generation,
         **kwargs_shapes,
     )
 

@@ -37,6 +37,7 @@ from optimum.exporters.onnx.input_generators import (
     DummyMoonshineAudioInputGenerator,
     DummySanaTransforemerTextInputGenerator,
     GPTBigCodeDummyPastKeyValuesGenerator,
+    DummyTupleInputGenerator,
 )
 from optimum.exporters.onnx.model_patcher import (
     BigBirdPegasusModelPatcher,
@@ -2854,3 +2855,165 @@ class DcaeDecoderOnnxConfig(VaeDecoderOnnxConfig):
                 3: f"latent_width * {up_sampling_factor}",
             }
         }
+
+
+class DummyOnnxConfig(OnnxConfig):
+
+    NORMALIZED_CONFIG_CLASS = NormalizedTextConfig
+
+    DUMMY_INPUT_GENERATOR_CLASSES = (
+        DummyTupleInputGenerator,
+    )
+    
+    def __init__(
+        self,
+        config: PretrainedConfig,
+        task: str = "text-encoding",
+        preprocessors: list[Any] | None = None,
+        int_dtype: str = "int64",
+        float_dtype: str = "fp16",
+        model_inputs: dict[str, Any] | None = None,
+        model_outputs: dict[str, Any] | None = None,
+        config_dim: dict[str, int] | None = None,
+    ):
+        super().__init__(config=config, task=task, preprocessors=preprocessors, int_dtype=int_dtype, float_dtype=float_dtype)
+        self.task = task
+        self.model_inputs = model_inputs
+        self.model_outputs = model_outputs
+        self.dummy_tuple_input_generator = self.DUMMY_INPUT_GENERATOR_CLASSES[0](task=task, config_dim=config_dim)
+        self.config_dim = config_dim
+        # Enable KV-cache path in the model patcher when past_key_values are present
+        has_kv = model_inputs is not None and any(k.startswith("past_key_values.") for k in model_inputs)
+        self.use_past = has_kv
+        self.use_past_in_inputs = has_kv
+
+    def infer_dynamic_dims(self, tensor_shape: tuple[int, ...], config_dim: dict[str, int], name: str="input") -> dict[int, str]:
+        dynamic = {}
+        for idx, dim in enumerate(tensor_shape):
+            # Batch is always dynamic
+            if idx == 0:
+                dynamic[idx] = "batch"
+                continue
+
+            find_match = False
+            for key, value in config_dim.items():
+                if value == dim:
+                    find_match = True
+                    break
+
+            if find_match is True:
+                continue
+
+            dynamic[idx] = f"{name}_dim_{idx}"
+        return dynamic
+
+    @staticmethod
+    def _is_kv_key(name: str) -> bool:
+        """Return True if name matches past_key_values.{i}.key or .value."""
+        import re
+        return bool(re.match(r"^past_key_values\.\d+\.(key|value)$", name))
+
+    def _kv_dynamic_axes(self, shape: tuple, name: str) -> dict:
+        """Dynamic axes for a KV cache tensor (batch=0, past_seq=2)."""
+        dynamic = {0: "batch"}
+        for idx in range(1, len(shape)):
+            if idx == 2:  # past-sequence dimension is always dynamic
+                dynamic[idx] = f"{name}_dim_{idx}"
+            elif idx not in dynamic:
+                dynamic[idx] = f"{name}_dim_{idx}"
+        return dynamic
+
+    @property
+    def inputs(self) -> dict[str,dict[int,str]]:
+        import torch
+        model_inputs_dynamic_axes = {}
+        if self.task == "text-encoding":
+            for key, value in self.model_inputs.items():
+                model_inputs_dynamic_axes[key] = {0: "batch_size", 1: "sequence_length"}
+            return model_inputs_dynamic_axes
+        if self.task == "backbone":
+            for key, value in self.model_inputs.items():
+                if self._is_kv_key(key):
+                    shape = tuple(value.shape) if isinstance(value, torch.Tensor) else value
+                    model_inputs_dynamic_axes[key] = self._kv_dynamic_axes(shape, key)
+                elif isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
+            return model_inputs_dynamic_axes
+        if self.task == "sample_encode":
+            for key, value in self.model_inputs.items():
+                if isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
+            return model_inputs_dynamic_axes
+        if self.task == "latent_decode":
+            for key, value in self.model_inputs.items():
+                if isinstance(value, torch.Tensor):
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(tuple(value.shape), self.config_dim, key)
+                else:
+                    model_inputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
+            return model_inputs_dynamic_axes
+        return model_inputs_dynamic_axes
+
+    @property
+    def outputs(self) -> dict[str, dict[int, str]]:
+        model_outputs_dynamic_axes = {}
+        if self.task == "text-encoding":
+            for key, value in self.model_outputs.items():
+                model_outputs_dynamic_axes[key] = {0: "batch_size", 1: "sequence_length"}
+            return model_outputs_dynamic_axes
+        if self.task == "backbone":
+            for key, value in self.model_outputs.items():
+                if self._is_kv_key(key):
+                    model_outputs_dynamic_axes[key] = self._kv_dynamic_axes(value, key)
+                else:
+                    model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, key)
+            return model_outputs_dynamic_axes
+        if self.task == "sample_encode":
+            for key, value in self.model_outputs.items():
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "encode")
+            return model_outputs_dynamic_axes
+        if self.task == "latent_decode":
+            for key, value in self.model_outputs.items():
+                model_outputs_dynamic_axes[key] = self.infer_dynamic_dims(value, self.config_dim, "decode")
+            return model_outputs_dynamic_axes
+        return model_outputs_dynamic_axes
+
+    def generate_dummy_inputs(self, framework: str = "pt", int_dtype: str = "int64", float_dtype: str = "fp16"):
+        import torch, re
+
+        # Separate KV cache entries from regular inputs
+        kv_entries: dict[tuple, torch.Tensor] = {}  # (layer_idx, "key"|"value") → tensor
+        regular_inputs: dict[str, Any] = {}
+        for key, value in self.model_inputs.items():
+            m = re.match(r"^past_key_values\.(\d+)\.(key|value)$", key)
+            if m:
+                layer_idx = int(m.group(1))
+                kv_type = m.group(2)
+                if isinstance(value, torch.Tensor):
+                    tensor = value
+                else:
+                    tensor = self.dummy_tuple_input_generator.generate(
+                        key, value, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+                    )
+                kv_entries[(layer_idx, kv_type)] = tensor
+            else:
+                if isinstance(value, torch.Tensor):
+                    regular_inputs[key] = value
+                else:
+                    regular_inputs[key] = self.dummy_tuple_input_generator.generate(
+                        key, value, framework=framework, int_dtype=int_dtype, float_dtype=float_dtype
+                    )
+
+        if kv_entries:
+            # Reconstruct nested tuple: ((k0, v0), (k1, v1), ...)
+            num_layers = max(idx for idx, _ in kv_entries) + 1
+            past_key_values = tuple(
+                (kv_entries[(i, "key")], kv_entries[(i, "value")])
+                for i in range(num_layers)
+            )
+            return {**regular_inputs, "past_key_values": past_key_values}
+
+        return regular_inputs
