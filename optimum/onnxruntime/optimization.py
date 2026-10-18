@@ -35,7 +35,7 @@ from optimum.onnxruntime.modeling import ORTModel
 from optimum.onnxruntime.modeling_decoder import ORTModelForCausalLM
 from optimum.onnxruntime.modeling_seq2seq import ORTModelForConditionalGeneration
 from optimum.onnxruntime.utils import ORTConfigManager
-from optimum.utils import CONFIG_NAME, NormalizedConfigManager, logging
+from optimum.utils import CONFIG_NAME, NormalizedConfigManager, NormalizedTextConfig, logging
 from optimum.utils.save_utils import maybe_save_preprocessors
 
 
@@ -68,6 +68,8 @@ class ORTOptimizer:
 
         # extending the normalized config manager with CLIP
         NormalizedConfigManager._conf["clip"] = CLIPNormalizedConfig
+        # ibert is registered upstream in huggingface/optimum#2482, not yet in a release covered by our optimum pin
+        NormalizedConfigManager._conf.setdefault("ibert", NormalizedTextConfig)
 
         try:
             self.normalized_config = NormalizedConfigManager.get_normalized_config_class(self.model_type)(self.config)
