@@ -498,7 +498,9 @@ def traceable_scaled_dot_product_attention(
         query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, **kwargs
     )
 
-    return attn_weights
+    # Legacy ONNX lowering can promote masked attention to float32.
+    # SDPA's output must retain the query dtype.
+    return attn_weights.to(dtype=query.dtype)
 
 
 # No-op bfloat16 casting to avoid issues with legacy ONNX export which cast to complex128

@@ -531,3 +531,196 @@ class OnnxCustomExport(TestCase):
             )
 
         self.assertIn("custom or unsupported architecture", str(context.exception))
+
+
+def _make_traceable_sdpa_layer_norm(dtype, mask):
+    import torch
+
+    class Module(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer_norm = torch.nn.LayerNorm(4).to(dtype=dtype)
+            if mask is not None:
+                self.register_buffer("attn_mask", mask)
+            else:
+                self.attn_mask = None
+
+        def forward(self, query, key, value):
+            from optimum.exporters.onnx.model_patcher import traceable_scaled_dot_product_attention
+
+            attended = traceable_scaled_dot_product_attention(query, key, value, attn_mask=self.attn_mask)
+            return attended, self.layer_norm(attended)
+
+    return Module().eval()
+
+
+@pytest.mark.parametrize("precision", ["fp16", "fp32"])
+@pytest.mark.parametrize("mask_kind", ["none", "bool", "float32"])
+@require_torch
+def test_traceable_sdpa_layer_norm_onnx_dtype(precision, mask_kind, tmp_path):
+    """SDPA keeps its query dtype through a following LayerNorm in legacy ONNX export."""
+    import numpy as np
+    import onnxruntime as ort
+    import torch
+
+    from optimum.exporters.onnx.model_patcher import (
+        original_scaled_dot_product_attention,
+        traceable_scaled_dot_product_attention,
+    )
+
+    dtype = torch.float16 if precision == "fp16" else torch.float32
+    atol = rtol = 1e-3 if dtype == torch.float16 else 1e-5
+    query = torch.zeros((1, 2, 3, 4), dtype=dtype)
+    key = torch.zeros_like(query)
+    pattern = torch.tensor([1, -1, 1, -1], dtype=dtype).reshape(1, 1, 1, 4)
+    value = (torch.arange(1, 4, dtype=dtype).reshape(1, 1, 3, 1) * pattern).expand(1, 2, 3, 4).contiguous()
+    mask = None
+    if mask_kind == "bool":
+        mask = torch.ones((1, 1, 3, 3), dtype=torch.bool)
+        mask[..., -1, :] = False
+    elif mask_kind == "float32":
+        mask = torch.zeros((1, 1, 3, 3), dtype=torch.float32)
+        # Keep this additive-mask control finite; the boolean case covers a fully masked query row.
+        mask[..., -1, -1] = -2.0
+
+    module = _make_traceable_sdpa_layer_norm(dtype, mask)
+    with torch.inference_mode():
+        expected_attention = original_scaled_dot_product_attention(query, key, value, attn_mask=mask)
+        wrapped_attention = traceable_scaled_dot_product_attention(query, key, value, attn_mask=mask)
+        expected_normalized = module.layer_norm(expected_attention)
+        module_attention, module_normalized = module(query, key, value)
+    assert wrapped_attention.dtype == dtype
+    torch.testing.assert_close(wrapped_attention, expected_attention, atol=atol, rtol=rtol)
+    torch.testing.assert_close(module_attention, expected_attention, atol=atol, rtol=rtol)
+    torch.testing.assert_close(module_normalized, expected_normalized, atol=atol, rtol=rtol)
+
+    output_path = tmp_path / "sdpa-layer-norm.onnx"
+    torch.onnx.export(
+        module,
+        (query, key, value),
+        str(output_path),
+        input_names=["query", "key", "value"],
+        output_names=["attention", "normalized"],
+        opset_version=20,
+        dynamo=False,
+        do_constant_folding=False,
+    )
+    onnx.checker.check_model(str(output_path), full_check=True)
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 1
+    options.inter_op_num_threads = 1
+    session = ort.InferenceSession(str(output_path), options, providers=["CPUExecutionProvider"])
+    attention, normalized = session.run(
+        ["attention", "normalized"], {"query": query.numpy(), "key": key.numpy(), "value": value.numpy()}
+    )
+    for output, expected_tensor in [(attention, expected_attention), (normalized, expected_normalized)]:
+        expected_np = expected_tensor.numpy()
+        assert output.dtype == expected_np.dtype
+        assert np.isfinite(output).all()
+        np.testing.assert_allclose(output, expected_np, atol=atol, rtol=rtol)
+
+
+@pytest.mark.parametrize("with_past", [False, True], ids=["without-cache", "with-cache"])
+@require_torch
+def test_tiny_whisper_sdpa_fp16_cpu_onnx(with_past, tmp_path):
+    """An offline tiny Whisper model runs encoder and decoder in CPU ONNX Runtime at FP16."""
+    import numpy as np
+    import onnxruntime as ort
+    import torch
+    from transformers import WhisperConfig, WhisperForConditionalGeneration
+
+    from optimum.exporters.onnx import onnx_export_from_model
+
+    config = WhisperConfig(
+        vocab_size=32,
+        num_mel_bins=8,
+        d_model=16,
+        encoder_layers=1,
+        decoder_layers=1,
+        encoder_attention_heads=2,
+        decoder_attention_heads=2,
+        encoder_ffn_dim=32,
+        decoder_ffn_dim=32,
+        max_source_positions=16,
+        max_target_positions=16,
+        pad_token_id=0,
+        bos_token_id=1,
+        eos_token_id=2,
+        decoder_start_token_id=1,
+        suppress_tokens=[],
+        begin_suppress_tokens=[],
+    )
+    config._attn_implementation = "sdpa"
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(17)
+        model = WhisperForConditionalGeneration(config).eval().to(dtype=torch.float16)
+    features = torch.linspace(-1, 1, 8 * 32, dtype=torch.float16).reshape(1, 8, 32)
+    decoder_ids = torch.tensor([[1, 3]], dtype=torch.int64)
+    task = "automatic-speech-recognition-with-past" if with_past else "automatic-speech-recognition"
+    onnx_export_from_model(
+        model,
+        output=tmp_path / "whisper-onnx",
+        task=task,
+        opset=20,
+        monolith=False,
+        no_post_process=True,
+        do_validation=False,
+        device="cpu",
+        dynamo=False,
+        batch_size=1,
+        feature_size=8,
+        nb_max_frames=32,
+        sequence_length=2,
+    )
+
+    model_dir = tmp_path / "whisper-onnx"
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 1
+    options.inter_op_num_threads = 1
+    encoder_path = model_dir / "encoder_model.onnx"
+    decoder_path = model_dir / "decoder_model.onnx"
+    for path in [encoder_path, decoder_path] + ([model_dir / "decoder_with_past_model.onnx"] if with_past else []):
+        onnx.checker.check_model(str(path), full_check=True)
+
+    encoder = ort.InferenceSession(str(encoder_path), options, providers=["CPUExecutionProvider"])
+    encoder_input = encoder.get_inputs()[0].name
+    encoder_result = encoder.run(None, {encoder_input: features.numpy()})
+    encoder_outputs = {item.name: value for item, value in zip(encoder.get_outputs(), encoder_result)}
+    hidden_states = encoder_outputs.get("last_hidden_state", encoder_result[0])
+
+    decoder = ort.InferenceSession(str(decoder_path), options, providers=["CPUExecutionProvider"])
+    decoder_inputs = {item.name for item in decoder.get_inputs()}
+    decoder_feed = {}
+    if "input_ids" in decoder_inputs:
+        decoder_feed["input_ids"] = decoder_ids.numpy()
+    if "encoder_hidden_states" in decoder_inputs:
+        decoder_feed["encoder_hidden_states"] = hidden_states
+    decoder_result = decoder.run(None, decoder_feed)
+    decoder_outputs = {item.name: value for item, value in zip(decoder.get_outputs(), decoder_result)}
+    logits = decoder_outputs["logits"]
+
+    with torch.inference_mode():
+        reference = model(input_features=features, decoder_input_ids=decoder_ids).logits.numpy()
+    assert logits.dtype == np.float16
+    assert np.isfinite(logits).all()
+    np.testing.assert_allclose(logits, reference, atol=1e-3, rtol=1e-3)
+
+    if with_past:
+        cached_ids = torch.tensor([[4]], dtype=torch.int64)
+        past_decoder = ort.InferenceSession(
+            str(model_dir / "decoder_with_past_model.onnx"), options, providers=["CPUExecutionProvider"]
+        )
+        past_feed = {"input_ids": cached_ids.numpy()}
+        for item in past_decoder.get_inputs():
+            if item.name.startswith("past_key_values."):
+                present_name = item.name.replace("past_key_values.", "present.", 1)
+                past_feed[item.name] = decoder_outputs[present_name]
+        past_result = past_decoder.run(None, past_feed)
+        past_outputs = {item.name: value for item, value in zip(past_decoder.get_outputs(), past_result)}
+        cached_logits = past_outputs["logits"]
+        with torch.inference_mode():
+            full_ids = torch.tensor([[1, 3, 4]], dtype=torch.int64)
+            cached_reference = model(input_features=features, decoder_input_ids=full_ids).logits[:, -1:, :].numpy()
+        assert cached_logits.dtype == np.float16
+        assert np.isfinite(cached_logits).all()
+        np.testing.assert_allclose(cached_logits, cached_reference, atol=1e-3, rtol=1e-3)
