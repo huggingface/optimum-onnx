@@ -317,28 +317,53 @@ def cast_slice_nodes_inputs_to_int32(model: onnx.ModelProto) -> onnx.ModelProto:
     these operators explicitly expect int64 inputs according to ONNX specifications:
     https://github.com/onnx/onnx/blob/main/docs/Operators.md
     """
-    map_input_node = {}
-    map_node_inputs = {}
-
+    constants = {
+        node.output[0]: node
+        for node in model.graph.node
+        if node.op_type == "Constant"
+        and node.domain in ("", "ai.onnx")
+        and len(node.output) == 1
+        and any(
+            attribute.name == "value"
+            and attribute.type == onnx.AttributeProto.TENSOR
+            and attribute.t.data_type == onnx.TensorProto.INT64
+            for attribute in node.attribute
+        )
+    }
+    used_names = {name for node in model.graph.node for name in (*node.input, *node.output, node.name) if name}
+    used_names.update(value.name for value in (*model.graph.input, *model.graph.output, *model.graph.initializer))
+    converted = {}
+    nodes = []
     for node in model.graph.node:
-        for input_name in node.input:
-            map_input_node[input_name] = {"op_type": node.op_type, "node_name": node.name}
-        map_node_inputs[node.name] = node.input
-
-    for node in model.graph.node:
-        if (
-            node.op_type == "Constant"
-            and node.attribute[0].t.data_type == 7  # int64
-            and f"{node.name}_output_0" in map_input_node
-            and map_input_node[node.name + "_output_0"]["op_type"] == "Slice"
-        ):
-            logger.debug(f"Converting {node.name} to int32")
-
-            # `Slice` node is homogeneous (requires parameters of same type), hence cast to int32 only if all of its inputs are constants
-            # refer to onnx/defs/schema.h
-            cast = all(
-                "Constant" in inp for inp in map_node_inputs[map_input_node[node.name + "_output_0"]["node_name"]][1:]
-            )
-            cast_int64_tensorproto_to_int32(node.attribute[0].t, cast=cast)
+        if node.op_type == "Slice" and node.domain in ("", "ai.onnx"):
+            # Slice index inputs must share a dtype. Dynamic indices retain int64.
+            cast = all(name in constants for name in node.input[1:] if name)
+            for index in range(1, len(node.input)):
+                name = node.input[index]
+                if name not in constants:
+                    continue
+                key = (name, cast)
+                if key not in converted:
+                    # Keep the original for other consumers and graph outputs, including
+                    # its unclipped values when this Slice must retain int64 indices.
+                    clone = copy.deepcopy(constants[name])
+                    tensor = next(attribute.t for attribute in clone.attribute if attribute.name == "value")
+                    original_values = onnx.numpy_helper.to_array(tensor)
+                    cast_int64_tensorproto_to_int32(tensor, cast=cast)
+                    if not cast and (onnx.numpy_helper.to_array(tensor) == original_values).all():
+                        converted[key] = name
+                        continue
+                    output = f"{name}_slice_int{32 if cast else 64}"
+                    while output in used_names:
+                        output += "_"
+                    used_names.add(output)
+                    clone.name = output
+                    clone.output[0] = output
+                    nodes.append(clone)
+                    converted[key] = output
+                node.input[index] = converted[key]
+        nodes.append(node)
+    del model.graph.node[:]
+    model.graph.node.extend(nodes)
 
     return model
