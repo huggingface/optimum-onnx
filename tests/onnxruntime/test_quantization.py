@@ -18,9 +18,12 @@ import unittest
 from functools import partial
 from pathlib import Path
 
+import numpy as np
+from onnx import TensorProto, helper, numpy_helper
 from onnx import load as onnx_load
+from onnx import save as onnx_save
 from onnxruntime import __version__ as ort_version
-from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType
+from onnxruntime.quantization import QuantFormat, QuantizationMode, QuantType, quantize_dynamic
 from packaging.version import Version, parse
 from parameterized import parameterized
 from transformers import AutoTokenizer
@@ -174,6 +177,81 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
                 if "weight" in initializer.name and "quantized" in initializer.name:
                     num_quantized_matmul += 1
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
+            gc.collect()
+
+    @staticmethod
+    def _create_single_head_attention_model(model_path: Path):
+        # Q = X @ Wq, K = X @ Wk, V = X @ Wv, Y = softmax(Q @ K^T) @ V @ Wo
+        # 4 MatMuls with a constant B (weights) and 2 activation x activation MatMuls.
+        seq_len, hidden_size = 8, 16
+        rng = np.random.default_rng(42)
+        weights = [
+            numpy_helper.from_array(rng.standard_normal((hidden_size, hidden_size)).astype(np.float32), name)
+            for name in ("Wq", "Wk", "Wv", "Wo")
+        ]
+        nodes = [
+            helper.make_node("MatMul", ["X", "Wq"], ["Q"], name="q_proj"),
+            helper.make_node("MatMul", ["X", "Wk"], ["K"], name="k_proj"),
+            helper.make_node("MatMul", ["X", "Wv"], ["V"], name="v_proj"),
+            helper.make_node("Transpose", ["K"], ["K_t"], perm=[1, 0]),
+            helper.make_node("MatMul", ["Q", "K_t"], ["scores"], name="attn_scores"),
+            helper.make_node("Softmax", ["scores"], ["probs"], axis=-1),
+            helper.make_node("MatMul", ["probs", "V"], ["context"], name="attn_context"),
+            helper.make_node("MatMul", ["context", "Wo"], ["Y"], name="o_proj"),
+        ]
+        graph = helper.make_graph(
+            nodes,
+            "single_head_attention",
+            [helper.make_tensor_value_info("X", TensorProto.FLOAT, [seq_len, hidden_size])],
+            [helper.make_tensor_value_info("Y", TensorProto.FLOAT, [seq_len, hidden_size])],
+            initializer=weights,
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+        model.ir_version = 9
+        onnx_save(model, model_path.as_posix())
+
+    @parameterized.expand(
+        [
+            ("ort_default", None, {"q_proj", "k_proj", "v_proj", "o_proj"}),
+            ("const_b_only", True, {"q_proj", "k_proj", "v_proj", "o_proj"}),
+            (
+                "all_matmuls",
+                False,
+                {"q_proj", "k_proj", "v_proj", "o_proj", "attn_scores", "attn_context"},
+            ),
+        ]
+    )
+    def test_dynamic_quantization_matmul_const_b_only(self, _, matmul_const_b_only, expected_quantized_matmuls):
+        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False, per_channel=True)
+        qconfig.matmul_const_b_only = matmul_const_b_only
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model_path = Path(tmp_dir).joinpath("model.onnx")
+            self._create_single_head_attention_model(model_path)
+            output_dir = Path(tmp_dir).joinpath("quantized")
+
+            quantizer = ORTQuantizer(model_path)
+            quantizer.quantize(save_dir=output_dir, quantization_config=qconfig)
+            ort_config = ORTConfig.from_pretrained(output_dir)
+            self.assertEqual(ort_config.to_dict(), ORTConfig(quantization=qconfig).to_dict())
+
+            quantized_model = onnx_load(output_dir.joinpath("model_quantized.onnx"))
+            float_matmuls = {node.name for node in quantized_model.graph.node if node.op_type == "MatMul"}
+            num_matmul_integer = sum(node.op_type == "MatMulInteger" for node in quantized_model.graph.node)
+            self.assertEqual(num_matmul_integer, len(expected_quantized_matmuls))
+            self.assertEqual(
+                float_matmuls,
+                {"q_proj", "k_proj", "v_proj", "o_proj", "attn_scores", "attn_context"} - expected_quantized_matmuls,
+            )
+
+            if matmul_const_b_only is None:
+                # Same nodes as onnxruntime's own dynamic quantization with its default options
+                ort_quantized_path = Path(tmp_dir).joinpath("model_ort_quantized.onnx")
+                quantize_dynamic(model_path, ort_quantized_path, per_channel=True, weight_type=QuantType.QInt8)
+                ort_quantized_model = onnx_load(ort_quantized_path.as_posix())
+                self.assertEqual(
+                    sorted(node.op_type for node in quantized_model.graph.node),
+                    sorted(node.op_type for node in ort_quantized_model.graph.node),
+                )
             gc.collect()
 
 

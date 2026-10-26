@@ -379,6 +379,10 @@ class ORTQuantizer(OptimumQuantizer):
                 "AddQDQPairToWeight": quantization_config.qdq_add_pair_to_weight,
                 "DedicatedQDQPair": quantization_config.qdq_dedicated_pair,
                 "QDQOpTypePerChannelSupportToAxis": quantization_config.qdq_op_type_per_channel_support_to_axis,
+                # Same default as onnxruntime's quantize_dynamic / quantize_static: True for dynamic, False for static
+                "MatMulConstBOnly": quantization_config.matmul_const_b_only
+                if quantization_config.matmul_const_b_only is not None
+                else not quantization_config.is_static,
             },
         }
 

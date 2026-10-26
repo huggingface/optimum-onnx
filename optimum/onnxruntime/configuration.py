@@ -266,6 +266,10 @@ class QuantizationConfig:
         qdq_op_type_per_channel_support_to_axis (`Dict[str, int]`):
             Set the channel axis for a specific operator type. Effective only when per channel quantization is
             supported and `per_channel` is set to True.
+        matmul_const_b_only (`Optional[bool]`, defaults to `None`):
+            Whether to only quantize MatMul nodes whose second input (B) is a constant (i.e. a weight), leaving
+            activation x activation MatMuls (e.g. attention scores) in floating point. When `None`, the ONNX Runtime
+            default is used: `True` for dynamic quantization and `False` for static quantization.
     """
 
     is_static: bool
@@ -285,6 +289,7 @@ class QuantizationConfig:
     qdq_op_type_per_channel_support_to_axis: dict[str, int] = field(
         default_factory=lambda: ORT_DEFAULT_CHANNEL_FOR_OPERATORS
     )
+    matmul_const_b_only: bool | None = None
 
     def __post_init__(self):
         ensure_valid_mode_or_raise(self.is_static, self.mode)
