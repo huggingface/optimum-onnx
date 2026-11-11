@@ -295,6 +295,18 @@ class CamembertOnnxConfig(DistilBertOnnxConfig):
     pass
 
 
+@register_tasks_manager_onnx(
+    "eurobert",
+    *["feature-extraction", "fill-mask", "text-classification", "token-classification"],
+)
+class EuroBertOnnxConfig(DistilBertOnnxConfig):
+    # EuroBERT is natively available in transformers starting with 5.3. Same inputs as DistilBert: `position_ids`
+    # are not model inputs, the model builds them from the sequence length.
+    MIN_TRANSFORMERS_VERSION = version.parse("5.3.0")
+    # Hidden states reach magnitudes of ~50 on real checkpoints, so float32 noise alone exceeds the default 1e-5.
+    ATOL_FOR_VALIDATION = 3e-4
+
+
 @register_tasks_manager_onnx("flaubert", *COMMON_TEXT_TASKS)
 class FlaubertOnnxConfig(BertOnnxConfig):
     pass
