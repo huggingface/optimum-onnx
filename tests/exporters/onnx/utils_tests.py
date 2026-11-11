@@ -13,6 +13,9 @@
 # limitations under the License.
 
 
+from optimum.utils.import_utils import is_transformers_version
+
+
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
     "sequence_length": [8, 33, 96, 154],
@@ -248,6 +251,15 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
     },
 }
+
+# EuroBERT is natively available in transformers starting with 5.3
+if is_transformers_version(">=", "5.3"):
+    PYTORCH_EXPORT_MODELS_TINY["eurobert"] = {
+        "hf-tiny-v2/tiny-random-EuroBertModel": ["feature-extraction"],
+        "hf-tiny-v2/tiny-random-EuroBertForMaskedLM": ["fill-mask"],
+        "hf-tiny-v2/tiny-random-EuroBertForSequenceClassification": ["text-classification"],
+        "hf-tiny-v2/tiny-random-EuroBertForTokenClassification": ["token-classification"],
+    }
 
 PYTORCH_EXPORT_MODELS_TINY_DYNAMO = {
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
