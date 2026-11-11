@@ -13,6 +13,9 @@
 # limitations under the License.
 
 
+from optimum.utils.import_utils import is_transformers_version
+
+
 VALIDATE_EXPORT_ON_SHAPES_SLOW = {
     "batch_size": [1, 3, 5],
     "sequence_length": [8, 33, 96, 154],
@@ -248,6 +251,19 @@ PYTORCH_EXPORT_MODELS_TINY = {
         ],
     },
 }
+
+# EuroBERT is natively available in transformers starting with 5.3. Like `bert`, one tiny base checkpoint serves every
+# task: the head weights it lacks are randomly initialised once per export, and the export is validated against that
+# same in-memory model.
+if is_transformers_version(">=", "5.3"):
+    PYTORCH_EXPORT_MODELS_TINY["eurobert"] = {
+        "optimum-intel-internal-testing/tiny-random-EuroBertModel": [
+            "feature-extraction",
+            "fill-mask",
+            "text-classification",
+            "token-classification",
+        ],
+    }
 
 PYTORCH_EXPORT_MODELS_TINY_DYNAMO = {
     "convbert": "hf-internal-testing/tiny-random-ConvBertModel",
