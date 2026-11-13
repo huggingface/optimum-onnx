@@ -307,7 +307,7 @@ Optimum allows for advanced users a finer-grained control over the configuration
 To support these use cases, [`~exporters.main_export`] supports two arguments: `model_kwargs` and `custom_onnx_configs`, which are used in the following fashion:
 
 * `model_kwargs` allows to override some of the default arguments to the models `forward`, in practice as `model(**reference_model_inputs, **model_kwargs)`.
-* `custom_onnx_configs` should be a `Dict[str, OnnxConfig]`, mapping from the submodel name (usually `model`, `encoder_model`, `decoder_model`, or `decoder_model_with_past` - [reference](https://github.com/huggingface/optimum/blob/main/optimum/exporters/onnx/constants.py)) to a custom ONNX configuration for the given submodel.
+* `custom_onnx_configs` should be a `Dict[str, OnnxConfig]`, mapping from the submodel name (usually `model`, `encoder_model`, `decoder_model`, or `decoder_model_with_past` - [reference](https://github.com/huggingface/optimum-onnx/blob/main/optimum/exporters/onnx/constants.py)) to a custom ONNX configuration for the given submodel.
 
 A complete example is given below, allowing to export models with `output_attentions=True`.
 
