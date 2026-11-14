@@ -16,6 +16,7 @@ import tempfile
 import unittest
 from typing import Optional
 
+import numpy as np
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from onnxruntime import InferenceSession, SessionOptions
@@ -543,6 +544,61 @@ class ORTModelForCausalLMIntegrationTest(ORTModelTestMixin):
         self.compare_logits(inputs, outputs, onnx_outputs, onnx_model=onnx_model, use_cache=use_cache)
         if model_arch == "arcee":
             self.ATOL = atol
+
+    @parameterized.expand(
+        grid_parameters(
+            {"model_arch": ["gpt2", "opt"], "use_cache": [False, True], "explicit_positions": [False, True]}
+        )
+    )
+    def test_numpy_forward(self, test_name: str, model_arch: str, use_cache: bool, explicit_positions: bool):
+        setup_args = {
+            "test_name": f"numpy_forward_{model_arch}_{use_cache}",
+            "model_arch": model_arch,
+            "use_cache": use_cache,
+        }
+        self._setup(setup_args)
+        model = self.get_onnx_model(**setup_args, use_io_binding=False)
+        inputs = self.get_inputs(model_arch)
+
+        def position_ids(attention_mask):
+            if model_arch == "opt":
+                positions = attention_mask.cumsum(-1) - 1
+                return positions.masked_fill(attention_mask == 0, -1)
+            return torch.arange(attention_mask.shape[1]).unsqueeze(0).expand(attention_mask.shape[0], -1)
+
+        def compare_outputs(numpy_outputs, torch_outputs):
+            self.assertIsInstance(numpy_outputs.logits, np.ndarray)
+            np.testing.assert_allclose(
+                numpy_outputs.logits, torch_outputs.logits.numpy(), atol=self.ATOL, rtol=self.RTOL
+            )
+            if use_cache:
+                self.assertEqual(len(numpy_outputs.past_key_values), len(torch_outputs.past_key_values))
+                for numpy_layer, torch_layer in zip(numpy_outputs.past_key_values, torch_outputs.past_key_values):
+                    for numpy_state, torch_state in zip(numpy_layer, torch_layer):
+                        self.assertIsInstance(numpy_state, np.ndarray)
+                        np.testing.assert_allclose(numpy_state, torch_state.numpy(), atol=self.ATOL, rtol=self.RTOL)
+
+        if explicit_positions:
+            inputs["position_ids"] = position_ids(inputs["attention_mask"])
+        torch_outputs = model(**inputs)
+        numpy_outputs = model(**{name: value.numpy() for name, value in inputs.items()})
+        compare_outputs(numpy_outputs, torch_outputs)
+
+        if use_cache:
+            next_inputs = {
+                "input_ids": torch_outputs.logits[:, -1:].argmax(-1),
+                "attention_mask": torch.cat(
+                    [inputs["attention_mask"], torch.ones_like(inputs["attention_mask"][:, :1])], dim=1
+                ),
+            }
+            if explicit_positions:
+                next_inputs["position_ids"] = position_ids(next_inputs["attention_mask"])[:, -1:]
+            torch_next = model(**next_inputs, past_key_values=torch_outputs.past_key_values)
+            numpy_next = model(
+                **{name: value.numpy() for name, value in next_inputs.items()},
+                past_key_values=numpy_outputs.past_key_values,
+            )
+            compare_outputs(numpy_next, torch_next)
 
     # Generation is slow without pkv, and we do compare with/without pkv in a different test, so we only test use_cache=True
     @parameterized.expand(grid_parameters({"model_arch": SUPPORTED_ARCHITECTURES, "use_cache": [True]}))
