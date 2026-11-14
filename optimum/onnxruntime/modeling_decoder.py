@@ -21,6 +21,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 from transformers import AutoModelForCausalLM, GenerationConfig
@@ -28,6 +29,7 @@ from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from onnxruntime import InferenceSession, SessionOptions
+from onnxruntime.transformers.io_binding_helper import TypeHelper
 from optimum.exporters.onnx import MODEL_TYPES_REQUIRING_POSITION_IDS, main_export
 from optimum.exporters.tasks import TasksManager
 from optimum.onnxruntime.constants import (
@@ -300,7 +302,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 if attention_mask is not None:
                     # OPT models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
-                    position_ids.masked_fill_(attention_mask == 0, -1)
+                    if use_torch:
+                        position_ids.masked_fill_(attention_mask == 0, -1)
+                    else:
+                        position_ids = np.where(attention_mask == 0, -1, position_ids)
                     position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
@@ -311,7 +316,10 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 if attention_mask is not None:
                     # GPT BigCode models use a different way to infer position_ids from attention_mask
                     position_ids = attention_mask.cumsum(-1) - 1
-                    position_ids.masked_fill_(attention_mask == 0, 1)
+                    if use_torch:
+                        position_ids.masked_fill_(attention_mask == 0, 1)
+                    else:
+                        position_ids = np.where(attention_mask == 0, 1, position_ids)
                     position_ids = position_ids[:, past_seq_len:]
                 else:
                     raise ValueError(
@@ -320,17 +328,25 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                     )
             else:
                 # Create position_ids from input_ids
-                position_ids = (
-                    torch.arange(past_seq_len, out_seq_len, dtype=torch.long, device=input_ids.device)
-                    .unsqueeze(0)
-                    .expand(batch_size, -1)
-                )
+                if use_torch:
+                    position_ids = (
+                        torch.arange(past_seq_len, out_seq_len, dtype=torch.long, device=input_ids.device)
+                        .unsqueeze(0)
+                        .expand(batch_size, -1)
+                    )
+                else:
+                    position_ids = np.broadcast_to(
+                        np.arange(past_seq_len, out_seq_len, dtype=np.int64), (batch_size, in_seq_len)
+                    )
 
         use_cache_branch = None
         if self.is_merged:
             # NOTE: This needs to be evaluated here before creating dummy past_key_values in the following block
             # Uses cache branch of merged decoders depending on whether real past key values are passed
-            use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
+            if use_torch:
+                use_cache_branch = torch.full((1,), past_key_values is not None, dtype=torch.bool, device=self.device)
+            else:
+                use_cache_branch = np.full((1,), past_key_values is not None, dtype=bool)
 
         if len(self.key_value_input_names) > 0 and past_key_values is None:
             # Generates the input pkv for the first forward of the model (merged or with past)
@@ -347,8 +363,13 @@ class ORTModelForCausalLM(ORTModel, GenerationMixin):
                 v_shape = (batch_size, self.num_key_value_heads, 0, self.v_head_dim)
             else:
                 k_shape = v_shape = (batch_size, self.num_key_value_heads, 0, self.embed_size_per_head)
-            k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
-            v_tensor = torch.zeros(v_shape, dtype=self.dtype, device=self.device)
+            if use_torch:
+                k_tensor = torch.zeros(k_shape, dtype=self.dtype, device=self.device)
+                v_tensor = torch.zeros(v_shape, dtype=self.dtype, device=self.device)
+            else:
+                dtype = TypeHelper.ort_type_to_numpy_type(self.input_dtypes[self.key_value_input_names[0]])
+                k_tensor = np.zeros(k_shape, dtype=dtype)
+                v_tensor = np.zeros(v_shape, dtype=dtype)
             past_key_values = tuple(k_tensor if ".key" in name else v_tensor for name in self.key_value_input_names)
         elif isinstance(past_key_values, tuple) and isinstance(past_key_values[0], tuple):
             # Flattens the past_key_values to a single tuple if it is a tuple of tuples
