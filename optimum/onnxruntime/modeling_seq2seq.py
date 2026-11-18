@@ -42,6 +42,17 @@ from transformers.file_utils import add_end_docstrings, add_start_docstrings_to_
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from transformers.models.auto.modeling_auto import MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
 
+
+try:
+    from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES
+except ImportError:
+    MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = None
+
+try:
+    from transformers.models.auto.modeling_auto import MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES
+except ImportError:
+    MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES = None
+
 from onnxruntime import InferenceSession, SessionOptions
 from optimum.exporters.onnx import main_export
 from optimum.exporters.tasks import TasksManager
@@ -1463,6 +1474,14 @@ class ORTModelForVision2Seq(ORTModelForConditionalGeneration):
     auto_model_class = AutoModelForVision2Seq
 
     _ort_encoder_class = ORTEncoderForVision
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        mapping_key = f"ort_{self.__class__.__name__.lower()}"
+        if MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES is not None:
+            MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES[mapping_key] = self.__class__.__name__
+        if MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES is not None:
+            MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES[mapping_key] = self.__class__.__name__
 
     @classmethod
     def _from_pretrained(cls, model_id: str | Path, config: PretrainedConfig, **kwargs):

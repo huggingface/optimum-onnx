@@ -68,6 +68,7 @@ if is_onnxruntime_available():
         "image-classification": (ORTModelForImageClassification,),
         "image-segmentation": (ORTModelForSemanticSegmentation,),  # TODO: we need to add ORTModelForImageSegmentation
         "image-to-image": (ORTModelForImageToImage,),
+        "image-text-to-text": (ORTModelForVision2Seq,),
         "image-to-text": (ORTModelForVision2Seq,),
         "question-answering": (ORTModelForQuestionAnswering,),
         "summarization": (ORTModelForSeq2SeqLM,),
