@@ -89,6 +89,50 @@ class OnnxMergingTestCase(TestCase):
             # ONNX Runtime does additional validity checks compared to onnx.checker.check_model
             InferenceSession(merged_path, providers=["CPUExecutionProvider"])
 
+    def test_merge_decoders_with_zero_sized_output_dimension(self):
+        float_type = onnx.TensorProto.FLOAT
+        hidden = onnx.helper.make_tensor_value_info("hidden", float_type, [1])
+        logits = onnx.helper.make_tensor_value_info("logits", float_type, [1])
+        cache = onnx.helper.make_tensor_value_info("cache", float_type, [0, "sequence"])
+        empty_cache = onnx.helper.make_tensor("empty_cache", float_type, [0, 2], [])
+        opsets = [onnx.helper.make_opsetid("", 17)]
+
+        decoder = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Identity", ["hidden"], ["logits"]),
+                    onnx.helper.make_node("Constant", [], ["cache"], value=empty_cache),
+                ],
+                "decoder",
+                [hidden],
+                [logits, cache],
+            ),
+            opset_imports=opsets,
+        )
+        decoder_with_past = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [onnx.helper.make_node("Neg", ["hidden"], ["logits"])],
+                "decoder_with_past",
+                [hidden],
+                [logits],
+            ),
+            opset_imports=opsets,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            merged_path = Path(tmpdir) / "merged.onnx"
+            merge_decoders(decoder, decoder_with_past, save_path=merged_path, strict=False)
+            session = InferenceSession(merged_path, providers=["CPUExecutionProvider"])
+
+            for use_cache, expected_logit, expected_cache_shape in [(False, 3.0, (0, 2)), (True, -3.0, (0, 0))]:
+                with self.subTest(use_cache=use_cache):
+                    logits_output, cache_output = session.run(
+                        None,
+                        {"hidden": np.array([3.0], dtype=np.float32), "use_cache_branch": np.array([use_cache])},
+                    )
+                    np.testing.assert_array_equal(logits_output, np.array([expected_logit], dtype=np.float32))
+                    self.assertEqual(cache_output.shape, expected_cache_shape)
+
 
 class OnnxToInt32Test(TestCase):
     def test_to_int32(self):
