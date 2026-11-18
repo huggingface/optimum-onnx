@@ -123,7 +123,7 @@ def _infer_output_shape(output: onnx.ValueInfoProto):
     for dim in output.type.tensor_type.shape.dim:
         if dim.dim_param:
             output_shape.append(dim.dim_param)
-        elif dim.dim_value:
+        elif dim.HasField("dim_value"):
             output_shape.append(dim.dim_value)
         else:
             raise ValueError("Cannot find `dim_param` nor `dim_value` in the output dimension info.")
