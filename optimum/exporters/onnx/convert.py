@@ -41,6 +41,7 @@ from optimum.exporters.error_utils import AtolError, MinimumVersionError, Output
 from optimum.exporters.onnx.base import OnnxConfig
 from optimum.exporters.onnx.constants import UNPICKABLE_ARCHS
 from optimum.exporters.onnx.model_configs import SpeechT5OnnxConfig
+from optimum.exporters.onnx.validation_report import log_earlier_validation_errors
 from optimum.exporters.onnx.utils import (
     PickableInferenceSession,
     _get_submodels_and_onnx_configs,
@@ -165,8 +166,7 @@ def validate_models_outputs(
             exceptions.append((onnx_model_path, e))
 
     if len(exceptions) != 0:
-        for i, exception in enumerate(exceptions[:-1]):
-            logger.error(f"Validation for the model {exception[0].as_posix()} raised: {exception[i]}")
+        log_earlier_validation_errors(exceptions)
         raise exceptions[-1][1]
 
 
