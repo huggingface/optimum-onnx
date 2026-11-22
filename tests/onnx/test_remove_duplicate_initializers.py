@@ -25,6 +25,7 @@ def test_scalar_initializer_is_kept():
     model = _model(
         [constant],
         [onnx.helper.make_node("Identity", ["constant"], ["output"])],
+        outputs=[onnx.helper.make_tensor_value_info("output", onnx.TensorProto.FLOAT, [])],
     )
     updated = remove_duplicate_weights(model)
     assert [item.name for item in updated.graph.initializer] == ["constant"]
