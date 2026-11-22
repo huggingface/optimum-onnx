@@ -106,11 +106,18 @@ def _replace_input_names(models: list[onnx.ModelProto], name_sharing_dict: dict[
 
 
 def _remove_redundant_initializers(models: list[onnx.ModelProto], name_sharing_dict: dict[tuple[str, int], str]):
-    """TODO: short documentation."""
-    to_pop = []
+    """Drop initializers that were remapped onto a shared name.
+
+    Scalar initializers and 1-D int32/int64 initializers are left out of
+    ``name_sharing_dict`` by ``_find_duplicate_initializers``. Those entries
+    stay in the graph. ``to_pop`` is per model so a later model cannot reuse
+    indices from an earlier one.
+    """
     for i in range(len(models)):
+        to_pop = []
         for idx, initializer in enumerate(models[i].graph.initializer):
-            if initializer.name != name_sharing_dict[(initializer.name, i)]:
+            shared_name = name_sharing_dict.get((initializer.name, i))
+            if shared_name is not None and initializer.name != shared_name:
                 to_pop.append(idx)
 
         for idx in sorted(to_pop, reverse=True):
