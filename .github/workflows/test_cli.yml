@@ -19,8 +19,12 @@ env:
   TRANSFORMERS_IS_CI: true
   HF_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
 
+permissions: {}
+
 jobs:
   build:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
