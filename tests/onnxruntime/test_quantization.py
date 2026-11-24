@@ -123,6 +123,27 @@ class ORTDynamicQuantizationTest(unittest.TestCase):
             self.assertEqual(expected_quantized_matmuls, num_quantized_matmul)
             gc.collect()
 
+    @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_QUANTIZED_MATMULS)
+    def test_dynamic_quantization_only_quantizes_constant_matmul_weights(
+        self, model_cls, model_name, expected_quantized_matmuls
+    ):
+        # Like onnxruntime's `quantize_dynamic`, dynamic quantization must leave MatMuls whose second input is not a
+        # constant (e.g. attention scores) in float: no MatMulInteger may take a runtime-quantized B input.
+        qconfig = AutoQuantizationConfig.avx512(is_static=False, per_channel=False)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir)
+            model = model_cls.from_pretrained(model_name, export=True)
+            model.save_pretrained(tmp_dir)
+            ORTQuantizer.from_pretrained(model).quantize(save_dir=output_dir, quantization_config=qconfig)
+
+            graph = onnx_load(output_dir.joinpath("model_quantized.onnx")).graph
+            initializers = {initializer.name for initializer in graph.initializer}
+            matmul_integer_nodes = [node for node in graph.node if node.op_type == "MatMulInteger"]
+            self.assertGreater(len(matmul_integer_nodes), 0)
+            for node in matmul_integer_nodes:
+                self.assertIn(node.input[1], initializers, f"{node.name} quantizes a non-constant B input")
+            gc.collect()
+
     # NOTE: Will be fixed in 1.17.1, reference: https://github.com/microsoft/onnxruntime/pull/19421
     @unittest.skipIf(parse(ort_version) == Version("1.17.0"), "not supported with this onnxruntime version")
     def test_dynamic_quantization_subgraphs(self):
